@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+/* LUMORA design tokens.
+   Source of truth: PRD_LUMORA_NEXTJS.md sections 8.1 to 8.5. Two PRD values had
+   to be adjusted to pass WCAG AA. Both were measured with the antislop contrast
+   checker rather than judged by eye, and both are noted below.
+
+   - --lumora-accent-strong (#0F7A25) exists because the PRD green #16BB37
+     measures 2.56:1 against white in both directions (white text on it, and it
+     as text on white), which fails AA. #0F7A25 measures 5.48:1 both ways, so it
+     is the only green allowed for text and for button backgrounds.
+   - --lumora-border-strong (#849488) exists because #E5EAE6 measures 1.22:1
+     against white, far under the 3:1 that WCAG 1.4.11 asks of a form control
+     edge. #E5EAE6 stays in use for decorative card and divider borders, where
+     the card is also separated by its surface and shadow.
+   - #16BB37 is kept, restricted to large fills on dark backgrounds, where it
+     measures 4.75:1 on forest.
+
+   Palette size check (R-29): one core dark (forest), one accent green split into
+   a light and a dark register for contrast, plus neutrals. No third hue. */
+
+:root {
+  /* core */
+  --lumora-forest: #0f3d2e;
+  --lumora-forest-deep: #0b3024;
+  --lumora-green: #16bb37;
+  --lumora-accent-strong: #0f7a25;
+  --lumora-mint: #a7e3b0;
+
+  /* neutrals */
+  --lumora-background: #f6f9f6;
+  --lumora-surface: #ffffff;
+  --lumora-text: #17212b;
+  --lumora-muted: #667085;
+  --lumora-border: #e5eae6;
+  --lumora-border-strong: #849488;
+
+  /* Focus ring reuses the accent: 5.48:1 on white and 5.17:1 on the page
+     background, so it stays visible in every context this site ships. */
+  --lumora-focus: #0f7a25;
+}
+
+@theme inline {
+  --color-background: var(--lumora-background);
+  --color-surface: var(--lumora-surface);
+  --color-forest: var(--lumora-forest);
+  --color-forest-deep: var(--lumora-forest-deep);
+  --color-green: var(--lumora-green);
+  --color-accent: var(--lumora-accent-strong);
+  --color-mint: var(--lumora-mint);
+  --color-ink: var(--lumora-text);
+  --color-muted: var(--lumora-muted);
+  --color-line: var(--lumora-border);
+  --color-line-strong: var(--lumora-border-strong);
+
+  /* Geist leads because the PRD chose it and it ships with Next.js, so it costs
+     no extra network request. Inter is the fallback the PRD names for the case
+     where Geist has not loaded yet. */
+  --font-sans: var(--font-geist-sans), var(--font-inter), ui-sans-serif, system-ui,
+    sans-serif;
+
+  /* Fluid type scale, PRD 8.3. clamp() is used so headings scale with the
+     viewport instead of being fixed at a desktop size on a phone. */
+  --text-hero: clamp(2.25rem, 1.4rem + 3.8vw, 4.5rem);
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.03em;
+
+  --text-section: clamp(1.75rem, 1.25rem + 2.2vw, 3.25rem);
+  --text-section--line-height: 1.12;
+  --text-section--letter-spacing: -0.02em;
+
+  --text-card-title: clamp(1.125rem, 1rem + 0.5vw, 1.5rem);
+  --text-card-title--line-height: 1.3;
+
+  --text-lead: clamp(1rem, 0.95rem + 0.4vw, 1.125rem);
+  --text-lead--line-height: 1.65;
+
+  /* Elevation, PRD 8.5. Two levels only, so elevation keeps meaning: lift marks
+     an interactive card, panel marks a product mockup raised above the page. */
+  --shadow-lift: 0 1px 2px rgba(15, 61, 46, 0.06), 0 8px 24px rgba(15, 61, 46, 0.06);
+  --shadow-panel: 0 20px 60px rgba(15, 61, 46, 0.1);
+}
+
+html {
+  /* The navbar is sticky, so anchors need offset or they land under it. */
+  scroll-padding-top: 5.5rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  background: var(--lumora-background);
+  color: var(--lumora-text);
+  font-family: var(--font-sans);
+}
+
+/* One focus treatment for the whole site, so no component has to reinvent it and
+   none can drop it. outline is never removed without this replacement (R-32). */
+:focus-visible {
+  outline: 2px solid var(--lumora-focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* One-time entrance for the hero's layered cards.
+   Reason: the PRD asks for a premium, product-first hero, and a short rise gives
+   the layers an order to arrive in. It runs once and stops. An endless float
+   would be motion with no trigger, which R-19 rejects, so nothing here loops.
+   The prefers-reduced-motion block at the bottom of this file collapses the
+   duration, so the reduced-motion path lands on the final state instantly. */
+@keyframes lumora-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise-in {
+  animation: lumora-rise 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
