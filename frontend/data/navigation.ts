@@ -6,12 +6,11 @@ export interface NavItem {
 }
 
 export const primaryNav: NavItem[] = [
-  { label: "Beranda", href: `#${SECTION_IDS.hero}` },
-  { label: "Jelajahi UMKM", href: `#${SECTION_IDS.businesses}` },
-  { label: "Cara Kerja", href: `#${SECTION_IDS.howItWorks}` },
-  { label: "Fitur", href: `#${SECTION_IDS.ai}` },
-  { label: "Tentang", href: `#${SECTION_IDS.about}` },
-  { label: "FAQ", href: `#${SECTION_IDS.faq}` },
+  { label: "Jelajahi Bisnis", href: ROUTES.explore },
+  { label: "Cara Kerja", href: ROUTES.howItWorks },
+  { label: "Untuk UMKM", href: ROUTES.forBusiness },
+  { label: "Untuk Mitra", href: ROUTES.forPartners },
+  { label: "Tentang", href: ROUTES.about },
 ];
 
 export interface FooterColumn {

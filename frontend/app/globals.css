@@ -20,24 +20,19 @@
    a light and a dark register for contrast, plus neutrals. No third hue. */
 
 :root {
-  /* core */
-  --lumora-forest: #0f3d2e;
-  --lumora-forest-deep: #0b3024;
-  --lumora-green: #16bb37;
-  --lumora-accent-strong: #0f7a25;
-  --lumora-mint: #a7e3b0;
+  --lumora-forest: #173f32;
+  --lumora-forest-deep: #0d2d23;
+  --lumora-green: #b7dc72;
+  --lumora-accent-strong: #245f45;
+  --lumora-mint: #dcebc9;
 
-  /* neutrals */
-  --lumora-background: #f6f9f6;
-  --lumora-surface: #ffffff;
-  --lumora-text: #17212b;
-  --lumora-muted: #667085;
-  --lumora-border: #e5eae6;
-  --lumora-border-strong: #849488;
-
-  /* Focus ring reuses the accent: 5.48:1 on white and 5.17:1 on the page
-     background, so it stays visible in every context this site ships. */
-  --lumora-focus: #0f7a25;
+  --lumora-background: #f5f2e9;
+  --lumora-surface: #fffdf8;
+  --lumora-text: #18332a;
+  --lumora-muted: #56675f;
+  --lumora-border: #d9ddd3;
+  --lumora-border-strong: #718079;
+  --lumora-focus: #173f32;
 }
 
 @theme inline {
@@ -53,11 +48,8 @@
   --color-line: var(--lumora-border);
   --color-line-strong: var(--lumora-border-strong);
 
-  /* Geist leads because the PRD chose it and it ships with Next.js, so it costs
-     no extra network request. Inter is the fallback the PRD names for the case
-     where Geist has not loaded yet. */
-  --font-sans: var(--font-geist-sans), var(--font-inter), ui-sans-serif, system-ui,
-    sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-lora), Georgia, serif;
 
   /* Fluid type scale, PRD 8.3. clamp() is used so headings scale with the
      viewport instead of being fixed at a desktop size on a phone. */
@@ -75,10 +67,8 @@
   --text-lead: clamp(1rem, 0.95rem + 0.4vw, 1.125rem);
   --text-lead--line-height: 1.65;
 
-  /* Elevation, PRD 8.5. Two levels only, so elevation keeps meaning: lift marks
-     an interactive card, panel marks a product mockup raised above the page. */
-  --shadow-lift: 0 1px 2px rgba(15, 61, 46, 0.06), 0 8px 24px rgba(15, 61, 46, 0.06);
-  --shadow-panel: 0 20px 60px rgba(15, 61, 46, 0.1);
+  --shadow-lift: 0 1px 2px rgba(23, 63, 50, 0.06), 0 12px 28px rgba(23, 63, 50, 0.08);
+  --shadow-panel: 0 24px 70px rgba(13, 45, 35, 0.16);
 }
 
 html {
@@ -97,6 +87,26 @@ body {
   background: var(--lumora-background);
   color: var(--lumora-text);
   font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--lumora-green);
+  color: var(--lumora-forest-deep);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.editorial-underline {
+  text-decoration-color: var(--lumora-green);
+  text-decoration-thickness: 0.16em;
+  text-underline-offset: 0.16em;
+}
+
+.hero-pattern {
+  background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.03), transparent 48%),
+    radial-gradient(circle at 84% 22%, rgba(183, 220, 114, 0.18), transparent 30%);
 }
 
 /* One focus treatment for the whole site, so no component has to reinvent it and

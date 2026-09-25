@@ -68,7 +68,7 @@ export function MobileNavTrigger({
       aria-expanded={open}
       aria-controls="mobile-menu"
       onClick={onToggle}
-      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-ink transition-colors hover:bg-background lg:hidden"
+      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium text-forest transition-colors hover:bg-forest/[0.055] xl:hidden"
     >
       <svg
         aria-hidden="true"
@@ -90,10 +90,12 @@ export function MobileNavPanel({
   open,
   onClose,
   panelRef,
+  pathname,
 }: {
   open: boolean;
   onClose: () => void;
   panelRef: React.RefObject<HTMLDivElement | null>;
+  pathname: string;
 }) {
   return (
     <div
@@ -101,27 +103,34 @@ export function MobileNavPanel({
       id="mobile-menu"
       hidden={!open}
       className={cn(
-        "fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto bg-surface lg:hidden",
+        "fixed inset-x-0 top-[4.5rem] bottom-0 z-40 overflow-y-auto border-t border-forest/10 bg-[#fffdf8] shadow-[0_18px_40px_rgba(15,61,46,0.08)] xl:hidden",
       )}
     >
       {/* Labelled differently from the desktop nav so screen reader users
           listing landmarks can tell the two apart. */}
-      <nav aria-label="Navigasi utama seluler" className="px-4 py-4">
-        <ul className="flex flex-col">
-          {primaryNav.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                onClick={onClose}
-                className="flex min-h-11 items-center rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-background"
-              >
-                {item.label}
-              </Link>
-            </li>
-          ))}
+      <nav aria-label="Navigasi utama seluler" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+        <ul className="flex flex-col gap-1">
+          {primaryNav.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={onClose}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-12 items-center rounded-xl px-4 text-base font-medium text-forest transition-colors hover:bg-forest/[0.055]",
+                    active && "bg-forest/[0.07] text-forest-deep",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
-        <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4">
+        <div className="mt-6 flex flex-col gap-3 border-t border-forest/10 pt-6">
           <Link
             href={ROUTES.login}
             onClick={onClose}
@@ -130,11 +139,15 @@ export function MobileNavPanel({
             Masuk
           </Link>
           <Link
-            href={ROUTES.register}
+            href={ROUTES.registerUmkm}
             onClick={onClose}
-            className={buttonStyles({ variant: "accent", size: "lg" })}
+            className={buttonStyles({
+              variant: "primary",
+              size: "lg",
+              className: "w-full shadow-[0_4px_12px_rgba(15,61,46,0.14)]",
+            })}
           >
-            Daftar
+            Buat Profil
           </Link>
         </div>
       </nav>

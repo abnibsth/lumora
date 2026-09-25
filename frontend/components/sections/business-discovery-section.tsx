@@ -25,7 +25,7 @@ export function BusinessDiscoverySection() {
         eyebrow={discoverySection.eyebrow}
         title={discoverySection.heading}
         description={discoverySection.description}
-        className="max-w-2xl"
+        className="max-w-3xl [&_h2]:font-display [&_h2]:font-medium"
       />
 
       <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">

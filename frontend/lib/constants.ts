@@ -7,6 +7,10 @@ export const SITE = {
 export const ROUTES = {
   home: "/",
   explore: "/explore",
+  howItWorks: "/how-it-works",
+  forBusiness: "/for-business",
+  forPartners: "/for-partners",
+  about: "/about",
   login: "/login",
   register: "/register",
   registerUmkm: "/register?role=umkm",
@@ -30,6 +34,8 @@ export const SECTION_IDS = {
   showcase: "profil",
   journey: "perjalanan",
   persona: "untuk-siapa",
+  forUmkm: "untuk-umkm",
+  forPartners: "untuk-mitra",
   about: "tentang",
   faq: "faq",
 } as const;

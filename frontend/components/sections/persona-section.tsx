@@ -35,9 +35,14 @@ export function PersonaSection() {
 
           return (
             <div
+              id={
+                card.key === "umkm"
+                  ? SECTION_IDS.forUmkm
+                  : SECTION_IDS.forPartners
+              }
               key={card.key}
               className={cn(
-                "flex flex-col rounded-2xl border bg-surface p-6 sm:p-8",
+                "scroll-mt-24 flex flex-col rounded-2xl border bg-surface p-6 sm:p-8",
                 primary ? "border-forest" : "border-line",
               )}
             >
