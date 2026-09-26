@@ -1,64 +1,38 @@
-import { Badge } from "@/components/ui/badge";
-import { Section } from "@/components/ui/section";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { JourneyList, JourneyStep } from "@/components/ui/journey-line";
+import { Container } from "@/components/ui/container";
 import { businesses } from "@/data/businesses";
 import { journeySection } from "@/data/landing";
 import { SECTION_IDS } from "@/lib/constants";
 
-/**
- * The business journey.
- *
- * This is where the journey-line motif does its actual job. Everywhere else it
- * is an echo; here the content genuinely is a sequence of stops in order, which
- * is why the motif was built instead of a decorative grid.
- *
- * The PRD's stated goal for this section is to make LUMORA feel human and
- * different from an ordinary financial directory, so the timeline is given the
- * space rather than squeezed beside other content, and the milestones are the
- * PRD's own for the demo business.
- *
- * The section is laid out in two columns so its rhythm differs from the centred
- * and full-width sections around it (R-05 rejects a uniform section rhythm).
- */
 export function JourneySection() {
   const business = businesses[0];
   const milestones = business.milestones ?? [];
 
   return (
-    <Section id={SECTION_IDS.journey}>
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-16">
-        <div>
-          <SectionHeading
-            title={journeySection.heading}
-            description={journeySection.description}
-            className="max-w-xl"
-          />
+    <section id={SECTION_IDS.journey} className="bg-background py-20 sm:py-28 lg:py-36">
+      <Container>
+        <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">Perjalanan bisnis</p>
+            <h2 className="mt-4 font-display text-section font-medium text-balance text-ink">{journeySection.heading}</h2>
+            <p className="mt-6 max-w-lg leading-8 text-muted">{journeySection.description}</p>
+            <p className="mt-5 text-xs text-muted">{journeySection.note}</p>
+          </div>
 
-          <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-            <Badge tone="demo">Contoh perjalanan</Badge>
-            <span>{journeySection.note}</span>
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-          <p className="text-sm font-semibold text-ink">
-            Perjalanan {business.name}
-          </p>
-
-          {milestones.length > 0 ? (
-            <JourneyList className="mt-6">
-              {milestones.map((milestone) => (
-                <JourneyStep
-                  key={milestone.year}
-                  marker={String(milestone.year)}
-                  title={milestone.title}
-                />
+          <div>
+            <p className="border-b border-line pb-5 text-sm font-semibold text-ink">Perjalanan {business.name}</p>
+            <ol className="relative ml-3 border-l border-line-strong">
+              {milestones.map((milestone, index) => (
+                <li key={`${milestone.year}-${index}`} className="relative py-8 pl-8 sm:py-10 sm:pl-12">
+                  <span className="absolute top-10 -left-[7px] h-3 w-3 rounded-full border-2 border-background bg-forest sm:top-12" />
+                  <p className="font-display text-2xl text-accent sm:text-3xl">{milestone.year}</p>
+                  <h3 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">{milestone.title}</h3>
+                  <p className="mt-3 max-w-lg leading-7 text-muted">{milestone.description}</p>
+                </li>
               ))}
-            </JourneyList>
-          ) : null}
+            </ol>
+          </div>
         </div>
-      </div>
-    </Section>
+      </Container>
+    </section>
   );
 }

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/favicon.ico",
+        destination: "/img/logo.png?v=lumora",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/how-it-works", destination: "/kebijakan-privasi?view=how-it-works" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, useMemo, useState, useSyncExternalStore } from "react";
 import { BusinessCard } from "@/components/business/business-card";
 import { businesses } from "@/data/businesses";
 import { BUSINESS_CATEGORIES, type BusinessCategory } from "@/types/business";
@@ -50,7 +50,7 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
   return (
     <div>
       {full ? (
-        <div className="relative mt-10">
+        <div className="relative">
           <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" strokeWidth="1.7">
             <circle cx="8.5" cy="8.5" r="5.5" />
             <path d="m13 13 4 4" />
@@ -61,8 +61,8 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari nama bisnis, kategori, atau lokasi..."
-            className="min-h-16 w-full rounded-2xl border border-line-strong bg-surface py-4 pl-14 pr-5 text-base text-ink shadow-lift placeholder:text-muted focus:border-forest sm:text-lg"
+            placeholder="Cari bisnis, kategori, atau kota..."
+            className="min-h-16 w-full rounded-xl border border-line-strong bg-surface py-4 pl-14 pr-5 text-base text-ink shadow-[0_8px_24px_rgba(23,63,50,0.06)] placeholder:text-muted focus:border-forest sm:text-lg"
           />
         </div>
       ) : null}
@@ -88,11 +88,21 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
       </div>
 
       {visibleBusinesses.length ? (
-        <ul className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {visibleBusinesses.map((business) => (
-            <li key={business.id}>
-              <BusinessCard business={business} saved={savedSlugs.includes(business.slug)} onToggleSaved={() => toggleSaved(business.slug)} />
-            </li>
+        <ul className="mt-8 grid gap-x-6 gap-y-12 md:grid-cols-2 xl:grid-cols-3">
+          {visibleBusinesses.map((business, index) => (
+            <Fragment key={business.id}>
+              {full && index === 6 ? (
+                <li className="border-y border-line py-10 md:col-span-2 xl:col-span-3">
+                  <p className="text-sm font-medium text-accent">Cerita dari berbagai kota</p>
+                  <p className="mt-3 max-w-2xl font-display text-3xl font-semibold text-ink md:text-4xl">
+                    Usaha lokal tumbuh dengan cara yang berbeda di setiap tempat.
+                  </p>
+                </li>
+              ) : null}
+              <li>
+                <BusinessCard business={business} saved={savedSlugs.includes(business.slug)} onToggleSaved={() => toggleSaved(business.slug)} editorial={full} />
+              </li>
+            </Fragment>
           ))}
         </ul>
       ) : (

@@ -43,13 +43,13 @@ export function Accordion({
   return (
     <div
       className={cn(
-        "divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface",
+        "border-y border-line divide-y divide-line",
         className,
       )}
     >
       {items.map((item) => (
-        <details key={item.question} className="group">
-          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-card-title font-medium text-ink transition-colors hover:bg-background sm:px-6 [&::-webkit-details-marker]:hidden">
+        <details key={item.question} className="group transition-colors open:bg-surface">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-6 px-2 py-5 text-lg font-medium text-ink transition-colors hover:text-accent sm:px-4 sm:py-6 sm:text-xl [&::-webkit-details-marker]:hidden">
             {item.question}
             <span
               aria-hidden="true"
@@ -60,7 +60,7 @@ export function Accordion({
             </span>
           </summary>
 
-          <div className="px-5 pb-5 text-sm text-muted sm:px-6">
+          <div className="max-w-2xl px-2 pb-6 text-sm leading-7 text-muted sm:px-4">
             {item.answer}
           </div>
         </details>

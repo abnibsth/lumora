@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   },
   description:
     "Temukan UMKM Indonesia, pelajari perjalanan usahanya, dan mulai percakapan dengan pemilik bisnis melalui LUMORA.",
+  icons: {
+    icon: "/img/logo.png",
+    shortcut: "/img/logo.png",
+    apple: "/img/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

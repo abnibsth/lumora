@@ -1,73 +1,43 @@
 import Link from "next/link";
-import { BulletList } from "@/components/ui/bullet-list";
+import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
-import { Section } from "@/components/ui/section";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { personaCards, personaSection } from "@/data/landing";
 import { SECTION_IDS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 
-/**
- * The dual persona section: one card per audience, with its own call to action.
- *
- * Hierarchy comes from two things rather than from a second dark block: the UMKM
- * card carries a forest border and the filled accent button, the investor card
- * carries the softer border and the outlined button. The page keeps a single dark
- * moment at the final call to action, and repeating that here would spend it.
- *
- * The card order is deliberate. UMKM is the supply side of the marketplace, so
- * the section leads with it; without businesses there is nothing for an investor
- * to discover.
- */
 export function PersonaSection() {
   return (
-    <Section id={SECTION_IDS.persona}>
-      <SectionHeading
-        align="center"
-        title={personaSection.heading}
-        description={personaSection.description}
-        className="mx-auto max-w-2xl"
-      />
+    <section id={SECTION_IDS.persona} className="bg-surface py-20 sm:py-28 lg:py-32">
+      <Container>
+        <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr] lg:items-end">
+          <p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">Untuk siapa</p>
+          <div>
+            <h2 className="font-display text-section font-medium text-balance text-ink">{personaSection.heading}</h2>
+            <p className="mt-4 max-w-2xl leading-7 text-muted">{personaSection.description}</p>
+          </div>
+        </div>
 
-      <div className="mt-12 grid gap-6 lg:grid-cols-2">
-        {personaCards.map((card) => {
-          const primary = card.key === "umkm";
-
-          return (
-            <div
-              id={
-                card.key === "umkm"
-                  ? SECTION_IDS.forUmkm
-                  : SECTION_IDS.forPartners
-              }
-              key={card.key}
-              className={cn(
-                "scroll-mt-24 flex flex-col rounded-2xl border bg-surface p-6 sm:p-8",
-                primary ? "border-forest" : "border-line",
-              )}
-            >
-              <p className="text-sm font-medium text-accent">{card.audience}</p>
-              <h3 className="mt-2 text-2xl font-semibold text-balance text-ink sm:text-3xl">
-                {card.heading}
-              </h3>
-
-              <BulletList items={card.benefits} className="mt-6 gap-3" />
-
-              <div className="mt-auto pt-8">
-                <Link
-                  href={card.ctaHref}
-                  className={buttonStyles({
-                    variant: primary ? "accent" : "secondary",
-                    size: "lg",
-                  })}
-                >
-                  {card.ctaLabel}
-                </Link>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Section>
+        <div className="mt-12 grid overflow-hidden rounded-2xl lg:grid-cols-2">
+          {personaCards.map((card) => {
+            const primary = card.key === "umkm";
+            return (
+              <article
+                id={primary ? SECTION_IDS.forUmkm : SECTION_IDS.forPartners}
+                key={card.key}
+                className={`scroll-mt-24 flex min-h-[31rem] flex-col p-7 sm:p-10 lg:p-12 ${primary ? "bg-[#e7efea] text-ink" : "bg-forest text-white"}`}
+              >
+                <p className={`text-xs font-semibold tracking-[0.16em] uppercase ${primary ? "text-accent" : "text-green"}`}>{card.audience}</p>
+                <h3 className="mt-4 max-w-md font-display text-3xl font-medium text-balance sm:text-4xl">{card.heading}</h3>
+                <ul className={`mt-8 space-y-4 border-t pt-6 ${primary ? "border-line" : "border-white/20"}`}>
+                  {card.benefits.map((benefit) => <li key={benefit} className="flex gap-3 text-sm leading-6"><span aria-hidden="true">—</span>{benefit}</li>)}
+                </ul>
+                <div className="mt-auto pt-10">
+                  <Link href={card.ctaHref} className={buttonStyles({ variant: primary ? "primary" : "onDark", size: "lg" })}>{card.ctaLabel}</Link>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </Container>
+    </section>
   );
 }
