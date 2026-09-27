@@ -67,7 +67,7 @@ export function BusinessDiscoverySection() {
                   className={`group relative isolate block aspect-[4/3] min-h-0 overflow-hidden rounded-2xl bg-forest text-white sm:aspect-[3/2] ${index === 0 && selected.length > 1 ? "lg:aspect-auto lg:min-h-[39rem]" : ""}`}
                 >
                   <Image
-                    src={business.coverImage}
+                    src={business.coverImage ?? "/img/benner.png"}
                     alt=""
                     fill
                     sizes={index === 0 ? "(min-width: 1024px) 58vw, 100vw" : "(min-width: 1024px) 34vw, 100vw"}
