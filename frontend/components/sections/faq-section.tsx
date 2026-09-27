@@ -1,5 +1,5 @@
+import { Reveal, Section } from "@/components/ui/section";
 import { Accordion } from "@/components/ui/accordion";
-import { Section } from "@/components/ui/section";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { faqItems } from "@/data/faq";
 import { faqSection } from "@/data/landing";
@@ -17,14 +17,18 @@ import { SECTION_IDS } from "@/lib/constants";
 export function FaqSection() {
   return (
     <Section id={SECTION_IDS.faq}>
-      <SectionHeading
-        align="center"
-        title={faqSection.heading}
-        description={faqSection.description}
-        className="mx-auto max-w-2xl"
-      />
+      <Reveal>
+        <SectionHeading
+          align="center"
+          title={faqSection.heading}
+          description={faqSection.description}
+          className="mx-auto max-w-2xl"
+        />
+      </Reveal>
 
-      <Accordion className="mx-auto mt-10 max-w-3xl" items={faqItems} />
+      <Reveal delay={0.08}>
+        <Accordion className="mx-auto mt-10 max-w-3xl" items={faqItems} />
+      </Reveal>
     </Section>
   );
 }

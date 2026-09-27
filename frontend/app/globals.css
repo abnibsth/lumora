@@ -1,74 +1,66 @@
 @import "tailwindcss";
 
-/* LUMORA design tokens.
-   Source of truth: PRD_LUMORA_NEXTJS.md sections 8.1 to 8.5. Two PRD values had
-   to be adjusted to pass WCAG AA. Both were measured with the antislop contrast
-   checker rather than judged by eye, and both are noted below.
-
-   - --lumora-accent-strong (#0F7A25) exists because the PRD green #16BB37
-     measures 2.56:1 against white in both directions (white text on it, and it
-     as text on white), which fails AA. #0F7A25 measures 5.48:1 both ways, so it
-     is the only green allowed for text and for button backgrounds.
-   - --lumora-border-strong (#849488) exists because #E5EAE6 measures 1.22:1
-     against white, far under the 3:1 that WCAG 1.4.11 asks of a form control
-     edge. #E5EAE6 stays in use for decorative card and divider borders, where
-     the card is also separated by its surface and shadow.
-   - #16BB37 is kept, restricted to large fills on dark backgrounds, where it
-     measures 4.75:1 on forest.
-
-   Palette size check (R-29): one core dark (forest), one accent green split into
-   a light and a dark register for contrast, plus neutrals. No third hue. */
-
+/* Semantic LUMORA tokens exposed through Tailwind CSS 4.
+   Compatibility aliases remain available while existing components migrate to
+   the clearer ivory, lime, soft-green, soft-border, and deep-forest names. */
 :root {
-  --lumora-forest: #173f32;
-  --lumora-forest-deep: #0d2d23;
-  --lumora-green: #b7dc72;
-  --lumora-accent-strong: #245f45;
-  --lumora-mint: #dcebc9;
-
-  --lumora-background: #f5f2e9;
-  --lumora-surface: #fffdf8;
-  --lumora-text: #18332a;
-  --lumora-muted: #56675f;
-  --lumora-border: #d9ddd3;
+  --lumora-forest: #123f32;
+  --lumora-deep-forest: #0b3027;
+  --lumora-lime: #b7df68;
+  --lumora-ivory: #f5f2e9;
+  --lumora-surface: #fbfaf6;
+  --lumora-soft-green: #e7efe9;
+  --lumora-border: #d8d8cf;
   --lumora-border-strong: #718079;
-  --lumora-focus: #173f32;
+  --lumora-text: #14382f;
+  --lumora-muted: #66736d;
+  --lumora-accent-strong: #245f45;
+  --lumora-focus: #123f32;
 }
 
 @theme inline {
-  --color-background: var(--lumora-background);
-  --color-surface: var(--lumora-surface);
   --color-forest: var(--lumora-forest);
-  --color-forest-deep: var(--lumora-forest-deep);
-  --color-green: var(--lumora-green);
-  --color-accent: var(--lumora-accent-strong);
-  --color-mint: var(--lumora-mint);
+  --color-deep-forest: var(--lumora-deep-forest);
+  --color-lime: var(--lumora-lime);
+  --color-ivory: var(--lumora-ivory);
+  --color-surface: var(--lumora-surface);
+  --color-soft-green: var(--lumora-soft-green);
+  --color-soft-border: var(--lumora-border);
   --color-ink: var(--lumora-text);
   --color-muted: var(--lumora-muted);
+  --color-accent: var(--lumora-accent-strong);
+
+  /* Temporary compatibility utilities for the established component API. */
+  --color-background: var(--lumora-ivory);
+  --color-forest-deep: var(--lumora-deep-forest);
+  --color-green: var(--lumora-lime);
+  --color-mint: var(--lumora-soft-green);
   --color-line: var(--lumora-border);
   --color-line-strong: var(--lumora-border-strong);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-lora), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-dm-serif), Georgia, serif;
 
-  /* Fluid type scale, PRD 8.3. clamp() is used so headings scale with the
-     viewport instead of being fixed at a desktop size on a phone. */
-  --text-hero: clamp(2.25rem, 1.4rem + 3.8vw, 4.5rem);
-  --text-hero--line-height: 1.05;
-  --text-hero--letter-spacing: -0.03em;
+  --text-hero: clamp(2.75rem, 1.7rem + 4.8vw, 5.5rem);
+  --text-hero--line-height: 1;
+  --text-hero--letter-spacing: -0.035em;
 
-  --text-section: clamp(1.75rem, 1.25rem + 2.2vw, 3.25rem);
-  --text-section--line-height: 1.12;
-  --text-section--letter-spacing: -0.02em;
+  --text-section: clamp(2.125rem, 1.55rem + 2.6vw, 3.25rem);
+  --text-section--line-height: 1.08;
+  --text-section--letter-spacing: -0.025em;
 
-  --text-card-title: clamp(1.125rem, 1rem + 0.5vw, 1.5rem);
+  --text-editorial: clamp(2.625rem, 1.75rem + 3.75vw, 4rem);
+  --text-editorial--line-height: 1.04;
+  --text-editorial--letter-spacing: -0.03em;
+
+  --text-card-title: clamp(1.25rem, 1.1rem + 0.5vw, 1.5rem);
   --text-card-title--line-height: 1.3;
 
   --text-lead: clamp(1rem, 0.95rem + 0.4vw, 1.125rem);
-  --text-lead--line-height: 1.65;
+  --text-lead--line-height: 1.6;
 
-  --shadow-lift: 0 1px 2px rgba(23, 63, 50, 0.06), 0 12px 28px rgba(23, 63, 50, 0.08);
-  --shadow-panel: 0 24px 70px rgba(13, 45, 35, 0.16);
+  --shadow-lift: 0 1px 2px rgb(18 63 50 / 0.05), 0 12px 28px rgb(18 63 50 / 0.07);
+  --shadow-panel: 0 24px 70px rgb(11 48 39 / 0.14);
 }
 
 html {
@@ -84,30 +76,40 @@ html {
 }
 
 body {
-  background: var(--lumora-background);
+  background: var(--lumora-ivory);
   color: var(--lumora-text);
   font-family: var(--font-sans);
+  min-width: 0;
+}
+
+img,
+picture,
+svg,
+canvas,
+video {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: rgba(23, 63, 50, 0.12);
+}
+
+input,
+textarea,
+select {
+  font-size: 1rem;
 }
 
 ::selection {
-  background: var(--lumora-green);
-  color: var(--lumora-forest-deep);
+  background: var(--lumora-lime);
+  color: var(--lumora-deep-forest);
 }
 
-.font-display {
-  font-family: var(--font-display);
-}
 
-.editorial-underline {
-  text-decoration-color: var(--lumora-green);
-  text-decoration-thickness: 0.16em;
-  text-underline-offset: 0.16em;
-}
-
-.hero-pattern {
-  background-image: linear-gradient(120deg, rgba(255, 255, 255, 0.03), transparent 48%),
-    radial-gradient(circle at 84% 22%, rgba(183, 220, 114, 0.18), transparent 30%);
-}
 
 /* One focus treatment for the whole site, so no component has to reinvent it and
    none can drop it. outline is never removed without this replacement (R-32). */
@@ -163,6 +165,17 @@ body {
 
 .hero-image-enter {
   animation: lumora-hero-image 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes lumora-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @keyframes lumora-ai-result {

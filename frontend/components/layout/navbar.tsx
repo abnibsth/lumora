@@ -31,9 +31,9 @@ export function Navbar() {
     <>
       <header
         className={cn(
-          "sticky top-0 z-50 bg-[#fffdf8] transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300",
+          "sticky top-0 z-50 bg-surface transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300",
           scrolled || open
-            ? "border-b border-forest/10 bg-[#fffdf8]/92 shadow-[0_8px_24px_rgba(15,61,46,0.06)] backdrop-blur-md"
+            ? "border-b border-forest/10 bg-surface/92 shadow-[0_8px_24px_rgba(15,61,46,0.06)] backdrop-blur-md"
             : "border-b border-transparent shadow-none",
         )}
       >

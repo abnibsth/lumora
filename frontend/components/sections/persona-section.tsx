@@ -23,7 +23,7 @@ export function PersonaSection() {
               <article
                 id={primary ? SECTION_IDS.forUmkm : SECTION_IDS.forPartners}
                 key={card.key}
-                className={`scroll-mt-24 flex min-h-[31rem] flex-col p-7 sm:p-10 lg:p-12 ${primary ? "bg-[#e7efea] text-ink" : "bg-forest text-white"}`}
+                className={`scroll-mt-24 flex min-h-[31rem] flex-col p-7 sm:p-10 lg:p-12 ${primary ? "bg-soft-green text-ink" : "bg-forest text-white"}`}
               >
                 <p className={`text-xs font-semibold tracking-[0.16em] uppercase ${primary ? "text-accent" : "text-green"}`}>{card.audience}</p>
                 <h3 className="mt-4 max-w-md font-display text-3xl font-medium text-balance sm:text-4xl">{card.heading}</h3>

@@ -38,12 +38,12 @@ export function ProfileMockup({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface",
+        "min-w-0 overflow-hidden rounded-2xl border border-line bg-surface",
         className,
       )}
     >
-      <div className="bg-forest p-6 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-forest p-5 sm:p-8">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center sm:gap-3">
           <div className="flex items-center gap-4">
             <BusinessMonogram
               name={business.name}
@@ -69,7 +69,7 @@ export function ProfileMockup({
         </p>
       </div>
 
-      <div className="flex flex-col gap-8 p-6 sm:p-8">
+      <div className="flex flex-col gap-8 p-5 sm:p-8">
         <div>
           <BlockLabel>Tentang</BlockLabel>
           <p className="mt-2 text-sm text-muted">{business.description}</p>
@@ -85,7 +85,7 @@ export function ProfileMockup({
               </div>
             ) : null}
 
-            <dl className="mt-3 grid grid-cols-2 gap-4">
+            <dl className="mt-3 grid gap-4 sm:grid-cols-2">
               {business.revenueLabel ? (
                 <div>
                   <dt className="text-xs text-muted">Pendapatan</dt>

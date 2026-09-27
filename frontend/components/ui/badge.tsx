@@ -12,8 +12,8 @@ export type BadgeTone = "accent" | "mint" | "demo";
  * glow plus uppercase is the pattern R-09 forbids. The shape stays a soft
  * rectangle rather than a pill so badges do not read as the page's default form.
  *
- * There was a "neutral" tone that filled with --lumora-background. It rendered
- * as an invisible chip anywhere the background was also --lumora-background,
+ * There was a "neutral" tone that filled with --lumora-ivory. It rendered as
+ * an invisible chip anywhere the surrounding background used the same token,
  * which is where it was used, so it was removed rather than left as a trap. The
  * hero's trust line is plain text now.
  */

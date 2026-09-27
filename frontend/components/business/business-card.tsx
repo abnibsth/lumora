@@ -8,7 +8,7 @@ import type { Business } from "@/types/business";
 
 export function BusinessCard({ business, saved, onToggleSaved, editorial = false }: { business: Business; saved: boolean; onToggleSaved: () => void; editorial?: boolean }) {
   return (
-    <article className={editorial ? "group flex h-full flex-col overflow-hidden border-b border-line bg-surface pb-6" : "group flex h-full flex-col overflow-hidden rounded-2xl bg-surface shadow-lift transition-transform duration-200 hover:-translate-y-1"}>
+    <article className={editorial ? "group flex h-full min-w-0 flex-col overflow-hidden border-b border-line bg-surface pb-6" : "group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-lift transition-transform duration-200 supports-[hover:hover]:hover:-translate-y-1"}>
       <div className="relative aspect-[4/3] overflow-hidden bg-mint">
         {business.coverImage ? (
           <Image
@@ -28,7 +28,7 @@ export function BusinessCard({ business, saved, onToggleSaved, editorial = false
 
       <div className="flex flex-1 flex-col p-5 sm:p-6">
         <p className="text-xs font-medium text-accent">{business.location} · {businessAge(business.foundedYear)}</p>
-        <h2 className="mt-2 font-display text-2xl font-semibold text-ink">{business.name}</h2>
+        <h2 className="mt-2 break-words font-display text-2xl font-semibold text-ink">{business.name}</h2>
         <p className="mt-3 text-sm leading-6 text-muted">{business.description}</p>
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">

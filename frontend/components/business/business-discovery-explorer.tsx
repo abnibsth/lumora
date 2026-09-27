@@ -62,13 +62,13 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari bisnis, kategori, atau kota..."
-            className="min-h-16 w-full rounded-xl border border-line-strong bg-surface py-4 pl-14 pr-5 text-base text-ink shadow-[0_8px_24px_rgba(23,63,50,0.06)] placeholder:text-muted focus:border-forest sm:text-lg"
+            className="min-h-16 w-full rounded-xl border border-line-strong bg-surface py-4 pr-5 pl-14 text-base text-ink shadow-[0_8px_24px_rgba(23,63,50,0.06)] placeholder:text-muted focus:border-forest sm:text-lg"
           />
         </div>
       ) : null}
 
       <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div role="group" aria-label="Filter kategori" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+        <div role="group" aria-label="Filter kategori" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
           {filters.map((option) => {
             const active = option === filter;
             return (

@@ -4,7 +4,7 @@ import { SECTION_IDS } from "@/lib/constants";
 
 export function AboutSection() {
   return (
-    <section id={SECTION_IDS.about} className="bg-[#e7efea] py-20 sm:py-28 lg:py-32">
+    <section id={SECTION_IDS.about} className="bg-soft-green py-20 sm:py-28 lg:py-32">
       <Container>
         <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
           <h2 className="max-w-2xl font-display text-section font-medium text-balance text-ink">{aboutSection.heading}</h2>

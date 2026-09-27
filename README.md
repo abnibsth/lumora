@@ -180,10 +180,10 @@ Empat route editorial diatur melalui `rewrites()` dalam `frontend/next.config.ts
 - Next.js 16 App Router.
 - React 19.
 - TypeScript.
-- Tailwind CSS 4.
-- Vanilla CSS untuk token dan animasi global.
+- Tailwind CSS 4 melalui `@tailwindcss/postcss` dan `@import "tailwindcss"`.
+- Vanilla CSS hanya untuk semantic token, animasi kompleks, scrollbar, dan perilaku global.
 - `next/image` dan `next/font`.
-- Geist untuk interface dan Lora untuk display.
+- Inter untuk body/interface dan DM Serif Display untuk heading editorial.
 - ESLint 9.
 - `localStorage` + `useSyncExternalStore` untuk bookmark.
 
@@ -289,26 +289,26 @@ Bookmark tersimpan di `localStorage` dan disinkronkan ke React melalui `useSyncE
 
 Token utama berada di `frontend/app/globals.css`.
 
-| Token | Nilai | Fungsi |
-|---|---:|---|
-| `--lumora-forest` | `#173f32` | Primary dan bidang gelap |
-| `--lumora-forest-deep` | `#0d2d23` | Hover gelap |
-| `--lumora-green` | `#b7dc72` | Aksen lime |
-| `--lumora-accent-strong` | `#245f45` | Teks aksen dan kontrol |
-| `--lumora-mint` | `#dcebc9` | Bidang hijau muda |
-| `--lumora-background` | `#f5f2e9` | Warm off-white |
-| `--lumora-surface` | `#fffdf8` | Surface |
-| `--lumora-text` | `#18332a` | Teks utama |
-| `--lumora-muted` | `#56675f` | Teks sekunder |
-| `--lumora-border` | `#d9ddd3` | Divider |
-| `--lumora-border-strong` | `#718079` | Border kontrol |
+| Token | Nilai | Utility utama | Fungsi |
+|---|---:|---|---|
+| `--lumora-forest` | `#123f32` | `bg-forest`, `text-forest` | Primary dan bidang gelap |
+| `--lumora-deep-forest` | `#0b3027` | `bg-deep-forest` | Hover dan footer gelap |
+| `--lumora-lime` | `#b7df68` | `bg-lime` | Aksen |
+| `--lumora-ivory` | `#f5f2e9` | `bg-ivory` | Background halaman |
+| `--lumora-surface` | `#fbfaf6` | `bg-surface` | Surface dan input |
+| `--lumora-soft-green` | `#e7efe9` | `bg-soft-green` | Pergantian bidang halus |
+| `--lumora-border` | `#d8d8cf` | `border-soft` | Border dekoratif |
+| `--lumora-border-strong` | `#718079` | `border-line-strong` | Border kontrol |
+| `--lumora-text` | `#14382f` | `text-ink` | Teks utama |
+| `--lumora-muted` | `#66736d` | `text-muted` | Teks sekunder |
+| `--lumora-accent-strong` | `#245f45` | `text-accent` | Teks aksen yang kontras |
 
 Prinsip visual:
 
 - Editorial publication + business directory + product interface.
 - Warm off-white, forest green, dan lime terbatas.
 - Whitespace serta tipografi membentuk hierarchy.
-- Lora untuk display; Geist untuk body dan interface.
+- DM Serif Display hanya untuk hero dan heading editorial terpilih; Inter untuk body, navigasi, form, filter, card UI, dan chatbot.
 - Tidak memakai glassmorphism atau estetika fintech/crypto.
 - Animasi hanya untuk entrance dan feedback interaksi.
 - `prefers-reduced-motion` dihormati.

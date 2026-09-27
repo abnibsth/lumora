@@ -4,7 +4,7 @@ import { SECTION_IDS } from "@/lib/constants";
 
 export function ValueSection() {
   return (
-    <section id={SECTION_IDS.value} className="bg-[#e7efea] py-20 sm:py-28 lg:py-32">
+    <section id={SECTION_IDS.value} className="bg-soft-green py-20 sm:py-28 lg:py-32">
       <Container>
         <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
           <p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">Cara kerja</p>

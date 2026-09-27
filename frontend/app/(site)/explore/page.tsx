@@ -14,7 +14,7 @@ export default function ExplorePage() {
       <Container>
         <div className="max-w-4xl border-b border-line pb-10">
           <p className="text-sm font-medium text-accent">Jelajahi Bisnis</p>
-          <h1 id="explore-title" className="mt-4 max-w-3xl text-balance font-display text-5xl font-semibold leading-[1.02] tracking-[-0.035em] text-ink sm:text-6xl lg:text-7xl">
+          <h1 id="explore-title" className="mt-4 max-w-3xl text-balance font-display text-[clamp(2.625rem,12vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-ink">
             Temukan bisnis lokal yang layak dikenal.
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted">

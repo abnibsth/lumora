@@ -103,12 +103,10 @@ export function MobileNavPanel({
       id="mobile-menu"
       hidden={!open}
       className={cn(
-        "fixed inset-x-0 top-[4.5rem] bottom-0 z-40 overflow-y-auto border-t border-forest/10 bg-[#fffdf8] shadow-[0_18px_40px_rgba(15,61,46,0.08)] xl:hidden",
+        "fixed inset-x-0 top-[4.5rem] z-40 max-h-[calc(100dvh-4.5rem)] min-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-forest/10 bg-surface shadow-[0_18px_40px_rgba(15,61,46,0.08)] motion-safe:animate-[lumora-menu-in_220ms_ease-out] xl:hidden",
       )}
     >
-      {/* Labelled differently from the desktop nav so screen reader users
-          listing landmarks can tell the two apart. */}
-      <nav aria-label="Navigasi utama seluler" className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
+      <nav aria-label="Navigasi utama seluler" className="mx-auto w-full max-w-7xl px-5 py-6 sm:px-6 lg:px-8">
         <ul className="flex flex-col gap-1">
           {primaryNav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
