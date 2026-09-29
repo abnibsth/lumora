@@ -1,6 +1,6 @@
 # LUMORA API — Kontrak Backend (Go)
 
-Status spek ini: **Phase 1–5 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
+Status spek ini: **Phase 1–6 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
 
 - Base URL development: `http://localhost:8080`
 - Prefix semua endpoint: `/api/v1`
@@ -78,6 +78,7 @@ Kode yang dipakai:
 | `not_found` | 404 | Resource tidak ada (atau draft yang tidak kamu miliki) |
 | `email_taken` | 409 | Register dengan email sudah terdaftar |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
+| `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
 ---
 
@@ -380,13 +381,61 @@ Respons `200`:
 
 ---
 
+## AI draft profil (phase 6 — aktif)
+
+### `POST /api/v1/ai/draft-profile`
+
+Body JSON, wajib login. Narasi bebas soal UMKM masuk, draf profil terstruktur keluar dalam **satu respons (non-streaming)**.
+
+```json
+{ "narrative": "Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor." }
+```
+
+| Field | Tipe | Aturan |
+|---|---|---|
+| `narrative` | string | Wajib, 20–5000 karakter |
+
+Respons `200`:
+
+```json
+{
+  "name": "",
+  "category": "F&B",
+  "location": "Bandung",
+  "description": "Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor.",
+  "story": "",
+  "foundedYear": 2015,
+  "owner": { "name": "", "role": "", "bio": "" },
+  "milestones": [],
+  "bmc": [],
+  "seeking": ["Mitra Distribusi"],
+  "seekingObjective": "",
+  "suggestions": [
+    "Isi nama usaha.",
+    "Tambahkan cerita usaha supaya profil lebih meyakinkan.",
+    "Lengkapi profil pemilik (nama, peran, bio).",
+    "Tambahkan tonggak penting usaha dari tahun ke tahun.",
+    "Isi kanvas model bisnis (9 blok BMC).",
+    "Jelaskan tujuan pendanaan atau kemitraan yang dicari.",
+    "Isi angka pendapatan dan pertumbuhan secara manual — angka finansial tidak dibuat otomatis."
+  ]
+}
+```
+
+- **Tidak menyimpan apa pun.** Hasilnya draf mentah: pakai buat prefill form, lalu kirim ke `POST /api/v1/businesses` seperti biasa. Field `suggestions` diabaikan backend saat draf dikirim balik.
+- **AI tidak pernah mengarang angka finansial.** `revenueLabel`, `growthLabel`, dan `revenueSeries` **tidak ada** di respons sama sekali — isinya hanya dari input user. Field yang tidak bisa disimpulkan dari narasi dibiarkan kosong (`""`, `0`, atau `[]`), dan daftar apa yang masih kosong ada di `suggestions`.
+- `category` kosong kalau narasi tidak cukup jelas; `foundedYear` `0` kalau tidak ada tahun yang disebut.
+- Field gambar (`coverImage`, `coverPosition`, `logo`) **tidak ada** di draf — gambar diunggah lewat `POST /api/v1/media` lalu URL-nya diisi manual.
+- Semua field slice selalu array (`[]`), tidak pernah `null`.
+- Body maksimal 64 KB.
+- **Provider masih stub offline** (env `AI_PROVIDER=stub`, ini default): heuristik kata kunci, tanpa panggilan jaringan dan tanpa API key. Provider asli tinggal mengganti implementasi `service.Drafter`.
+- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
+
+---
+
 ## Endpoint planned (belum ada — jangan dipanggil dulu)
 
-Urutan pengerjaan berikutnya:
-
-| Fase | Endpoint | Method | Catatan |
-|---|---|---|---|
-| 6 | `/api/v1/ai/draft-profile` | POST | Input narasi bebas → output draf profil terstruktur (non-streaming). AI **tidak boleh** mengarang `revenueLabel` / `growthLabel` / `revenueSeries` |
+Tidak ada. Fase 1–6 sudah aktif semua.
 
 ---
 

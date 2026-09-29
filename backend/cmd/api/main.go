@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/alfian/lumora/backend/internal/ai"
 	"github.com/alfian/lumora/backend/internal/config"
 	"github.com/alfian/lumora/backend/internal/http/handler"
 	"github.com/alfian/lumora/backend/internal/http/middleware"
@@ -54,6 +55,20 @@ func main() {
 	bookmarkHandler := handler.NewBookmarkHandler(bookmarkService)
 	mediaHandler := handler.NewMediaHandler(cfg.UploadDir)
 
+	// AI_PROVIDER selects the draft generator. "stub" is the only implementation
+	// until a provider is chosen; config.Load rejects every other value at
+	// startup, and the default below catches a provider added to the allowlist
+	// without an implementation here.
+	var drafter service.Drafter
+	switch cfg.AIProvider {
+	case "stub":
+		drafter = ai.NewStub()
+	default:
+		log.Fatalf("ai: provider %q belum punya implementasi", cfg.AIProvider)
+	}
+	aiService := service.NewAIDraftService(drafter, service.DefaultAITimeout)
+	aiHandler := handler.NewAIHandler(aiService)
+
 	r := gin.New()
 	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
@@ -92,6 +107,8 @@ func main() {
 	v1.DELETE("/bookmarks/:slug", middleware.RequireSession(), bookmarkHandler.Remove)
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
+
+	v1.POST("/ai/draft-profile", middleware.RequireSession(), aiHandler.Draft)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

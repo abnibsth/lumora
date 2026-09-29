@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–5 selesai**, fase 6 (AI) belum dikerjakan.
+Status: **fase 1–6 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -14,9 +14,9 @@ Status: **fase 1–5 selesai**, fase 6 (AI) belum dikerjakan.
 | 3 | Endpoint tulis profil (create / patch / publish) | ✅ **Selesai** |
 | 4 | Bookmark per akun | ✅ **Selesai** |
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
-| 6 | AI draft profil | ❌ **Belum** |
+| 6 | AI draft profil | ✅ **Selesai** |
 
-Total tes saat ini: **62 tes utama / 76 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
+Total tes saat ini: **108 tes utama / 152 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
 Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -135,13 +135,24 @@ Respons ketiganya = bentuk `Business` + field `status`.
 
 ---
 
-## Fase 6 — AI draft profil ❌ Belum
+## Fase 6 — AI draft profil ✅
 
-**Rencana:** `POST /api/v1/ai/draft-profile` — input narasi bebas UMKM → output draf profil terstruktur (kategorisasi, ringkasan, saran urutan) dalam satu respons (**non-streaming**).
+**Isi:**
+- `internal/ai/stub.go`: generator draf **offline deterministik** — heuristik kata kunci, tanpa panggilan jaringan, tanpa API key. Dipilih lewat env `AI_PROVIDER` (default `stub`); nilai di luar allowlist ditolak `config.Load()` saat start.
+- `internal/service/ai.go`: interface `Drafter` (sisi konsumen), timeout per-generate (`DefaultAITimeout` 15 detik), dan normalisasi semua kegagalan provider jadi `domain.ErrAIUnavailable` → satu kode `503 ai_unavailable`. Log hanya tipe error + durasi, **tidak pernah** narasi atau isi draf.
+- `internal/domain/ai.go`: `DraftProfile` **tanpa** field finansial sama sekali — guardrail "AI tidak boleh mengarang angka" jadi struktural, bukan konvensi. `Sanitize()` memotong output ke batas yang sama dengan endpoint tulis (kategori di luar enum → `""`, tahun di luar 1900–2100 → `0`, slice nil → `[]`).
 
-**Yang belum ada:** pilihan AI provider **belum diputuskan**, API key, prompt, endpoint, mapping output ke shape `Business`, test, dokumentasi.
+**Endpoint aktif:**
 
-**Batasan yang sudah dikunci di kontrak:** AI **tidak boleh** mengarang `revenueLabel`, `growthLabel`, `revenueSeries` — angka finansial hanya dari input user.
+| Method | Path | Respons |
+|---|---|---|
+| POST | `/api/v1/ai/draft-profile` | 200 draf profil (narasi 20–5000 karakter, body maks 64 KB); `503 ai_unavailable` kalau generator gagal |
+
+Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lalu dikirim ke `POST /businesses`.
+
+**Verifikasi:** 17 test domain (`Validate` + `Sanitize` termasuk idempotensi & potong di batas rune), 33 kasus stub (kategori per keyword, word-boundary `tas` vs `atas`, lokasi/tahun, pemisahan kalimat, **determinisme** dua panggilan, output tak pernah memuat field finansial), 8 test service (sanitasi output provider, error/timeout → `ErrAIUnavailable`), 8 test handler (401/400/503, body kebesaran, guardrail finansial) + 3 test config.
+
+**Catatan:** provider asli (OpenAI/Anthropic/dll) belum dipilih. Menambahkannya = bikin tipe baru yang memenuhi `service.Drafter`, lalu tambah satu `case` di `cmd/api/main.go` + satu nilai di `config.AIProviders`. Handler, service, dan test tidak perlu berubah.
 
 ---
 
@@ -149,9 +160,11 @@ Respons ketiganya = bentuk `Business` + field `status`.
 
 | Item | Status |
 |---|---|
-| Git commit | ❌ `backend/`, `docs/`, `.gitignore`, edit `frontend/next.config.ts` **belum di-commit** |
+| Git commit | ✔ **selesai** — `backend/` + `docs/` sudah di-commit dan di-push ke `origin/backend`. Sisa: edit `frontend/next.config.ts` (scope frontend) |
+| Provider AI asli | ❌ belum dipilih — Fase 6 jalan dengan stub offline. Belum ada API key, prompt, atau SDK |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Rate limiting login/register | ❌ belum (brute-force masih mungkin) |
+| Rate limiting endpoint AI | ❌ belum — begitu provider asli dipasang, tiap panggilan berbiaya |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |

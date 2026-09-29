@@ -128,6 +128,9 @@ func writeDomainError(c *gin.Context, err error) bool {
 		writeError(c, http.StatusNotFound, "not_found", "Profil bisnis tidak ditemukan.")
 	case errors.Is(err, domain.ErrForbidden):
 		writeError(c, http.StatusForbidden, "forbidden", "Anda tidak punya akses untuk mengubah profil ini.")
+	case errors.Is(err, domain.ErrAIUnavailable):
+		writeError(c, http.StatusServiceUnavailable, "ai_unavailable",
+			"Layanan AI sedang tidak tersedia. Coba lagi sebentar lagi.")
 	default:
 		return false
 	}

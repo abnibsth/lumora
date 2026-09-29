@@ -182,7 +182,26 @@ $png = [byte[]](0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A) + (New-Object byte[] (6
 
 ---
 
-## 7. Lewat frontend (proxy)
+## 7. AI draft profil (wajib login)
+
+```powershell
+Set-Content "$bodyDir\narasi.json" '{"narrative":"Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor."}' -Encoding ascii
+Set-Content "$bodyDir\narasi-pendek.json" '{"narrative":"kopi"}' -Encoding ascii
+```
+
+| # | Perintah | Ekspektasi |
+|---|---|---|
+| 1 | `curl.exe -H "Content-Type: application/json" -d "@$bodyDir\narasi.json" -X POST "$api/ai/draft-profile"` | 401 `unauthenticated` |
+| 2 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\narasi.json" -X POST "$api/ai/draft-profile"` | 200 — `category` `"F&B"`, `location` `"Bandung"`, `foundedYear` `2015`, `seeking` memuat `"Mitra Distribusi"` |
+| 3 | periksa isi respons langkah 2 | **tidak memuat** `revenueLabel` / `growthLabel` / `revenueSeries` — angka finansial tidak pernah dibuat otomatis |
+| 4 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\narasi-pendek.json" -X POST "$api/ai/draft-profile"` | 400 `validation_failed` (narasi di bawah 20 karakter) |
+| 5 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\teks.txt" -X POST "$api/ai/draft-profile"` | 400 `invalid_body` (bukan JSON) |
+
+> Tidak ada yang ditulis ke DB. Tempel hasilnya ke form lalu kirim ke `POST /businesses`; field `suggestions` diabaikan backend, jadi seluruh respons aman dikirim balik.
+
+---
+
+## 8. Lewat frontend (proxy)
 
 Pastikan `next.config.ts` punya rewrite `/api → :8080`, lalu:
 
@@ -194,7 +213,7 @@ Cukup uji 1–2 endpoint + satu endpoint auth (cookie `HttpOnly` dilihat dari De
 
 ---
 
-## 8. Bersih-bersih
+## 9. Bersih-bersih
 
 ```powershell
 docker exec lumora-postgres psql -U lumora -d lumora -c `
@@ -214,4 +233,4 @@ curl.exe "$api/businesses"     # kembali total=9
 
 - Kontrak lengkap (body, respons, kode error): **`docs/api.md`**
 - Peta fase & backlog: **`docs/fases.md`**
-- 10 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden` (403) · `not_found` (404) · `email_taken` (409) · `internal_error` (500)
+- 11 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden` (403) · `not_found` (404) · `email_taken` (409) · `internal_error` (500) · `ai_unavailable` (503)

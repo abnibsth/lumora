@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -11,6 +12,15 @@ import (
 // DATABASE_URL, instead of silently pointing at localhost.
 var ErrMissingDatabaseURL = errors.New("DATABASE_URL wajib diisi saat APP_ENV=production")
 
+// ErrUnknownAIProvider is returned for an AI_PROVIDER outside AIProviders. A
+// typo must not silently fall back to the stub: production would answer with
+// fake drafts and look like it is working.
+var ErrUnknownAIProvider = errors.New("AI_PROVIDER tidak dikenal")
+
+// AIProviders lists the draft generators that can actually be wired up. Add a
+// value here together with its implementation in cmd/api/main.go.
+var AIProviders = []string{"stub"}
+
 // Config holds everything read from the environment. Outside production,
 // values fall back to local-development defaults so `go run ./cmd/api` works
 // without a .env file.
@@ -19,6 +29,7 @@ type Config struct {
 	DatabaseURL string
 	AppEnv      string
 	UploadDir   string
+	AIProvider  string
 }
 
 func Load() (Config, error) {
@@ -50,12 +61,30 @@ func Load() (Config, error) {
 		databaseURL = "postgres://lumora:lumora@localhost:5432/lumora?sslmode=disable"
 	}
 
+	aiProvider := os.Getenv("AI_PROVIDER")
+	if aiProvider == "" {
+		aiProvider = "stub"
+	}
+	if !knownAIProvider(aiProvider) {
+		return Config{}, fmt.Errorf("%w: %q", ErrUnknownAIProvider, aiProvider)
+	}
+
 	return Config{
 		Port:        port,
 		DatabaseURL: databaseURL,
 		AppEnv:      appEnv,
 		UploadDir:   uploadDir,
+		AIProvider:  aiProvider,
 	}, nil
+}
+
+func knownAIProvider(provider string) bool {
+	for _, known := range AIProviders {
+		if provider == known {
+			return true
+		}
+	}
+	return false
 }
 
 func (c Config) IsProduction() bool {
