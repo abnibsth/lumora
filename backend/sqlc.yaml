@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - schema: "migrations"
+    queries: "queries"
+    engine: "postgresql"
+    gen:
+      go:
+        package: "store"
+        out: "internal/store"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        emit_empty_slices: true
+        query_parameter_limit: 0

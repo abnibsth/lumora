@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lumora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lumora
+      POSTGRES_PASSWORD: lumora
+      POSTGRES_DB: lumora
+    ports:
+      - "5432:5432"
+    volumes:
+      - lumora-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumora -d lumora"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # one-shot: schema (goose) — idempotent, aman dijalankan berulang
+  migrate:
+    build: &build
+      context: .
+      dockerfile: Dockerfile
+    command: ["/app/migrate"]
+    environment: &dbenv
+      DATABASE_URL: postgres://lumora:lumora@postgres:5432/lumora?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # one-shot: 9 profil demo — idempotent (slug yang ada dilewati)
+  seed:
+    build: *build
+    command: ["/app/seed"]
+    environment: *dbenv
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    build: *build
+    command: ["/app/api"]
+    environment:
+      DATABASE_URL: postgres://lumora:lumora@postgres:5432/lumora?sslmode=disable
+      APP_ENV: development
+      UPLOAD_DIR: /app/uploads
+      PORT: "8080"
+      # Offline by default so the demo stack needs no credentials. Export
+      # AI_PROVIDER=gemini and GEMINI_API_KEY to run against the real provider.
+      AI_PROVIDER: ${AI_PROVIDER:-stub}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - lumora-uploads:/app/uploads
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  lumora-pgdata:
+  lumora-uploads:

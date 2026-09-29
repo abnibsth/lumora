@@ -1,0 +1,30 @@
+# Dependencies / build output
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Go
+backend/bin/
+backend/uploads/
+*.exe
+*.test
+*.out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+.codebuddy/

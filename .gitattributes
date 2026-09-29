@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings even on Windows checkouts: with
+# core.autocrlf=true a CRLF shebang makes the kernel look for "/bin/sh\r"
+# and the container fails to start.
+*.sh text eol=lf

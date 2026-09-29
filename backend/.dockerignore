@@ -1,0 +1,6 @@
+bin/
+uploads/
+.env
+*.exe
+*.test
+*.out
