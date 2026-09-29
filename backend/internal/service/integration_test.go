@@ -83,7 +83,7 @@ func TestIntegrationBusinessLifecycle(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
 	queries := store.New(pool)
-	svc := NewBusinessService(queries)
+	svc := NewBusinessService(queries, NewPoolTxRunner(pool))
 	owner := createTestOwner(t, pool, queries)
 
 	before := publishedTotal(t, ctx, svc)
@@ -143,7 +143,7 @@ func TestIntegrationSlugNeverCollidesWithSeed(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
 	queries := store.New(pool)
-	svc := NewBusinessService(queries)
+	svc := NewBusinessService(queries, NewPoolTxRunner(pool))
 	owner := createTestOwner(t, pool, queries)
 
 	input := validCreateInput()
@@ -209,7 +209,7 @@ func TestIntegrationBookmarks(t *testing.T) {
 	ctx := context.Background()
 	queries := store.New(pool)
 	bookmarks := NewBookmarkService(queries, queries)
-	businesses := NewBusinessService(queries)
+	businesses := NewBusinessService(queries, NewPoolTxRunner(pool))
 	user := createTestOwner(t, pool, queries)
 
 	if err := bookmarks.Add(ctx, user, "kopi-ruang-senja"); err != nil {
@@ -263,7 +263,7 @@ func TestIntegrationBookmarks(t *testing.T) {
 func TestIntegrationSeedProfilesAreReadable(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
-	svc := NewBusinessService(store.New(pool))
+	svc := NewBusinessService(store.New(pool), NewPoolTxRunner(pool))
 
 	if got := publishedTotal(t, ctx, svc); got < 9 {
 		t.Errorf("published profiles = %d, want at least the 9 seeded", got)
@@ -281,10 +281,53 @@ func TestIntegrationSeedProfilesAreReadable(t *testing.T) {
 	}
 }
 
+func TestIntegrationTxRollsBackOnError(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	runner := NewPoolTxRunner(pool)
+
+	slug := fmt.Sprintf("uji-rollback-%d", time.Now().UnixNano())
+	sentinel := errors.New("boom")
+
+	err := runner.RunInTx(ctx, func(repo BusinessRepository) error {
+		if _, err := repo.InsertBusiness(ctx, store.InsertBusinessParams{
+			Slug:          slug,
+			Name:          "Uji Rollback",
+			Category:      "F&B",
+			Location:      "Bandung",
+			Description:   "deskripsi",
+			Story:         "cerita",
+			FoundedYear:   2023,
+			RevenueSeries: []float64{},
+			Seeking:       []string{},
+			OwnerName:     "Uji",
+			OwnerRole:     "Pendiri",
+			OwnerBio:      "bio",
+			Status:        domain.StatusDraft,
+		}); err != nil {
+			return err
+		}
+		return sentinel
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("RunInTx err = %v, want the sentinel back", err)
+	}
+
+	// The insert above must not have survived the rollback.
+	exists, err := queries.ExistsBusinessBySlug(ctx, store.ExistsBusinessBySlugParams{Slug: slug})
+	if err != nil {
+		t.Fatalf("ExistsBusinessBySlug: %v", err)
+	}
+	if exists {
+		t.Errorf("business %q survived a rolled-back transaction", slug)
+	}
+}
+
 func TestIntegrationListTotalSurvivesEmptyPage(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
-	svc := NewBusinessService(store.New(pool))
+	svc := NewBusinessService(store.New(pool), NewPoolTxRunner(pool))
 
 	first, err := svc.List(ctx, domain.BusinessListParams{Limit: MaxLimit})
 	if err != nil {
@@ -305,6 +348,48 @@ func TestIntegrationListTotalSurvivesEmptyPage(t *testing.T) {
 	}
 	if far.Total != first.Total {
 		t.Errorf("total = %d on an empty page, want %d", far.Total, first.Total)
+	}
+}
+
+func TestIntegrationListMineShowsOwnProfilesOnly(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	svc := NewBusinessService(queries, NewPoolTxRunner(pool))
+	owner := createTestOwner(t, pool, queries)
+	other := createTestOwner(t, pool, queries)
+
+	input := validCreateInput()
+	input.Name = uniqueName("Uji Mine")
+	created, err := svc.Create(ctx, owner, input)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM businesses WHERE id = $1", created.ID)
+	})
+
+	mine, err := svc.ListMine(ctx, owner, 1, MaxLimit)
+	if err != nil {
+		t.Fatalf("ListMine owner: %v", err)
+	}
+	if mine.Total != 1 || len(mine.Items) != 1 {
+		t.Fatalf("owner total=%d items=%d, want 1/1", mine.Total, len(mine.Items))
+	}
+	if mine.Items[0].Status != domain.StatusDraft {
+		t.Errorf("status = %q, want draft (the owner sees unpublished work)", mine.Items[0].Status)
+	}
+	if mine.Items[0].Slug != created.Slug {
+		t.Errorf("slug = %q, want %q", mine.Items[0].Slug, created.Slug)
+	}
+
+	// Another account must not see someone else's draft.
+	theirs, err := svc.ListMine(ctx, other, 1, MaxLimit)
+	if err != nil {
+		t.Fatalf("ListMine other: %v", err)
+	}
+	if theirs.Total != 0 || len(theirs.Items) != 0 {
+		t.Errorf("other total=%d items=%d, want 0/0 (drafts are private)", theirs.Total, len(theirs.Items))
 	}
 }
 

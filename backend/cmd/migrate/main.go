@@ -17,7 +17,10 @@ import (
 // machine or container only needs `go run ./cmd/migrate` — no goose CLI to
 // install. Running it twice is a no-op.
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {

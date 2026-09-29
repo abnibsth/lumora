@@ -297,6 +297,31 @@ Body berisi field yang mau diubah saja; sisanya tidak disentuh:
 
 Catatan: profil hasil **seed** tidak punya pemilik (`owner_user_id` NULL), jadi tidak bisa diedit/di-publish lewat API — hanya profil yang dibuat lewat `POST` yang bisa dikelola.
 
+### `GET /api/v1/businesses/mine` — daftar profil milik sendiri
+
+Wajib login. Mengembalikan **semua** profil milik akun (draft **dan** published), terbaru dulu — inilah yang dipakai dashboard UMKM untuk menampilkan draft yang belum tayang.
+
+| Query | Tipe | Default | Catatan |
+|---|---|---|---|
+| `page` | int | `1` | `page < 1` atau bukan angka → `400 invalid_parameter` |
+| `limit` | int | `12` | Rentang 1–50, di luar itu → `400 invalid_parameter` |
+
+Envelope-nya sama dengan `GET /businesses`, tapi tiap item adalah `Business` **plus** `status` (`draft` / `published`) — bentuk yang identik dengan respons `POST` / `PATCH` / `publish`:
+
+```json
+{
+  "items": [ /* Business + status */ ],
+  "total": 2,
+  "page": 1,
+  "limit": 12
+}
+```
+
+- Urutan: terbaru dulu (`created_at DESC`).
+- Kosong → `items: []`, `total: 0` (array, bukan `null`).
+- Profil milik akun lain **tidak pernah** muncul di sini.
+- Tanpa login → `401 unauthenticated`.
+
 ---
 
 ## Bookmark (phase 4 — aktif)
@@ -373,6 +398,7 @@ Urutan pengerjaan berikutnya:
 - [ ] Setelah login/register sukses → redirect; panggil `GET /auth/me` saat hydration buat state navbar (ganti tombol Masuk/Buat Profil jadi nama user + Keluar → `POST /auth/logout`).
 - [ ] `businessName` di form register diabaikan backend — profil dibuat lewat `POST /businesses` (butuh login), jadi simpan dulu di state sampai form profil ada.
 - [ ] Kalau ada form buat/edit profil → `POST /businesses` (buat), `PATCH /businesses/:id` (edit), `POST /businesses/:id/publish` (tayang); semua wajib login, baca `status` dari respons, tampilkan `error.message` untuk `validation_failed`.
+- [ ] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`.
 - [ ] `/explore` + `BusinessDiscoveryExplorer`: ganti `import { businesses } from "@/data/businesses"` → fetch `GET /businesses?limit=50`, filter `q`/`category` dikirim sebagai query (server side).
 - [ ] `/business/[slug]`: hapus `generateStaticParams` berbasis data lokal, ganti ke fetch di Server Component + `next: { revalidate: 60 }` supaya SEO tetap jalan. 404 → panggil `notFound()`.
 - [ ] Homepage (featured discovery): fetch `GET /businesses?limit=6`.

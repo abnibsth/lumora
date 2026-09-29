@@ -13,7 +13,10 @@ import (
 // Seed inserts the demo catalogue once. Re-running skips slugs that already
 // exist, so it is safe to run after schema changes.
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 	ctx := context.Background()
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)

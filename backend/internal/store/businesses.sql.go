@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countBusinessesByOwner = `-- name: CountBusinessesByOwner :one
+SELECT count(*)
+FROM businesses
+WHERE owner_user_id = $1
+`
+
+type CountBusinessesByOwnerParams struct {
+	OwnerUserID pgtype.UUID
+}
+
+func (q *Queries) CountBusinessesByOwner(ctx context.Context, arg CountBusinessesByOwnerParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBusinessesByOwner, arg.OwnerUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countPublishedBusinesses = `-- name: CountPublishedBusinesses :one
 SELECT count(*)
 FROM businesses b
@@ -389,6 +406,68 @@ func (q *Queries) ListBmcEntriesByBusinessIDs(ctx context.Context, arg ListBmcEn
 			&i.Label,
 			&i.Value,
 			&i.Position,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBusinessesByOwner = `-- name: ListBusinessesByOwner :many
+SELECT id, slug, owner_user_id, name, category, location, description, story, cover_image, cover_position, logo, founded_year, revenue_label, growth_label, revenue_series, seeking, seeking_objective, owner_name, owner_role, owner_bio, status, verified, created_at, updated_at
+FROM businesses
+WHERE owner_user_id = $1
+ORDER BY created_at DESC, id ASC
+LIMIT $2 OFFSET $3
+`
+
+type ListBusinessesByOwnerParams struct {
+	OwnerUserID pgtype.UUID
+	Limit       int32
+	Offset      int32
+}
+
+// Owner dashboard list: every profile owned by one account, drafts included,
+// newest first. The public list only ever shows published rows; this is the
+// query the owner's own dashboard reads.
+func (q *Queries) ListBusinessesByOwner(ctx context.Context, arg ListBusinessesByOwnerParams) ([]Business, error) {
+	rows, err := q.db.Query(ctx, listBusinessesByOwner, arg.OwnerUserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Business{}
+	for rows.Next() {
+		var i Business
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.OwnerUserID,
+			&i.Name,
+			&i.Category,
+			&i.Location,
+			&i.Description,
+			&i.Story,
+			&i.CoverImage,
+			&i.CoverPosition,
+			&i.Logo,
+			&i.FoundedYear,
+			&i.RevenueLabel,
+			&i.GrowthLabel,
+			&i.RevenueSeries,
+			&i.Seeking,
+			&i.SeekingObjective,
+			&i.OwnerName,
+			&i.OwnerRole,
+			&i.OwnerBio,
+			&i.Status,
+			&i.Verified,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

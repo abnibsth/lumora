@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +21,10 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -38,7 +44,7 @@ func main() {
 	}
 
 	queries := store.New(pool)
-	businessService := service.NewBusinessService(queries)
+	businessService := service.NewBusinessService(queries, service.NewPoolTxRunner(pool))
 	businessHandler := handler.NewBusinessHandler(businessService)
 
 	authService := service.NewAuthService(queries, queries)
@@ -49,7 +55,11 @@ func main() {
 	mediaHandler := handler.NewMediaHandler(cfg.UploadDir)
 
 	r := gin.New()
-	r.Use(gin.Logger(), gin.Recovery(), middleware.AttachSession(authService))
+	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
+	// own address through X-Forwarded-For. Nothing here makes an auth decision
+	// on ClientIP, so the direct peer is the honest answer.
+	_ = r.SetTrustedProxies(nil)
+	r.Use(gin.Logger(), gin.Recovery())
 
 	// Uploaded covers/logos are public, like the seed images: served from disk
 	// under a server-generated filename.
@@ -62,8 +72,11 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	v1 := r.Group("/api/v1")
+	// AttachSession is scoped to the API group, not the whole engine: static
+	// files and the health check must not pay a session lookup per request.
+	v1 := r.Group("/api/v1", middleware.AttachSession(authService))
 	v1.GET("/businesses", businessHandler.List)
+	v1.GET("/businesses/mine", middleware.RequireSession(), businessHandler.ListMine)
 	v1.GET("/businesses/:slug", businessHandler.Detail)
 	v1.POST("/businesses", middleware.RequireSession(), businessHandler.Create)
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), businessHandler.Update)
@@ -80,8 +93,36 @@ func main() {
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
 
-	log.Printf("LUMORA API listening on :%s", cfg.Port)
-	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatal(err)
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: r,
+		// A stalled client is the target: cap the header read so it cannot
+		// hold a connection open forever, while the body/response budgets
+		// stay generous enough for a 5 MB upload on a slow link.
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
+
+	go func() {
+		log.Printf("LUMORA API listening on :%s", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server: %v", err)
+		}
+	}()
+
+	// Railway sends SIGTERM on redeploy: drain in-flight requests before
+	// exiting instead of cutting them off.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("shutting down...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown: %v", err)
+	}
+	log.Println("server stopped")
 }

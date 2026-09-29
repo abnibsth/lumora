@@ -18,6 +18,8 @@ import (
 type fakeRepo struct {
 	rows       []pgtype.UUID
 	total      int64
+	ownerRows  []store.Business
+	ownerTotal int64
 	byID       map[string]store.Business
 	bySlug     map[string]store.Business
 	milestones map[string][]store.BusinessMilestone
@@ -30,6 +32,14 @@ func (f *fakeRepo) ListPublishedBusinessIDs(context.Context, store.ListPublished
 
 func (f *fakeRepo) CountPublishedBusinesses(context.Context, store.CountPublishedBusinessesParams) (int64, error) {
 	return f.total, nil
+}
+
+func (f *fakeRepo) ListBusinessesByOwner(context.Context, store.ListBusinessesByOwnerParams) ([]store.Business, error) {
+	return f.ownerRows, nil
+}
+
+func (f *fakeRepo) CountBusinessesByOwner(context.Context, store.CountBusinessesByOwnerParams) (int64, error) {
+	return f.ownerTotal, nil
 }
 
 func (f *fakeRepo) GetBusinessesByIDs(_ context.Context, arg store.GetBusinessesByIDsParams) ([]store.Business, error) {
@@ -221,8 +231,20 @@ func newFixture() *fakeRepo {
 	}
 }
 
+// directTx is a Transactor for tests: it runs fn against the same fake
+// repository, so the transactional write path is exercised without a database.
+type directTx struct{ repo BusinessRepository }
+
+func (d directTx) RunInTx(_ context.Context, fn func(BusinessRepository) error) error {
+	return fn(d.repo)
+}
+
+func newService(repo *fakeRepo) *BusinessService {
+	return NewBusinessService(repo, directTx{repo: repo})
+}
+
 func TestBySlugHydratesChildren(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	got, err := svc.BySlug(context.Background(), "kopi-ruang-senja")
 	if err != nil {
@@ -240,7 +262,7 @@ func TestBySlugHydratesChildren(t *testing.T) {
 }
 
 func TestBySlugNotFound(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	_, err := svc.BySlug(context.Background(), "tidak-ada")
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -249,7 +271,7 @@ func TestBySlugNotFound(t *testing.T) {
 }
 
 func TestListInvalidCategory(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	_, err := svc.List(context.Background(), domain.BusinessListParams{Category: "Salah"})
 	if !errors.Is(err, domain.ErrInvalidCategory) {
@@ -258,7 +280,7 @@ func TestListInvalidCategory(t *testing.T) {
 }
 
 func TestListReturnsTotalAndChildren(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	got, err := svc.List(context.Background(), domain.BusinessListParams{})
 	if err != nil {
@@ -279,7 +301,7 @@ func TestListReturnsTotalAndChildren(t *testing.T) {
 func TestListEmptyResultKeepsPaginationMeta(t *testing.T) {
 	repo := newFixture()
 	repo.rows = nil // page past the last row
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 
 	got, err := svc.List(context.Background(), domain.BusinessListParams{Page: 3, Limit: 12})
 	if err != nil {
@@ -292,5 +314,44 @@ func TestListEmptyResultKeepsPaginationMeta(t *testing.T) {
 	}
 	if got.Page != 3 || got.Limit != 12 {
 		t.Errorf("page=%d limit=%d, want 3/12 (pagination meta must survive an empty page)", got.Page, got.Limit)
+	}
+}
+
+func TestListMineReturnsOwnProfilesWithStatus(t *testing.T) {
+	repo := newEmptyRepo()
+	svc := newService(repo)
+
+	draft := newBusiness(uuid.New(), "draft-saya")
+	draft.Status = domain.StatusDraft
+	draft.OwnerUserID = parseID(ownerID)
+	published := newBusiness(uuid.New(), "publish-saya")
+	published.OwnerUserID = parseID(ownerID)
+	repo.ownerRows = []store.Business{draft, published}
+	repo.ownerTotal = 2
+
+	got, err := svc.ListMine(context.Background(), ownerID, 1, 12)
+	if err != nil {
+		t.Fatalf("ListMine: %v", err)
+	}
+	if got.Total != 2 || len(got.Items) != 2 {
+		t.Fatalf("total=%d items=%d, want 2/2", got.Total, len(got.Items))
+	}
+	if got.Items[0].Status != domain.StatusDraft || got.Items[1].Status != domain.StatusPublished {
+		t.Errorf("statuses = %q/%q, want draft/published", got.Items[0].Status, got.Items[1].Status)
+	}
+}
+
+func TestListMineEmptyIsNotNil(t *testing.T) {
+	svc := newService(newEmptyRepo())
+
+	got, err := svc.ListMine(context.Background(), ownerID, 1, 12)
+	if err != nil {
+		t.Fatalf("ListMine: %v", err)
+	}
+	if got.Total != 0 || got.Items == nil {
+		t.Errorf("total=%d items=%v, want 0 and a non-nil empty slice", got.Total, got.Items)
+	}
+	if got.Page != 1 || got.Limit != 12 {
+		t.Errorf("page=%d limit=%d, want 1/12", got.Page, got.Limit)
 	}
 }

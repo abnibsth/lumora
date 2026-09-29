@@ -219,6 +219,15 @@ type OwnedBusiness struct {
 	Status string `json:"status"`
 }
 
+// OwnedBusinessList is the envelope for the owner's own profiles: like
+// BusinessList, but each item carries its draft/published status.
+type OwnedBusinessList struct {
+	Items []OwnedBusiness `json:"items"`
+	Total int64           `json:"total"`
+	Page  int             `json:"page"`
+	Limit int             `json:"limit"`
+}
+
 func validateProfileText(name, category, location, description, story string, owner Owner) error {
 	if err := requiredText("Nama bisnis", name, MaxNameLength); err != nil {
 		return err

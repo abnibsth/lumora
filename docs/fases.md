@@ -16,8 +16,8 @@ Status: **fase 1–5 selesai**, fase 6 (AI) belum dikerjakan.
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
 | 6 | AI draft profil | ❌ **Belum** |
 
-Total tes saat ini: **55 tes utama / 69 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
-Ditambah **6 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
+Total tes saat ini: **62 tes utama / 76 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
+Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
 
@@ -80,6 +80,7 @@ Ditambah **6 integration test** yang memukul Postgres asli (build tag `integrati
 | POST | `/api/v1/businesses` | 201, selalu mulai `draft`, slug dari nama, `owner_user_id` = akun pembuat |
 | PATCH | `/api/v1/businesses/:id` | 200, merge field yang dikirim; `""` opsional = hapus (NULL); `slug` & kepemilikan tidak bisa berubah |
 | POST | `/api/v1/businesses/:id/publish` | 200 `published` setelah cek kelengkapan; sudah published → tetap 200 |
+| GET | `/api/v1/businesses/mine` | 200, semua profil milik akun (draft + published) + `status`, terbaru dulu |
 
 Respons ketiganya = bentuk `Business` + field `status`.
 
@@ -87,6 +88,7 @@ Respons ketiganya = bentuk `Business` + field `status`.
 - Draft **tidak bocor** ke list/detail publik (list tetap 9 sebelum publish).
 - `404 not_found` (id tak ada) dibedakan dari `403 forbidden` (bukan milikmu) — beda dengan `401` (belum login).
 - Batas payload: 50 milestones, 30 blok BMC, tahun 1900–2100, dst.
+- Create/Update/Publish jalan dalam **satu transaksi DB** (`service.Transactor`), jadi profil + milestones/BMC tersimpan atomik — gagal di tengah = rollback, tidak ada profil yatim.
 
 **Verifikasi:** 9 test service (ownership, merge tak menyentuh field lain, slug unik, ganti children, publish + gagal publish draft tak lengkap) + 6 test handler (401/403/404/400 mapping) + live curl 11 langkah lewat proxy FE.
 

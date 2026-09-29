@@ -24,6 +24,7 @@ type BusinessService interface {
 	Create(ctx context.Context, userID string, input domain.CreateBusinessInput) (domain.OwnedBusiness, error)
 	Update(ctx context.Context, userID, id string, input domain.UpdateBusinessInput) (domain.OwnedBusiness, error)
 	Publish(ctx context.Context, userID, id string) (domain.OwnedBusiness, error)
+	ListMine(ctx context.Context, userID string, page, limit int) (domain.OwnedBusinessList, error)
 }
 
 type BusinessHandler struct {
@@ -36,24 +37,8 @@ func NewBusinessHandler(svc BusinessService) *BusinessHandler {
 
 // List handles GET /api/v1/businesses?q=&category=&location=&page=&limit=
 func (h *BusinessHandler) List(c *gin.Context) {
-	page, err := intParam(c, "page", service.DefaultPage)
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
-		return
-	}
-	if page < 1 {
-		writeError(c, http.StatusBadRequest, "invalid_parameter", "page minimal 1")
-		return
-	}
-
-	limit, err := intParam(c, "limit", service.DefaultLimit)
-	if err != nil {
-		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
-		return
-	}
-	if limit < 1 || limit > service.MaxLimit {
-		writeError(c, http.StatusBadRequest, "invalid_parameter",
-			fmt.Sprintf("limit harus antara 1 dan %d", service.MaxLimit))
+	page, limit, ok := paginationParams(c)
+	if !ok {
 		return
 	}
 
@@ -92,6 +77,31 @@ func (h *BusinessHandler) Detail(c *gin.Context) {
 	default:
 		c.JSON(http.StatusOK, business)
 	}
+}
+
+// ListMine handles GET /api/v1/businesses/mine. Route is behind
+// middleware.RequireSession, so the user is always present here.
+func (h *BusinessHandler) ListMine(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	page, limit, ok := paginationParams(c)
+	if !ok {
+		return
+	}
+
+	result, err := h.svc.ListMine(c.Request.Context(), user.ID, page, limit)
+	if err != nil {
+		if !writeDomainError(c, err) {
+			log.Printf("list own businesses: %v", err)
+			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+		}
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // ErrorBody is the single error envelope for the whole API.
@@ -192,6 +202,32 @@ func (h *BusinessHandler) Publish(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, business)
+}
+
+// paginationParams reads and validates the optional page/limit query pair,
+// writing the 400 envelope itself and reporting false when it already did.
+func paginationParams(c *gin.Context) (page, limit int, ok bool) {
+	page, err := intParam(c, "page", service.DefaultPage)
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
+		return 0, 0, false
+	}
+	if page < 1 {
+		writeError(c, http.StatusBadRequest, "invalid_parameter", "page minimal 1")
+		return 0, 0, false
+	}
+
+	limit, err = intParam(c, "limit", service.DefaultLimit)
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
+		return 0, 0, false
+	}
+	if limit < 1 || limit > service.MaxLimit {
+		writeError(c, http.StatusBadRequest, "invalid_parameter",
+			fmt.Sprintf("limit harus antara 1 dan %d", service.MaxLimit))
+		return 0, 0, false
+	}
+	return page, limit, true
 }
 
 // intParam reads an optional integer query parameter, falling back when the

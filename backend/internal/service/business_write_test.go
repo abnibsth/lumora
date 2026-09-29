@@ -50,7 +50,7 @@ func validCreateInput() domain.CreateBusinessInput {
 
 func TestCreateSavesDraftOwnedByCaller(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 
 	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
 	if err != nil {
@@ -86,7 +86,7 @@ func TestCreateSavesDraftOwnedByCaller(t *testing.T) {
 
 func TestCreateGeneratesUniqueSlug(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 
 	input := validCreateInput()
 	if _, err := svc.Create(context.Background(), ownerID, input); err != nil {
@@ -102,7 +102,7 @@ func TestCreateGeneratesUniqueSlug(t *testing.T) {
 }
 
 func TestCreateRejectsInvalidPayload(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	cases := []struct {
 		name   string
@@ -135,7 +135,7 @@ func TestCreateRejectsInvalidPayload(t *testing.T) {
 // Categories get their own sentinel so the HTTP layer can answer with the
 // invalid_category code, same as the list endpoint does for filters.
 func TestCreateRejectsUnknownCategory(t *testing.T) {
-	svc := NewBusinessService(newFixture())
+	svc := newService(newFixture())
 
 	input := validCreateInput()
 	input.Category = "Lainnya"
@@ -147,7 +147,7 @@ func TestCreateRejectsUnknownCategory(t *testing.T) {
 
 func TestUpdateRequiresOwnership(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -167,7 +167,7 @@ func TestUpdateRequiresOwnership(t *testing.T) {
 
 func TestUpdateMergesOnlySentFields(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -207,7 +207,7 @@ func TestUpdateMergesOnlySentFields(t *testing.T) {
 
 func TestUpdateReplacesChildrenWhenSent(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -232,7 +232,7 @@ func TestUpdateReplacesChildrenWhenSent(t *testing.T) {
 
 func TestPublishPromotesAndRejectsStrangers(t *testing.T) {
 	repo := newEmptyRepo()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -262,7 +262,7 @@ func TestPublishPromotesAndRejectsStrangers(t *testing.T) {
 
 func TestPublishRequiresCompleteProfile(t *testing.T) {
 	repo := newFixture()
-	svc := NewBusinessService(repo)
+	svc := newService(repo)
 
 	// A draft missing its story, as if written directly to the database.
 	row := newBusiness(uuid.New(), "belum-lengkap")

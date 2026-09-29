@@ -26,6 +26,8 @@ type BusinessRepository interface {
 	ListPublishedBusinessIDs(ctx context.Context, arg store.ListPublishedBusinessIDsParams) ([]pgtype.UUID, error)
 	CountPublishedBusinesses(ctx context.Context, arg store.CountPublishedBusinessesParams) (int64, error)
 	GetBusinessesByIDs(ctx context.Context, arg store.GetBusinessesByIDsParams) ([]store.Business, error)
+	ListBusinessesByOwner(ctx context.Context, arg store.ListBusinessesByOwnerParams) ([]store.Business, error)
+	CountBusinessesByOwner(ctx context.Context, arg store.CountBusinessesByOwnerParams) (int64, error)
 	GetPublishedBusinessBySlug(ctx context.Context, arg store.GetPublishedBusinessBySlugParams) (store.Business, error)
 	ListMilestonesByBusinessIDs(ctx context.Context, arg store.ListMilestonesByBusinessIDsParams) ([]store.BusinessMilestone, error)
 	ListBmcEntriesByBusinessIDs(ctx context.Context, arg store.ListBmcEntriesByBusinessIDsParams) ([]store.BmcEntry, error)
@@ -41,10 +43,11 @@ type BusinessRepository interface {
 
 type BusinessService struct {
 	repo BusinessRepository
+	tx   Transactor
 }
 
-func NewBusinessService(repo BusinessRepository) *BusinessService {
-	return &BusinessService{repo: repo}
+func NewBusinessService(repo BusinessRepository, tx Transactor) *BusinessService {
+	return &BusinessService{repo: repo, tx: tx}
 }
 
 // List returns one page of published profiles plus the total match count.
@@ -131,6 +134,64 @@ func (s *BusinessService) BySlug(ctx context.Context, slug string) (domain.Busin
 		return domain.Business{}, err
 	}
 	return items[0], nil
+}
+
+// ListMine returns every profile owned by userID — drafts included — newest
+// first, each item carrying its status. The public list only ever exposes
+// published profiles; this is what the owner's dashboard reads.
+func (s *BusinessService) ListMine(ctx context.Context, userID string, page, limit int) (domain.OwnedBusinessList, error) {
+	ownerID, err := ownerUUID(userID)
+	if err != nil {
+		return domain.OwnedBusinessList{}, err
+	}
+
+	if page < 1 {
+		page = DefaultPage
+	}
+	if limit < 1 {
+		limit = DefaultLimit
+	}
+	if limit > MaxLimit {
+		limit = MaxLimit
+	}
+
+	total, err := s.repo.CountBusinessesByOwner(ctx, store.CountBusinessesByOwnerParams{OwnerUserID: ownerID})
+	if err != nil {
+		return domain.OwnedBusinessList{}, fmt.Errorf("count own businesses: %w", err)
+	}
+
+	list := domain.OwnedBusinessList{Items: []domain.OwnedBusiness{}, Total: total, Page: page, Limit: limit}
+	if total == 0 {
+		return list, nil
+	}
+
+	rows, err := s.repo.ListBusinessesByOwner(ctx, store.ListBusinessesByOwnerParams{
+		OwnerUserID: ownerID,
+		Offset:      int32((page - 1) * limit),
+		Limit:       int32(limit),
+	})
+	if err != nil {
+		return domain.OwnedBusinessList{}, fmt.Errorf("list own businesses: %w", err)
+	}
+
+	// hydrate works on []domain.Business, so map first and carry the status
+	// alongside, then zip the two back together.
+	businesses := make([]domain.Business, 0, len(rows))
+	statuses := make([]string, 0, len(rows))
+	for _, row := range rows {
+		businesses = append(businesses, toBusiness(row))
+		statuses = append(statuses, row.Status)
+	}
+	if err := hydrate(ctx, s.repo, businesses); err != nil {
+		return domain.OwnedBusinessList{}, err
+	}
+
+	items := make([]domain.OwnedBusiness, 0, len(businesses))
+	for i := range businesses {
+		items = append(items, domain.OwnedBusiness{Business: businesses[i], Status: statuses[i]})
+	}
+	list.Items = items
+	return list, nil
 }
 
 // hydrate fills milestones and bmc for already-mapped businesses. One pair of

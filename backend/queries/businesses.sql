@@ -36,6 +36,21 @@ WHERE b.status = 'published'
         OR b.location ILIKE '%' || sqlc.narg('q') || '%'
       );
 
+-- Owner dashboard list: every profile owned by one account, drafts included,
+-- newest first. The public list only ever shows published rows; this is the
+-- query the owner's own dashboard reads.
+-- name: ListBusinessesByOwner :many
+SELECT *
+FROM businesses
+WHERE owner_user_id = $1
+ORDER BY created_at DESC, id ASC
+LIMIT $2 OFFSET $3;
+
+-- name: CountBusinessesByOwner :one
+SELECT count(*)
+FROM businesses
+WHERE owner_user_id = $1;
+
 -- name: GetBusinessesByIDs :many
 SELECT *
 FROM businesses
