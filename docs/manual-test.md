@@ -28,7 +28,13 @@ go test -tags integration ./internal/service -run Integration -v   # ke Postgres
 cd D:\alfian\kuliah\semester7\Ngoding\lumora\backend
 docker compose up -d --build      # full stack: postgres → migrate → seed → api (:8080), urut otomatis
 curl.exe http://localhost:8080/healthz      # {"status":"ok"} = siap
+```
 
+> **Bagian 7 (AI) butuh provider.** Tanpa konfigurasi apa pun, `docker compose` jalan sebagai `AI_PROVIDER=stub` (offline, tanpa kredensial). Untuk Gemini: set `AI_PROVIDER=gemini` + `GEMINI_API_KEY` di `backend/.env` (atau ekspor `$env:AI_PROVIDER="gemini"` dan `$env:GEMINI_API_KEY="..."`) — compose membaca keduanya, sama seperti `go run ./cmd/api`.
+>
+> Kalau `docker compose ps` menunjukkan `api` restart terus, cek `docker compose logs api`: dengan `AI_PROVIDER=gemini` tanpa key, app memang menolak start (pesan `GEMINI_API_KEY wajib diisi`), bukan diam-diam membalas `503`.
+
+```powershell
 # --- file bantuan (sekali bikin, dipakai bagian 2-5) ---
 $bodyDir = "$env:TEMP\lumora"
 New-Item -ItemType Directory $bodyDir -Force | Out-Null
@@ -197,6 +203,10 @@ Set-Content "$bodyDir\narasi-pendek.json" '{"narrative":"kopi"}' -Encoding ascii
 | 4 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\narasi-pendek.json" -X POST "$api/ai/draft-profile"` | 400 `validation_failed` (narasi di bawah 20 karakter) |
 | 5 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\teks.txt" -X POST "$api/ai/draft-profile"` | 400 `invalid_body` (bukan JSON) |
 
+> Langkah 2 dengan **`stub`**: `name`/`story` kosong dan `milestones`/`bmc` `[]` — stub hanya mengisi yang bisa ditebak dari kata kunci. Dengan **`gemini`** (default, ~5 detik): `description`, `story`, dan `seekingObjective` ikut terisi; `name`, `owner`, `milestones`, `bmc` **tetap kosong** di narasi contoh ini karena narasinya tidak menyebut nama usaha, pemilik, atau tonggak — model memang dilarang mengarang. Empat nilai yang diuji di baris 2 harus benar di kedua provider, dan baris 3 wajib lolos di keduanya.
+>
+> Cek provider benar-benar aktif, bukan cuma jalan: kalau `gemini` dipilih tapi responsnya kosong-kosong seperti stub, periksa `AI_PROVIDER` di proses API (`docker compose config | Select-String AI_PROVIDER` atau log start). Kalau draf balas `503` terus, lihat log API — `status=404 provider_status="NOT_FOUND"` berarti nama modelnya sudah di-retire Google, ganti lewat `GEMINI_MODEL`.
+
 > Tidak ada yang ditulis ke DB. Tempel hasilnya ke form lalu kirim ke `POST /businesses`; field `suggestions` diabaikan backend, jadi seluruh respons aman dikirim balik.
 
 ---
@@ -218,12 +228,18 @@ Cukup uji 1–2 endpoint + satu endpoint auth (cookie `HttpOnly` dilihat dari De
 ```powershell
 docker exec lumora-postgres psql -U lumora -d lumora -c `
   "DELETE FROM businesses WHERE slug LIKE 'uji-%'; DELETE FROM users WHERE email LIKE 'uji%';"
-Remove-Item "$bodyDir" -Recurse -Force
-Remove-Item "$env:TEMP\lumora\cookies*.txt" -Force -ErrorAction SilentlyContinue
-Remove-Item ".\uploads\*" -Force -ErrorAction SilentlyContinue   # file upload hasil uji
+Remove-Item "$bodyDir" -Recurse -Force -ErrorAction SilentlyContinue   # sekaligus cookie di dalamnya
+
+# Upload hasil uji. PENTING: tergantung cara API dijalankan.
+docker exec backend-api-1 sh -c "rm -f /app/uploads/*"                  # docker compose -> named volume
+Remove-Item ".\uploads\*" -Force -ErrorAction SilentlyContinue          # go run di host -> folder host
 
 curl.exe "$api/businesses"     # kembali total=9
+docker exec lumora-postgres psql -U lumora -d lumora -t -c `
+  "select (select count(*) from users) users, (select count(*) from sessions) sessions;"
 ```
+
+> **Kenapa dua perintah uploads?** `docker compose` memasang named volume di `/app/uploads`, jadi file uji **tidak** masuk ke `backend\uploads\` di host — menghapus folder host saja menyisakan file di volume (ketahuan saat runbook ini dijalankan: folder host 0 file, volume masih 1). `backend-api-1` adalah nama container dari `docker compose`; cek dengan `docker compose ps`.
 
 > User & sesi ikut terhapus via `ON DELETE CASCADE` (bookmarks, sessions). Kalau table masih kotor: `users`/`sessions` dihapus manual dengan `psql`.
 

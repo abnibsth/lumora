@@ -16,7 +16,7 @@ Status: **fase 1–6 selesai**.
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
 | 6 | AI draft profil | ✅ **Selesai** |
 
-Total tes saat ini: **108 tes utama / 152 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
+Total tes saat ini: **128 tes utama / 186 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
 Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -138,7 +138,9 @@ Respons ketiganya = bentuk `Business` + field `status`.
 ## Fase 6 — AI draft profil ✅
 
 **Isi:**
-- `internal/ai/stub.go`: generator draf **offline deterministik** — heuristik kata kunci, tanpa panggilan jaringan, tanpa API key. Dipilih lewat env `AI_PROVIDER` (default `stub`); nilai di luar allowlist ditolak `config.Load()` saat start.
+- `internal/ai/stub.go`: generator draf **offline deterministik** — heuristik kata kunci, tanpa panggilan jaringan, tanpa API key. Dipakai tes dan run tanpa kredensial (`AI_PROVIDER=stub`).
+- `internal/ai/gemini.go`: provider asli lewat Google Gemini REST (`models.generateContent`), **default** (`AI_PROVIDER=gemini`, model `gemini-3.1-flash-lite`). Structured output (`responseMimeType: application/json` + `responseSchema`) jadi model tidak punya field finansial untuk diisi; `thinkingBudget: 0` supaya tidak menunggu proses reasoning. API key dikirim lewat header `x-goog-api-key` (bukan query string) dan tidak pernah muncul di pesan error; body error provider tidak diteruskan ke client — yang dicatat ke log cuma status HTTP + enum status provider (mis. `404/NOT_FOUND` = nama model sudah di-retire Google, `503/UNAVAILABLE` = lonjakan beban).
+- `internal/config/config.go`: `AI_PROVIDER` divalidasi terhadap allowlist (`stub`, `gemini`), nilai asing ditolak saat start. `GEMINI_MODEL` opsional (default `gemini-3.1-flash-lite`). Key hanya diwajibkan lewat `Config.RequireGeminiKey()`, yang dipanggil **cuma** oleh `cmd/api`: `cmd/migrate` dan `cmd/seed` memakai `config.Load()` yang sama tapi tidak pernah membuat draf, jadi migrasi tetap jalan di mesin tanpa kredensial AI.
 - `internal/service/ai.go`: interface `Drafter` (sisi konsumen), timeout per-generate (`DefaultAITimeout` 15 detik), dan normalisasi semua kegagalan provider jadi `domain.ErrAIUnavailable` → satu kode `503 ai_unavailable`. Log hanya tipe error + durasi, **tidak pernah** narasi atau isi draf.
 - `internal/domain/ai.go`: `DraftProfile` **tanpa** field finansial sama sekali — guardrail "AI tidak boleh mengarang angka" jadi struktural, bukan konvensi. `Sanitize()` memotong output ke batas yang sama dengan endpoint tulis (kategori di luar enum → `""`, tahun di luar 1900–2100 → `0`, slice nil → `[]`).
 
@@ -150,9 +152,11 @@ Respons ketiganya = bentuk `Business` + field `status`.
 
 Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lalu dikirim ke `POST /businesses`.
 
-**Verifikasi:** 17 test domain (`Validate` + `Sanitize` termasuk idempotensi & potong di batas rune), 33 kasus stub (kategori per keyword, word-boundary `tas` vs `atas`, lokasi/tahun, pemisahan kalimat, **determinisme** dua panggilan, output tak pernah memuat field finansial), 8 test service (sanitasi output provider, error/timeout → `ErrAIUnavailable`), 8 test handler (401/400/503, body kebesaran, guardrail finansial) + 3 test config.
+**Verifikasi:** 17 test domain (`Validate` + `Sanitize` termasuk idempotensi & potong di batas rune), 33 kasus stub (kategori per keyword, word-boundary `tas` vs `atas`, lokasi/tahun, pemisahan kalimat, **determinisme** dua panggilan, output tak pernah memuat field finansial), 13 test Gemini / 23 kasus (parse respons, key di header & model di path, schema tidak punya field finansial + enum kategori sinkron `domain.Categories`, field finansial dari model dibuang saat unmarshal, body error provider tidak bocor ke pesan error, key tidak bocor saat transport error, respons rusak/blocked/cancel ditolak, `context.Canceled` diteruskan utuh, ekstraksi enum status provider), 8 test service (sanitasi output provider, error/timeout → `ErrAIUnavailable`), 8 test handler (401/400/503, body kebesaran, guardrail finansial) + 13 test config (default provider, allowlist, `RequireGeminiKey` untuk gemini saja).
 
-**Catatan:** provider asli (OpenAI/Anthropic/dll) belum dipilih. Menambahkannya = bikin tipe baru yang memenuhi `service.Drafter`, lalu tambah satu `case` di `cmd/api/main.go` + satu nilai di `config.AIProviders`. Handler, service, dan test tidak perlu berubah.
+**Live test (provider asli, key asli):** draf penuh 200 dalam ~4,8 detik; guardrail finansial lolos dua serangan — narasi yang minta `revenueLabel`/`growthLabel`/`revenueSeries` **dan** prompt injection "abaikan semua instruksi sebelumnya" dua-duanya balik 200 tanpa satu pun key finansial (dicek dengan enumerasi key JSON, bukan grep). Unicode + emoji (`Kopi Ĝøøđ` ☕) utuh. Narasi 4 karakter → `400 validation_failed`, body rusak → `400 invalid_body`, tanpa sesi → `401 unauthenticated`. Draf hasilnya dikirim balik ke `POST /businesses` → **201**. Data uji dihapus lagi (DB balik ke 9 profil / 0 user).
+
+**Catatan:** provider asli sudah terpasang (Gemini). Menambah provider lain = bikin tipe baru yang memenuhi `service.Drafter`, lalu tambah satu `case` di `cmd/api/main.go` + satu nilai di `config.AIProviders`. Handler, service, dan test tidak perlu berubah.
 
 ---
 
@@ -161,10 +165,10 @@ Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lal
 | Item | Status |
 |---|---|
 | Git commit | ✔ **selesai** — `backend/` + `docs/` sudah di-commit dan di-push ke `origin/backend`. Sisa: edit `frontend/next.config.ts` (scope frontend) |
-| Provider AI asli | ❌ belum dipilih — Fase 6 jalan dengan stub offline. Belum ada API key, prompt, atau SDK |
+| Provider AI asli | ✔ **selesai** — Google Gemini (`AI_PROVIDER=gemini`, default) dengan structured output; stub tetap ada untuk run tanpa kredensial |
+| Rate limiting endpoint AI | ❌ belum — tiap panggilan ke Gemini berbiaya, jadi ini yang paling layak dikerjakan berikutnya |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Rate limiting login/register | ❌ belum (brute-force masih mungkin) |
-| Rate limiting endpoint AI | ❌ belum — begitu provider asli dipasang, tiap panggilan berbiaya |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |

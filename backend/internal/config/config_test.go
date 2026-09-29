@@ -5,9 +5,12 @@ import (
 	"testing"
 )
 
+// The database tests pin the provider to the stub so a local .env cannot change
+// what they exercise.
 func TestLoadRequiresDatabaseURLInProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DATABASE_URL", "")
+	t.Setenv("AI_PROVIDER", AIProviderStub)
 
 	_, err := Load()
 	if !errors.Is(err, ErrMissingDatabaseURL) {
@@ -20,6 +23,7 @@ func TestLoadAcceptsDatabaseURLInProduction(t *testing.T) {
 
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DATABASE_URL", dsn)
+	t.Setenv("AI_PROVIDER", AIProviderStub)
 
 	cfg, err := Load()
 	if err != nil {
@@ -33,6 +37,7 @@ func TestLoadAcceptsDatabaseURLInProduction(t *testing.T) {
 func TestLoadFallsBackToLocalhostOutsideProduction(t *testing.T) {
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("DATABASE_URL", "")
+	t.Setenv("AI_PROVIDER", AIProviderStub)
 
 	cfg, err := Load()
 	if err != nil {
@@ -43,27 +48,45 @@ func TestLoadFallsBackToLocalhostOutsideProduction(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultsAIProviderToStub(t *testing.T) {
+func TestLoadDefaultsAIProviderToGemini(t *testing.T) {
 	t.Setenv("AI_PROVIDER", "")
+	t.Setenv("GEMINI_API_KEY", "")
 
+	// Load must succeed without a key: migrate and seed share it and never
+	// generate drafts. The key is checked by RequireGeminiKey below.
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.AIProvider != "stub" {
-		t.Fatalf("got %q, want %q", cfg.AIProvider, "stub")
+	if cfg.AIProvider != AIProviderGemini {
+		t.Fatalf("got %q, want %q", cfg.AIProvider, AIProviderGemini)
 	}
 }
 
 func TestLoadAcceptsKnownAIProvider(t *testing.T) {
-	t.Setenv("AI_PROVIDER", "stub")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	cases := []struct {
+		provider string
+		key      string
+	}{
+		{AIProviderStub, ""},
+		{AIProviderStub, "a-key-ignored-by-the-stub"},
+		{AIProviderGemini, "a-key"},
+		{AIProviderGemini, ""},
 	}
-	if cfg.AIProvider != "stub" {
-		t.Fatalf("got %q, want %q", cfg.AIProvider, "stub")
+
+	for _, tc := range cases {
+		t.Run(tc.provider+"/key="+tc.key, func(t *testing.T) {
+			t.Setenv("AI_PROVIDER", tc.provider)
+			t.Setenv("GEMINI_API_KEY", tc.key)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.AIProvider != tc.provider {
+				t.Fatalf("got %q, want %q", cfg.AIProvider, tc.provider)
+			}
+		})
 	}
 }
 
@@ -71,9 +94,107 @@ func TestLoadRejectsUnknownAIProvider(t *testing.T) {
 	// A typo must fail loudly rather than quietly serving stub drafts in
 	// production and looking healthy.
 	t.Setenv("AI_PROVIDER", "openai")
+	t.Setenv("GEMINI_API_KEY", "a-key")
 
 	_, err := Load()
 	if !errors.Is(err, ErrUnknownAIProvider) {
 		t.Fatalf("got %v, want ErrUnknownAIProvider", err)
+	}
+}
+
+func TestRequireGeminiKeyRejectsMissingKey(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderGemini)
+	t.Setenv("GEMINI_API_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load must not check the key: %v", err)
+	}
+	if err := cfg.RequireGeminiKey(); !errors.Is(err, ErrMissingGeminiAPIKey) {
+		t.Fatalf("got %v, want ErrMissingGeminiAPIKey", err)
+	}
+}
+
+func TestRequireGeminiKeyRejectsWhitespaceOnlyKey(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderGemini)
+	t.Setenv("GEMINI_API_KEY", "   ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := cfg.RequireGeminiKey(); !errors.Is(err, ErrMissingGeminiAPIKey) {
+		t.Fatalf("got %v, want ErrMissingGeminiAPIKey", err)
+	}
+}
+
+func TestRequireGeminiKeyPassesWithKey(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderGemini)
+	t.Setenv("GEMINI_API_KEY", "a-key")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := cfg.RequireGeminiKey(); err != nil {
+		t.Fatalf("got %v, want nil", err)
+	}
+}
+
+func TestRequireGeminiKeyPassesForStub(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("GEMINI_API_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := cfg.RequireGeminiKey(); err != nil {
+		t.Fatalf("got %v, want nil for the keyless stub", err)
+	}
+}
+
+func TestLoadStubNeedsNoGeminiAPIKey(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("GEMINI_API_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GeminiAPIKey != "" {
+		t.Fatalf("GeminiAPIKey = %q, want empty", cfg.GeminiAPIKey)
+	}
+}
+
+func TestLoadReadsGeminiSettings(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderGemini)
+	t.Setenv("GEMINI_API_KEY", "  a-key  ")
+	t.Setenv("GEMINI_MODEL", "gemini-2.5-pro")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GeminiAPIKey != "a-key" {
+		t.Fatalf("GeminiAPIKey = %q, want trimmed %q", cfg.GeminiAPIKey, "a-key")
+	}
+	if cfg.GeminiModel != "gemini-2.5-pro" {
+		t.Fatalf("GeminiModel = %q, want %q", cfg.GeminiModel, "gemini-2.5-pro")
+	}
+}
+
+func TestLoadLeavesGeminiModelEmptyForTheProviderDefault(t *testing.T) {
+	// The default model constant lives in the ai package; config must not
+	// duplicate it, or the two can drift.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("GEMINI_MODEL", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GeminiModel != "" {
+		t.Fatalf("GeminiModel = %q, want empty", cfg.GeminiModel)
 	}
 }

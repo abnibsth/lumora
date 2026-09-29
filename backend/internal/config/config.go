@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -17,19 +18,36 @@ var ErrMissingDatabaseURL = errors.New("DATABASE_URL wajib diisi saat APP_ENV=pr
 // fake drafts and look like it is working.
 var ErrUnknownAIProvider = errors.New("AI_PROVIDER tidak dikenal")
 
+// ErrMissingGeminiAPIKey is returned when the API starts with the Gemini
+// provider selected but no key. Starting anyway would leave every draft request
+// answering 503 while the process looks healthy, which is harder to notice than
+// a refused boot. Use AI_PROVIDER=stub for a keyless run.
+var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY wajib diisi saat AI_PROVIDER=gemini")
+
+// AIProviderGemini is the default: the real generator. AIProviderStub is the
+// offline generator kept for tests and keyless runs.
+const (
+	AIProviderGemini = "gemini"
+	AIProviderStub   = "stub"
+)
+
 // AIProviders lists the draft generators that can actually be wired up. Add a
 // value here together with its implementation in cmd/api/main.go.
-var AIProviders = []string{"stub"}
+var AIProviders = []string{AIProviderStub, AIProviderGemini}
 
 // Config holds everything read from the environment. Outside production,
 // values fall back to local-development defaults so `go run ./cmd/api` works
 // without a .env file.
 type Config struct {
-	Port        string
-	DatabaseURL string
-	AppEnv      string
-	UploadDir   string
-	AIProvider  string
+	Port         string
+	DatabaseURL  string
+	AppEnv       string
+	UploadDir    string
+	AIProvider   string
+	GeminiAPIKey string
+	// GeminiModel is passed through as-is; the empty default lives in the ai
+	// package next to the provider that uses it.
+	GeminiModel string
 }
 
 func Load() (Config, error) {
@@ -63,19 +81,33 @@ func Load() (Config, error) {
 
 	aiProvider := os.Getenv("AI_PROVIDER")
 	if aiProvider == "" {
-		aiProvider = "stub"
+		aiProvider = AIProviderGemini
 	}
 	if !knownAIProvider(aiProvider) {
 		return Config{}, fmt.Errorf("%w: %q", ErrUnknownAIProvider, aiProvider)
 	}
 
+	geminiAPIKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
+
 	return Config{
-		Port:        port,
-		DatabaseURL: databaseURL,
-		AppEnv:      appEnv,
-		UploadDir:   uploadDir,
-		AIProvider:  aiProvider,
+		Port:         port,
+		DatabaseURL:  databaseURL,
+		AppEnv:       appEnv,
+		UploadDir:    uploadDir,
+		AIProvider:   aiProvider,
+		GeminiAPIKey: geminiAPIKey,
+		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
 	}, nil
+}
+
+// RequireGeminiKey reports whether the selected provider can actually run. Only
+// the API calls it: migrate and seed share Load, and they never generate drafts,
+// so a missing AI key must not stop a schema migration or a seed.
+func (c Config) RequireGeminiKey() error {
+	if c.AIProvider == AIProviderGemini && c.GeminiAPIKey == "" {
+		return ErrMissingGeminiAPIKey
+	}
+	return nil
 }
 
 func knownAIProvider(provider string) bool {

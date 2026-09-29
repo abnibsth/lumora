@@ -48,6 +48,11 @@ services:
       APP_ENV: development
       UPLOAD_DIR: /app/uploads
       PORT: "8080"
+      # Offline by default so the demo stack needs no credentials. Export
+      # AI_PROVIDER=gemini and GEMINI_API_KEY to run against the real provider.
+      AI_PROVIDER: ${AI_PROVIDER:-stub}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
     ports:
       - "8080:8080"
     volumes:

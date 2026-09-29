@@ -26,6 +26,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	// Only this binary generates drafts, so only this binary insists on the
+	// provider's key. cmd/migrate and cmd/seed share config.Load and must keep
+	// working on a machine that has no AI credentials.
+	if err := cfg.RequireGeminiKey(); err != nil {
+		log.Fatalf("config: %v", err)
+	}
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -55,14 +61,17 @@ func main() {
 	bookmarkHandler := handler.NewBookmarkHandler(bookmarkService)
 	mediaHandler := handler.NewMediaHandler(cfg.UploadDir)
 
-	// AI_PROVIDER selects the draft generator. "stub" is the only implementation
-	// until a provider is chosen; config.Load rejects every other value at
-	// startup, and the default below catches a provider added to the allowlist
-	// without an implementation here.
+	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
+	// the default, "stub" is the offline one used for keyless runs and tests.
+	// config.Load rejects every other value and refuses to start a Gemini
+	// provider without a key, and the default below catches a provider added to
+	// the allowlist without an implementation here.
 	var drafter service.Drafter
 	switch cfg.AIProvider {
-	case "stub":
+	case config.AIProviderStub:
 		drafter = ai.NewStub()
+	case config.AIProviderGemini:
+		drafter = ai.NewGemini(cfg.GeminiAPIKey, cfg.GeminiModel)
 	default:
 		log.Fatalf("ai: provider %q belum punya implementasi", cfg.AIProvider)
 	}
