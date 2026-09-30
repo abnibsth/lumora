@@ -309,6 +309,26 @@ func TestResendVerificationAlreadyVerifiedIs409(t *testing.T) {
 	}
 }
 
+func TestResendVerificationEmailUnavailableIs503(t *testing.T) {
+	// A provider outage is retryable, so it must not read as a generic server
+	// fault the client cannot act on.
+	svc := newFakeService()
+	svc.resendErr = domain.ErrEmailUnavailable
+	router := newTestRouter(svc)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/resend-verification", nil)
+	request.AddCookie(&http.Cookie{Name: domain.SessionCookieName, Value: "token-abc"})
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "email_unavailable") {
+		t.Errorf("body = %s, want code email_unavailable", recorder.Body.String())
+	}
+}
+
 func TestResendVerificationSuccessIs200(t *testing.T) {
 	router := newTestRouter(newFakeService())
 

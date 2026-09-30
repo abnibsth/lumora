@@ -36,6 +36,17 @@ var ErrUnknownLogLevel = errors.New("LOG_LEVEL tidak dikenal")
 // a refused boot. Use AI_PROVIDER=stub for a keyless run.
 var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY wajib diisi saat AI_PROVIDER=gemini")
 
+// ErrMissingResendAPIKey is returned when the API starts with the Resend
+// provider selected but no key, for the same reason as ErrMissingGeminiAPIKey:
+// every verification mail would fail while the process looks healthy.
+var ErrMissingResendAPIKey = errors.New("RESEND_API_KEY wajib diisi saat EMAIL_PROVIDER=resend")
+
+// ErrStubEmailInProduction is returned when production starts on the stub
+// sender, which only logs the link. Every user would then be unable to verify,
+// and because publishing is gated behind verification, the core flow would be
+// unreachable — silently. Refusing to boot is louder.
+var ErrStubEmailInProduction = errors.New("EMAIL_PROVIDER=stub tidak boleh dipakai saat APP_ENV=production")
+
 // ErrInvalidAIDraftLimit is returned for a non-numeric or non-positive AI
 // draft budget, per account or global. Reading a bad value as "unlimited" would
 // silently remove the only guard on an endpoint that bills per call.
@@ -110,14 +121,17 @@ const (
 // value here together with its implementation in cmd/api/main.go.
 var AIProviders = []string{AIProviderStub, AIProviderGemini}
 
-// EmailProviderStub is the only sender so far: it prints the verification link
-// to the log instead of mailing it. A real provider (SMTP, Resend, ...) is
-// added by implementing service.VerificationSender and listing it here.
-const EmailProviderStub = "stub"
+// EmailProviderStub prints the verification link to the log instead of mailing
+// it; EmailProviderResend sends through Resend's HTTPS API. Add a provider by
+// implementing service.VerificationSender and listing it here.
+const (
+	EmailProviderStub   = "stub"
+	EmailProviderResend = "resend"
+)
 
 // EmailProviders lists the verification senders that can be wired up. Add a
 // value here together with its implementation in cmd/api/main.go.
-var EmailProviders = []string{EmailProviderStub}
+var EmailProviders = []string{EmailProviderStub, EmailProviderResend}
 
 // Log levels accepted by LOG_LEVEL. Add a value here together with its case in
 // internal/logging.parseLevel.
@@ -161,6 +175,12 @@ type Config struct {
 	// drafts. FrontendBaseURL is where the emailed link points.
 	EmailProvider   string
 	FrontendBaseURL string
+	// ResendAPIKey is required when EmailProvider is "resend"; only cmd/api
+	// enforces that, via RequireEmailSender. ResendFrom is passed through as-is;
+	// the empty default lives in the email package next to the provider, like
+	// GeminiModel.
+	ResendAPIKey string
+	ResendFrom   string
 
 	// Auth rate limits: per-email counts plus a per-endpoint global valve.
 	// Windows live in cmd/api for the same reason as above.
@@ -224,6 +244,11 @@ func Load() (Config, error) {
 	if !knownEmailProvider(emailProvider) {
 		return Config{}, fmt.Errorf("%w: %q", ErrUnknownEmailProvider, emailProvider)
 	}
+
+	// Not rejected here when empty: migrate and seed share Load and never send
+	// mail, so a missing key must not stop them. cmd/api enforces it through
+	// RequireEmailSender, the same split as RequireGeminiKey.
+	resendAPIKey := strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
 
 	frontendBaseURL := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL"))
 	if frontendBaseURL == "" {
@@ -297,6 +322,8 @@ func Load() (Config, error) {
 		AIDraftGlobalLimitPerHour: aiDraftGlobalLimit,
 		EmailProvider:             emailProvider,
 		FrontendBaseURL:           frontendBaseURL,
+		ResendAPIKey:              resendAPIKey,
+		ResendFrom:                strings.TrimSpace(os.Getenv("RESEND_FROM")),
 		AuthLoginLimit:            authLoginLimit,
 		AuthRegisterLimit:         authRegisterLimit,
 		AuthLoginGlobalLimit:      authLoginGlobalLimit,
@@ -332,6 +359,23 @@ func positiveIntFromEnv(name string, fallback int, sentinel error) (int, error) 
 func (c Config) RequireGeminiKey() error {
 	if c.AIProvider == AIProviderGemini && c.GeminiAPIKey == "" {
 		return ErrMissingGeminiAPIKey
+	}
+	return nil
+}
+
+// RequireEmailSender reports whether the selected sender can actually send in
+// this environment. Only the API calls it: migrate and seed share Load and never
+// send mail, so neither a missing key nor a stub provider may stop a migration —
+// and a stub in production must not stop the migrate step of a deploy either.
+//
+// Both failures live here because they mean the same thing: the configured
+// sender cannot send.
+func (c Config) RequireEmailSender() error {
+	if c.EmailProvider == EmailProviderResend && c.ResendAPIKey == "" {
+		return ErrMissingResendAPIKey
+	}
+	if c.IsProduction() && c.EmailProvider == EmailProviderStub {
+		return ErrStubEmailInProduction
 	}
 	return nil
 }

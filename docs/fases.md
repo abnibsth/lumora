@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–10 selesai**.
+Status: **fase 1–11 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -19,8 +19,9 @@ Status: **fase 1–10 selesai**.
 | 8 | Rate limiting login/register (per email) | ✅ **Selesai** |
 | 9 | Verifikasi email saat register | ✅ **Selesai** |
 | 10 | Hapus profil (arsip) + kelola akun (edit nama, ganti sandi, hapus akun) | ✅ **Selesai** |
+| 11 | Provider email asli (Resend) | ✅ **Selesai** |
 
-Total tes saat ini: **243 tes utama / 389 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 5**.
+Total tes saat ini: **258 tes utama / 417 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 5**.
 Ditambah **11 integration test** (17 kasus) yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -276,7 +277,11 @@ Respons `User` kini punya field `emailVerified` (boolean, bukan timestamp — fr
 
 **Verifikasi:** 2 test auth (token 32 byte & unik, `HashToken` deterministik + tidak pernah mengembalikan token mentah) + 3 test email stub (link + penerima masuk log, `ctx` yang sudah dibatalkan tidak melaporkan sukses, `NewStub` siap pakai) + 5 test config (default & override `EMAIL_PROVIDER`, penolakan nilai asing, default & override `FRONTEND_BASE_URL`) + 12 kasus baru di `TestLoadRejectsInvalidAuthLimits` (penolakan `abc`/`0`/`-5`/`1.5` untuk 3 variabel verifikasi) + 6 test middleware (gate `RequireVerified` tolak unverified / lolos verified / 401 tanpa sesi, gate jalan **sebelum** limiter AI sehingga request unverified tidak membakar kuota, `UserKey` mengembalikan ID akun / tanpa user) + 6 test handler (200, 400 `invalid_token`, 400 body rusak, 401, 409 `email_already_verified`, 200) + 11 test service (register mengirim link, register tetap sukses saat kirim gagal, verify menandai verified, idempoten, token tak dikenal / kedaluwarsa / sudah dipakai, resend mengganti token pending, resend tolak akun verified, user tak dikenal, resend mengembalikan error kirim) + 1 integration test ke Postgres asli (lookup by hash, consume, `UPDATE` ter-guard, resend mematikan token lama, idempoten). Semua test fase 1–8 tetap hijau.
 
-**Catatan:** `EMAIL_PROVIDER` baru punya `stub` — mengirim email sungguhan = implement `service.VerificationSender` lalu tambah satu nilai di `config.EmailProviders` + satu `case` di `cmd/api/main.go`; handler, service, dan test tidak perlu berubah. Sampai provider asli dipasang, verifikasi email di production **tidak berfungsi** (link cuma masuk log) — itulah alasan peringatan saat boot.
+**Catatan:** `EMAIL_PROVIDER` baru punya `stub` — mengirim email sungguhan = implement `service.VerificationSender` lalu tambah satu nilai di `config.EmailProviders` + satu `case` di `cmd/api/main.go`; handler, service, dan test tidak perlu berubah. Sampai provider asli dipasang, verifikasi email di production **tidak berfungsi** (link cuma masuk log) — itulah alasan peringatan saat boot. *(Peringatan itu diganti penolakan boot di fase 11; provider aslinya `internal/email/resend.go`.)*
+
+> **Pelajaran (ketahuan 2026-09-30, diperbaiki di commit `c44635f`):** `RequireVerified` dipasang ke endpoint yang **sudah ada**, dan `docs/api.md` ikut diperbarui — tapi `docs/manual-test.md` tidak. Selama fase 9 sampai fase 10, runbook itu mendokumentasikan `200` untuk `publish` (§4 #7), draf AI (§7), dan `publish` production (§10.3 #9) yang **tidak mungkin tercapai**: tanpa verifikasi semuanya balas `403 email_not_verified`. Lebih buruk, runbook-nya tidak punya langkah verifikasi sama sekali — padahal `EMAIL_PROVIDER=stub` berarti token hanya ada di log, jadi pembaca tidak punya jalan memenuhi prasyarat barunya. Dua endpoint fase ini (`verify-email`, `resend-verification`) bahkan **nol penyebutan** di runbook. Jebakan turunannya: karena gate jalan **sebelum** handler, langkah yang seharusnya `400` (body rusak, narasi terlalu pendek) ikut jadi `403` — jadi "semua baris balas 403" terlihat seperti bug validasi, bukan gate.
+>
+> **Aturan yang diambil:** menambah gate ke endpoint lama bukan sekadar perubahan kode + `api.md`. Runbook manual diperbarui di commit yang sama, termasuk cara memenuhi prasyarat barunya. `api.md` saja tidak cukup — ia mendokumentasikan kontrak, bukan urutan langkah, jadi gate yang benar di `api.md` tetap meninggalkan runbook yang tidak bisa dijalankan.
 
 ---
 
@@ -317,7 +322,41 @@ Keempatnya wajib login. Tidak ada yang memakai gate `RequireVerified`: arsip jus
 
 **Catatan:** tidak ada endpoint untuk **membatalkan** arsip, dan itu memang tidak diminta — `Publish` dan `PATCH` pada profil terarsip sama-sama `404`, jadi satu-satunya jalan pulih adalah akses DB langsung. Slug juga tidak dilepas saat arsip (kolomnya tetap `UNIQUE`), jadi membuat profil baru dengan nama sama akan mendapat sufiks `-2`. Kalau salah satu dari keduanya perlu diubah, itu endpoint/migrasi baru, bukan penyesuaian di fase ini.
 
-**Ditunda (keputusan sadar):** alur **lupa / reset kata sandi**. Alurnya butuh mengirim email, sedangkan `EMAIL_PROVIDER` masih `stub` — link hanya masuk log, jadi di production fiturnya akan terlihat ada tapi tidak berfungsi. Dikerjakan setelah provider email asli terpasang.
+**Ditunda (keputusan sadar):** alur **lupa / reset kata sandi**. Alurnya butuh mengirim email, sedangkan `EMAIL_PROVIDER` masih `stub` — link hanya masuk log, jadi di production fiturnya akan terlihat ada tapi tidak berfungsi. Dikerjakan setelah provider email asli terpasang. *(Provider asli terpasang di fase 11; penghalangnya sekarang alur reset itu sendiri, bukan pengiriman email.)*
+
+---
+
+## Fase 11 — Provider email asli (Resend) ✅
+
+**Isi:**
+- `internal/email/resend.go`: tipe `Resend` + `NewResend(apiKey, from)` + `SendVerification`. Meniru `internal/ai/gemini.go` hampir baris per baris — konfigurasi lewat parameter konstruktor, `baseURL` sebagai field (supaya test bisa mengarahkan ke `httptest`), `*http.Client` dengan timeout konstanta paket. **Tanpa dependensi baru**: hanya `net/http`.
+- **Kirim lewat API HTTPS, bukan SMTP.** Railway memblokir SMTP keluar kecuali plan Pro, dan Resend merekomendasikan jalur HTTPS di sana. Endpoint: `POST https://api.resend.com/emails`, key di header `Authorization: Bearer`, body `{from, to[], subject, html, text}`.
+- **Key di header, bukan query string** — supaya tidak bisa muncul di URL yang dicetak transport error. Body error dibaca terbatas untuk membuang koneksi tapi **tidak pernah** masuk error yang dikembalikan; log hanya membawa `status` + enum `name` Resend (`restricted_api_key`, `daily_quota_exceeded`, …). **Link, token, dan alamat penerima tidak pernah di-log** — berbeda dari stub yang justru menulis link (karena itu memang satu-satunya cara memakai stub). Aturan ini dikunci test.
+- **`domain.ErrEmailUnavailable`** (baru, di `internal/domain/user.go`). `issueVerification` men-collapse setiap kegagalan provider jadi satu sentinel yang bisa di-retry — `fmt.Errorf("send verification email: %w: %w", domain.ErrEmailUnavailable, err)` — persis pola `ErrAIUnavailable`. Penyebab aslinya tetap ikut lewat `%w` kedua supaya log bisa membedakan kuota habis dari gangguan jaringan.
+- Handler auth memetakannya ke `503 email_unavailable` (case baru di `ResendVerification`, sebelum `case err != nil`). `writeDomainError` di `business.go` tidak disentuh: jalur auth punya switch sendiri.
+- **Register tetap menelan kegagalan kirim** (hanya di-log) — perilakunya tidak berubah, akun tetap dibuat. `ResendVerification` yang mengembalikannya, jadi sekarang `503`, bukan `500`.
+- **`config.RequireEmailSender()`** (baru): tolak `EMAIL_PROVIDER=resend` tanpa `RESEND_API_KEY`, dan tolak `EMAIL_PROVIDER=stub` saat `APP_ENV=production`. **Hanya `cmd/api` yang memanggilnya** — sama seperti `RequireGeminiKey`. Kalau pengecekan ini ditaruh di `Load()`, langkah `/app/migrate` di `docker-entrypoint.sh` ikut gagal dan seluruh deploy rusak.
+- Peringatan `slog.Warn` "stub in production" dihapus: diganti penolakan boot yang lebih keras.
+- `EMAIL_PROVIDER` kini `stub | resend`; `RESEND_API_KEY` dan `RESEND_FROM` dibaca `Load()` (di-trim, **tidak** ditolak saat kosong — penolakan ada di `RequireEmailSender`). `RESEND_FROM` kosong berarti default `onboarding@resend.dev` di paket `email`, pola `GEMINI_MODEL`.
+- Teks email (subjek + HTML + teks polos) hidup sebagai helper unexported di `resend.go`. Link di-`html.EscapeString` karena masuk ke `href` (bagian token aman/base64url, tapi base URL dikonfigurasi operator). Copy sengaja **tidak menyebut masa berlaku**: TTL ada di `service.VerificationTTL`, dan paket `email` tidak boleh mengimpor `service` hanya untuk mengutip angkanya.
+
+**Config (`internal/config/config.go`):**
+
+| Variabel | Default | Catatan |
+|---|---|---|
+| `EMAIL_PROVIDER` | `stub` | `resend` (butuh key) atau `stub` (link ke log). `stub` + production = gagal start |
+| `RESEND_API_KEY` | — | Wajib saat `EMAIL_PROVIDER=resend` (`ErrMissingResendAPIKey`) |
+| `RESEND_FROM` | `onboarding@resend.dev` | Default ada di paket `email`, bukan di config |
+
+**Batasan yang harus diketahui:** `onboarding@resend.dev` hanya bisa mengirim ke email **pemilik akun Resend**; penerima lain ditolak `403 restricted_api_key` → diteruskan sebagai `503 email_unavailable`. Jadi fase ini membuat alur bisa **dibuktikan jalan di production** (kirim ke email sendiri), tapi pengguna umum baru menerima email setelah **domain diverifikasi di Resend** dan `RESEND_FROM` diarahkan ke domain itu. Verifikasi domain itu konfigurasi dashboard, bukan kode — dicatat sebagai gap di backlog.
+
+**Urutan deploy jadi penting:** karena `stub` di production sekarang fatal, env var (`EMAIL_PROVIDER=resend`, `RESEND_API_KEY`) harus dipasang di Railway **sebelum** `railway up`, atau deploy berikutnya gagal boot.
+
+**Verifikasi:** 10 test `internal/email/resend_test.go` (POST yang benar: method/path/header/body ter-decode + link di HTML **dan** text; escaping `&` di HTML tapi tidak di teks; non-200 menyembunyikan body rahasia dan token; transport error menyembunyikan key; context dibatalkan tidak memanggil API; 200 rusak — bukan JSON / `{}` / id kosong — ditolak; **log kegagalan tidak memuat link/token/penerima tapi memuat enum**; default `from` dan trim; tabel `resendErrorName`; assertion compile-time interface) + 4 test config baru (Load menerima `resend` tanpa key, trim `RESEND_API_KEY`/`RESEND_FROM`, `RESEND_FROM` kosong tetap kosong, tabel `RequireEmailSender` 6 kasus) + `TestResendVerificationReturnsSendError` diperluas (`errors.Is(err, domain.ErrEmailUnavailable)` **dan** pesan asli tetap terbawa) + 1 test handler baru (`503 email_unavailable`). `TestLoadRejectsUnknownEmailProvider` (`smtp`) tetap tidak berubah. Semua test fase 1–10 tetap hijau.
+
+**Pelajaran (fase 9 → 11):** pelajaran fase 9 — "runbook manual diperbarui di commit yang sama" — diterapkan di sini: `docs/manual-test.md` §3 dan §10.3 yang menyuruh mengambil token dari log diperbarui jadi "buka inbox penerima" bersamaan dengan kodenya, bukan menyusul.
+
+**Ditunda (keputusan sadar):** alur **lupa / reset kata sandi** tetap belum ada. Penghalangnya sekarang bukan lagi provider email — provider asli sudah tersedia — melainkan alur itu sendiri (endpoint minta + endpoint setel ulang dengan token sekali-pakai).
 
 ---
 
@@ -331,9 +370,10 @@ Keempatnya wajib login. Tidak ada yang memakai gate `RequireVerified`: arsip jus
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Hapus profil bisnis | ✔ **selesai** — fase 10: `DELETE /businesses/:id` **mengarsipkan** (status `archived`), bukan menghapus baris. Query publik sudah memfilter `published`, jadi tidak ada perubahan SQL di sana; yang ditambah `AND status <> 'archived'` hanya dua query dashboard pemilik. Tidak ada endpoint pembatalan arsip |
 | Edit & hapus akun | ✔ **selesai** — fase 10: `PATCH /auth/me` (nama saja; `role`/`email` sengaja tidak bisa), `POST /auth/change-password` (verifikasi sandi lama, logout semua perangkat lain, rate limit per akun + valve), `DELETE /auth/me` (wajib sandi di body, cascade ke sesi/bookmark/profil miliknya) |
-| Lupa / reset kata sandi | ❌ **ditunda** — butuh kirim email, sedangkan `EMAIL_PROVIDER` masih `stub`; di production fiturnya akan terlihat ada tapi tidak jalan. Dikerjakan setelah provider email asli ada |
+| Lupa / reset kata sandi | ❌ **ditunda** — provider email asli sudah ada (fase 11), jadi penghalangnya sekarang alur reset itu sendiri (endpoint minta + endpoint setel ulang dengan token sekali-pakai) |
 | Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
-| Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), `EMAIL_PROVIDER=stub` (link ke log), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global). **Sisa:** provider email asli — selama masih `stub`, email tidak benar-benar terkirim |
+| Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global) |
+| Provider email asli | ✔ **selesai** — fase 11: `EMAIL_PROVIDER=resend` mengirim lewat API HTTPS Resend (`internal/email/resend.go`), kegagalan kirim → `503 email_unavailable`, `stub` + production menolak start. **Sisa:** verifikasi domain di Resend — selama `RESEND_FROM` masih `onboarding@resend.dev`, email hanya sampai ke pemilik akun Resend |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca, arsip hilang dari semua jalur baca, hapus akun meng-CASCADE enam tabel. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ✔ **selesai** — `.github/workflows/backend.yml`: job `test` (gofmt gate, vet, build, unit test, race), `integration` (Postgres 16 + migrate + seed), `sqlc` (drift check, sqlc 1.31.1 dipin) |

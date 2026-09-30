@@ -146,6 +146,8 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	switch {
 	case errors.Is(err, domain.ErrEmailAlreadyVerified):
 		writeError(c, http.StatusConflict, "email_already_verified", "Email sudah terverifikasi.")
+	case errors.Is(err, domain.ErrEmailUnavailable):
+		writeError(c, http.StatusServiceUnavailable, "email_unavailable", "Layanan email sedang tidak tersedia. Coba lagi sebentar lagi.")
 	case err != nil:
 		slog.Error("resend verification failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")

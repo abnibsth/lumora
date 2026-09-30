@@ -473,6 +473,91 @@ func TestLoadRejectsUnknownEmailProvider(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsResendProviderWithoutKey(t *testing.T) {
+	// Load must succeed without a key: migrate and seed share it and never send
+	// mail. The key is checked by RequireEmailSender below.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", EmailProviderResend)
+	t.Setenv("RESEND_API_KEY", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EmailProvider != EmailProviderResend {
+		t.Fatalf("got %q, want %q", cfg.EmailProvider, EmailProviderResend)
+	}
+}
+
+func TestLoadReadsResendSettings(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", EmailProviderResend)
+	t.Setenv("RESEND_API_KEY", "  re_test  ")
+	t.Setenv("RESEND_FROM", "  LUMORA <no-reply@lumora.example>  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ResendAPIKey != "re_test" {
+		t.Fatalf("ResendAPIKey = %q, want trimmed %q", cfg.ResendAPIKey, "re_test")
+	}
+	if cfg.ResendFrom != "LUMORA <no-reply@lumora.example>" {
+		t.Fatalf("ResendFrom = %q, want the trimmed value", cfg.ResendFrom)
+	}
+}
+
+func TestLoadLeavesResendFromEmptyForTheProviderDefault(t *testing.T) {
+	// The default from-address lives in the email package; config must not
+	// duplicate it, or the two can drift.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", EmailProviderResend)
+	t.Setenv("RESEND_FROM", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ResendFrom != "" {
+		t.Fatalf("ResendFrom = %q, want empty", cfg.ResendFrom)
+	}
+}
+
+func TestRequireEmailSender(t *testing.T) {
+	cases := []struct {
+		name     string
+		appEnv   string
+		provider string
+		key      string
+		want     error
+	}{
+		{"resend without key", "development", EmailProviderResend, "", ErrMissingResendAPIKey},
+		{"resend with whitespace key", "development", EmailProviderResend, "   ", ErrMissingResendAPIKey},
+		{"stub in production", "production", EmailProviderStub, "", ErrStubEmailInProduction},
+		{"resend with key", "development", EmailProviderResend, "re_test", nil},
+		{"stub outside production", "development", EmailProviderStub, "", nil},
+		{"resend in production", "production", EmailProviderResend, "re_test", nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AI_PROVIDER", AIProviderStub)
+			t.Setenv("APP_ENV", tc.appEnv)
+			t.Setenv("DATABASE_URL", "postgres://u:p@localhost:5432/lumora")
+			t.Setenv("EMAIL_PROVIDER", tc.provider)
+			t.Setenv("RESEND_API_KEY", tc.key)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("Load must not check the sender: %v", err)
+			}
+			if got := cfg.RequireEmailSender(); !errors.Is(got, tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLoadDefaultsFrontendBaseURL(t *testing.T) {
 	t.Setenv("AI_PROVIDER", AIProviderStub)
 	t.Setenv("FRONTEND_BASE_URL", "")

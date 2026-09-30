@@ -1,6 +1,6 @@
 # LUMORA API — Kontrak Backend (Go)
 
-Status spek ini: **Phase 1–10 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register, verifikasi email saat register, hapus profil (arsip) + kelola akun). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
+Status spek ini: **Phase 1–11 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register, verifikasi email saat register, hapus profil (arsip) + kelola akun, provider email asli). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
 
 - Base URL development: `http://localhost:8080`
 - Prefix semua endpoint: `/api/v1`
@@ -23,7 +23,7 @@ go run ./cmd/seed
 go run ./cmd/api        # http://localhost:8080
 ```
 
-`go run ./cmd/api` membaca `backend/.env` (lihat `.env.example`). Default `AI_PROVIDER=gemini` dan butuh `GEMINI_API_KEY`; kalau kosong, proses menolak start dengan pesan yang jelas — bukan jalan lalu semua request AI balas `503`. Untuk run tanpa kredensial, set `AI_PROVIDER=stub` di `.env`.
+`go run ./cmd/api` membaca `backend/.env` (lihat `.env.example`). Default `AI_PROVIDER=gemini` dan butuh `GEMINI_API_KEY`; kalau kosong, proses menolak start dengan pesan yang jelas — bukan jalan lalu semua request AI balas `503`. Untuk run tanpa kredensial, set `AI_PROVIDER=stub` di `.env`. Email mengikuti pola yang sama: `EMAIL_PROVIDER=resend` butuh `RESEND_API_KEY`, sedangkan `EMAIL_PROVIDER=stub` hanya menulis link ke log dan **ditolak saat start di `APP_ENV=production`**.
 
 `sqlc` hanya dibutuhkan saat mengubah query:
 
@@ -85,6 +85,7 @@ Kode yang dipakai:
 | `rate_limited` | 429 | Limit habis: kuota draf AI (per akun atau anggaran global), percobaan login/register per email maupun valve global, atau endpoint verifikasi (verify/resend) — lihat header `Retry-After` |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
+| `email_unavailable` | 503 | Pengirim email (Resend) gagal dihubungi — aman untuk dicoba ulang |
 
 Setiap respons juga membawa header `X-Request-ID` (di-generate server). Sertakan nilainya saat melaporkan error — log server memakai id yang sama untuk menelusuri request tersebut.
 
@@ -334,7 +335,7 @@ Saat kena: `429 rate_limited` + `Retry-After` (detik, dibulatkan ke atas, minima
 
 Request yang emailnya tidak bisa dibaca dari body (JSON rusak, `email` kosong) **tidak** dimeter — langsung ditolak handler dengan `400`. Jadi mengirim JSON rusak tidak bisa dipakai mengunci pengguna lain.
 
-### Verifikasi email (phase 9 — aktif)
+### Verifikasi email (phase 9, provider asli phase 11 — aktif)
 
 Saat register, backend membuat token sekali-pakai dan mengirim link ke alamat email akun. Tujuannya menutup pendaftaran massal/multi-akun tanpa mengunci alur daftar: akun baru **langsung bisa** login, mengedit draft, bookmark, dan upload media — yang ditahan hanya `publish` dan draf AI (endpoint yang menerbitkan konten atau berbiaya).
 
@@ -375,8 +376,11 @@ Butuh login. Mengirim ulang link ke akun yang sedang masuk. Tanpa body.
 | Tanpa sesi | 401 | `unauthenticated` |
 | Email sudah terverifikasi | 409 | `email_already_verified` |
 | Kuota per akun / valve global habis | 429 | `rate_limited` + `Retry-After` |
+| Provider email gagal dihubungi | 503 | `email_unavailable` — aman dicoba ulang |
 
 Mengirim ulang **membatalkan link lama**: hanya link terbaru yang berlaku. Jadi kalau user klik link lama setelah minta link baru, hasilnya `400 invalid_token` — itu memang disengaja.
+
+Berbeda dari register, `resend` **mengembalikan** kegagalan kirim sebagai `503 email_unavailable`. Register tidak: akun dan sesinya sudah ter-commit, jadi menggagalkan request akan bilang "pendaftaran gagal" padahal akunnya ada, dan percobaan ulang justru dijawab `email_taken`. Kegagalan kirim di register hanya dicatat di log; pengguna bisa minta link baru lewat endpoint ini.
 
 **Rate limit endpoint verifikasi:**
 
@@ -392,10 +396,16 @@ Mengirim ulang **membatalkan link lama**: hanya link terbaru yang berlaku. Jadi 
 
 | Variabel | Default | Catatan |
 |---|---|---|
-| `EMAIL_PROVIDER` | `stub` | Satu-satunya pilihan saat ini: link hanya **ditulis ke log API**, tidak dikirim. Nilai di luar daftar ditolak saat start |
+| `EMAIL_PROVIDER` | `stub` | `resend` (provider asli, butuh `RESEND_API_KEY`) atau `stub` (link hanya **ditulis ke log API**). Nilai di luar daftar ditolak saat start, dan `stub` **ditolak saat start di `APP_ENV=production`** |
+| `RESEND_API_KEY` | — | Wajib saat `EMAIL_PROVIDER=resend`; kalau kosong API menolak start (`ErrMissingResendAPIKey`). Diambil dari https://resend.com/api-keys |
+| `RESEND_FROM` | `onboarding@resend.dev` | Alamat pengirim. Kosong berarti pakai default di kode |
 | `FRONTEND_BASE_URL` | `http://localhost:3000` | Basis URL link di email. Harus menunjuk ke **frontend** |
 
-> **Belum ada provider email sungguhan.** Selama `EMAIL_PROVIDER=stub`, pengguna **tidak akan menerima email** — link-nya cuma muncul di log (`docker compose logs api`). API menulis peringatan saat boot kalau `EMAIL_PROVIDER=stub` di `APP_ENV=production`.
+> **Batasan `onboarding@resend.dev`.** Alamat default itu hanya boleh mengirim ke email **pemilik akun Resend**; penerima lain ditolak Resend dengan `403 restricted_api_key` (API meneruskannya sebagai `503 email_unavailable`). Jadi setelah domain diverifikasi di Resend dan `RESEND_FROM` diarahkan ke domain itu, barulah email sampai ke pengguna umum. Verifikasi domain adalah langkah konfigurasi di dashboard Resend, bukan kode.
+>
+> Provider dikirim lewat **API HTTPS**, bukan SMTP, karena Railway memblokir SMTP keluar kecuali plan Pro.
+>
+> `cmd/migrate` dan `cmd/seed` tidak ikut memeriksa `EMAIL_PROVIDER`/`RESEND_API_KEY`: keduanya berbagi `config.Load` tapi tidak pernah mengirim email, jadi key yang hilang (atau `stub` di production) tidak boleh menghentikan migrasi — termasuk saat `docker-entrypoint.sh` menjalankan `/app/migrate` sebelum API saat deploy.
 
 ---
 
@@ -649,7 +659,7 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 
 ## Endpoint planned (belum ada — jangan dipanggil dulu)
 
-- **Lupa / reset kata sandi.** Belum ada, dan sengaja ditunda: alurnya butuh mengirim email, sedangkan `EMAIL_PROVIDER` masih `stub` (link hanya masuk log) — jadi di production alurnya tidak akan berfungsi. Dikerjakan setelah provider email asli ada.
+- **Lupa / reset kata sandi.** Belum ada. Provider email asli sudah tersedia (phase 11), jadi penghalangnya sekarang alur reset itu sendiri (token sekali-pakai, endpoint minta + endpoint setel ulang), bukan lagi pengiriman email.
 - **Pulihkan profil yang diarsipkan.** `DELETE /businesses/:id` hanya mengarsipkan; tidak ada endpoint untuk mengembalikannya.
 
 ---

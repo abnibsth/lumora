@@ -34,7 +34,9 @@ curl.exe http://localhost:8080/healthz      # {"status":"ok"} = siap
 
 > **Bagian 7 (AI) butuh provider.** Tanpa konfigurasi apa pun, `docker compose` jalan sebagai `AI_PROVIDER=stub` (offline, tanpa kredensial). Untuk Gemini: set `AI_PROVIDER=gemini` + `GEMINI_API_KEY` di `backend/.env` (atau ekspor `$env:AI_PROVIDER="gemini"` dan `$env:GEMINI_API_KEY="..."`) — compose membaca keduanya, sama seperti `go run ./cmd/api`.
 >
-> Kalau `docker compose ps` menunjukkan `api` restart terus, cek `docker compose logs api`: dengan `AI_PROVIDER=gemini` tanpa key, app memang menolak start (pesan `GEMINI_API_KEY wajib diisi`), bukan diam-diam membalas `503`.
+> **Bagian 3 (verifikasi email) mengikuti `EMAIL_PROVIDER`.** Default stack lokal adalah `stub`, yang menulis link ke log. Set `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` kalau mau mencoba pengiriman sungguhan (lihat §3 untuk batasan `RESEND_FROM`).
+>
+> Kalau `docker compose ps` menunjukkan `api` restart terus, cek `docker compose logs api`: dengan `AI_PROVIDER=gemini` tanpa key, app memang menolak start (pesan `GEMINI_API_KEY wajib diisi`), bukan diam-diam membalas `503`. Hal yang sama berlaku untuk `EMAIL_PROVIDER=resend` tanpa `RESEND_API_KEY` (`RESEND_API_KEY wajib diisi`), dan untuk `EMAIL_PROVIDER=stub` dengan `APP_ENV=production`.
 
 ```powershell
 # --- file bantuan (sekali bikin, dipakai bagian 2-5) ---
@@ -113,15 +115,29 @@ $c = "$env:TEMP\lumora\cookies.txt"
 
 Kedua endpoint itu digerbangi `RequireVerified`: akun yang belum verifikasi dibalas **`403 email_not_verified`**, bukan `200`. Register **tidak** memverifikasi otomatis — `emailVerified` tetap `false` sampai link-nya diklik. Endpoint lain (edit draft, bookmark, media, arsip) tidak terpengaruh.
 
-`EMAIL_PROVIDER=stub` cuma menulis link ke log, jadi tokennya diambil dari sana:
+Cara mengambil token tergantung `EMAIL_PROVIDER`:
+
+- **`stub`** (default stack lokal) — link hanya ditulis ke log:
 
 ```powershell
 # token terakhir untuk uji@example.com
 $log   = docker compose logs api 2>&1 | Select-String "uji@example.com"
 $token = ($log | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
 
-"{""token"":""$token""}" | Set-Content "$bodyDir\verify.json"       -Encoding ascii
-'{"token":"salah"}'      | Set-Content "$bodyDir\verify-salah.json" -Encoding ascii
+"{""token"":""$token""}" | Set-Content "$bodyDir\verify.json" -Encoding ascii
+```
+
+- **`resend`** — tautannya sampai ke **inbox** alamat akun, jadi tidak ada link di log. Buka email dari LUMORA, salin nilai `token=…` dari URL-nya, lalu tulis `verify.json` dengan tangan:
+
+```powershell
+# ganti <token-dari-email> dengan nilai yang disalin
+'{"token":"<token-dari-email>"}' | Set-Content "$bodyDir\verify.json" -Encoding ascii
+```
+
+> **Batasan `RESEND_FROM`.** Selama masih default (`onboarding@resend.dev`), Resend **hanya** mengirim ke alamat pemilik akun Resend — penerima lain ditolak `403 restricted_api_key` dan API meneruskannya sebagai `503 email_unavailable`. Jadi untuk mencoba jalur `resend` tanpa domain terverifikasi, daftar dengan alamat pemilik akun Resend itu sendiri.
+
+```powershell
+'{"token":"salah"}' | Set-Content "$bodyDir\verify-salah.json" -Encoding ascii
 ```
 
 | # | Perintah | Ekspektasi |
@@ -134,7 +150,7 @@ $token = ($log | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$
 
 > Perintah 3 perlu login ulang karena langkah 7 di tabel atas sudah logout (`$c` masih ada tapi sesinya mati). Perintah 4 butuh sesi: sebelum terautentikasi tidak ada alamat yang bisa dipakai jadi kunci rate limit — itu sebabnya `resend-verification` wajib login sedangkan `verify-email` tidak.
 >
-> Kalau `$token` kosong, baris log-nya sudah tergeser keluar jendela `docker compose logs`. Pakai `resend-verification` lalu ambil tokennya **segera**.
+> Kalau memakai `stub` dan `$token` kosong, baris log-nya sudah tergeser keluar jendela `docker compose logs`. Pakai `resend-verification` lalu ambil tokennya **segera**.
 
 **Rate limiting login → 429** (pakai email khusus — kuota dihitung **per email**, jadi jangan pakai `uji@example.com` atau alur di atas ikut terkunci 15 menit):
 
@@ -240,6 +256,7 @@ curl.exe -c $c2 -H "Content-Type: application/json" -d "@$bodyDir\login2.json" "
 
 # verifikasi uji2 juga — tanpa ini baris publish di bawah balas 403 email_not_verified
 # (gate RequireVerified jalan SEBELUM handler, jadi bukan 404/403 ownership)
+# EMAIL_PROVIDER=stub: token dari log. resend: salin token dari inbox, bukan dari log.
 $log2 = docker compose logs api 2>&1 | Select-String "uji2@example.com"
 $t2   = ($log2 | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
 "{""token"":""$t2""}" | Set-Content "$bodyDir\verify2.json" -Encoding ascii
@@ -389,6 +406,7 @@ Bagian 1–9 mengasumsikan stack lokal. Bagian ini mengulang alur inti terhadap 
 | Isi DB | seed: 9 bisnis | **9 bisnis** — di-seed manual 2026-09-30 (entrypoint tidak pernah menjalankan `seed`), 0 user |
 | Cookie `lumora_session` | tanpa `Secure` | **`Secure`** (karena `APP_ENV=production`) |
 | Provider AI | `stub` (default compose) | **`gemini` sungguhan — berbayar** |
+| Provider email | `stub` (default compose) — link ke log | **`resend` sungguhan** — `stub` ditolak saat start di production; token dari inbox, bukan log |
 | State kuota AI | in-memory, reset saat restart | in-memory, **reset tiap redeploy** |
 | Hapus data uji | `docker exec ... psql` | `DELETE /auth/me` per akun uji; sisa baris lewat `railway ssh` (10.5) |
 | Hapus akun | `DELETE /auth/me` (wajib sandi di body) | sama, tapi lihat catatan biaya/isi DB di bawah |
@@ -438,13 +456,16 @@ $b | ConvertTo-Json -Depth 9 | Set-Content "$bodyDir\bisnis.json" -Encoding asci
 $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisnis.json" "$api/businesses" | ConvertFrom-Json).id
 
 # Verifikasi email — prasyarat langkah 10 (publish) dan §10.4 (AI).
-# Production tetap EMAIL_PROVIDER=stub, jadi tokennya dari log Railway, bukan inbox.
-# Jalankan dari folder backend/ (di situ link project Railway berada).
-$log   = railway logs --service lumora-backend 2>&1 | Select-String "uji-prod@example.com"
-$token = ($log | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
-"{""token"":""$token""}" | Set-Content "$bodyDir\verify.json" -Encoding ascii
+# Production memakai EMAIL_PROVIDER=resend (stub DITOLAK saat start sejak fase 11),
+# jadi tautannya sampai ke INBOX alamat akun, bukan ke log Railway. Buka email
+# dari LUMORA, salin nilai token=… dari URL-nya, lalu tulis verify.json:
+'{"token":"<token-dari-email>"}' | Set-Content "$bodyDir\verify.json" -Encoding ascii
 curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify.json" "$api/auth/verify-email"   # 200
 ```
+
+> **Penerima harus pemilik akun Resend (belum ada domain).** Selama `RESEND_FROM` masih default (`onboarding@resend.dev`), Resend hanya mengirim ke alamat pemilik akun Resend; alamat lain ditolak `403 restricted_api_key` dan API meneruskannya sebagai `503 email_unavailable` di `resend-verification` (di `register` kegagalan kirim hanya dicatat di log — akun tetap dibuat, jadi langkah 3 tetap `201`). Jadi pakai alamat pemilik akun Resend untuk `uji-prod@example.com`, atau set `RESEND_FROM` ke domain yang sudah diverifikasi di Resend.
+>
+> Kalau `railway logs` **masih** menampilkan baris link verifikasi, berarti service masih memakai `EMAIL_PROVIDER=stub` — sejak fase 11 itu seharusnya menolak boot di production, jadi periksa env var-nya di dashboard.
 
 | # | Perintah | Ekspektasi |
 |---|---|---|
@@ -459,7 +480,7 @@ curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify.json" "$api/au
 | 9 | verifikasi email (blok di atas) lalu `curl.exe -b $c "$api/auth/me"` | **`"emailVerified":true`** |
 | 10 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=10, langkah 8 kini 200. **Tanpa langkah 9 ini `403 email_not_verified`** dan `total` tetap 9 |
 
-> `railway logs` mengembalikan **jendela log terbatas** (beberapa puluh baris terakhir). Kalau `$token` kosong, baris verifikasinya sudah tergeser — jalankan `POST /auth/resend-verification` (butuh sesi) lalu ambil tokennya **segera**.
+> `railway logs` tidak lagi memuat link verifikasi sejak production pindah ke `EMAIL_PROVIDER=resend` (link memuat token, dan provider asli sengaja tidak pernah menuliskannya ke log). Kalau tidak menemukan emailnya, cek folder spam, lalu pastikan alamat penerimanya benar-benar pemilik akun Resend (lihat catatan di 10.3).
 >
 > **Rate limit login juga aktif di production** (kode sama seperti lokal). Kalau mau memastikan: pakai email khusus (mis. `brute-prod@example.com`), lalu ulangi login gagal 10× → yang ke-11 `429 rate_limited` + `Retry-After`. **Jangan** pakai `uji-prod@example.com` — kalau kena limit, langkah 4 di atas ikut terkunci 15 menit. Tidak ada biaya (tidak memanggil AI), tapi ingat katup global login 300/jam.
 
@@ -498,7 +519,7 @@ curl.exe -i -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json"
 
 → `HTTP/1.1 429` + `Retry-After: <detik>`.
 
-> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Yang menahan penyalahgunaan adalah **anggaran global** (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, default 200/jam) — total semua akun. Register masih gratis & instan, jadi multi-akun tetap mungkin; anggaran global membatasi **biayanya**, bukan jumlah akun. Verifikasi email sudah aktif sejak fase 9 (gate lunak di `publish` & `ai/draft-profile`), tapi pengirimnya masih `stub` sehingga email tidak benar-benar terkirim — lihat `docs/fases.md`.
+> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Yang menahan penyalahgunaan adalah **anggaran global** (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, default 200/jam) — total semua akun. Register masih gratis & instan, jadi multi-akun tetap mungkin; anggaran global membatasi **biayanya**, bukan jumlah akun. Verifikasi email aktif sejak fase 9 (gate lunak di `publish` & `ai/draft-profile`); pengirimnya provider asli sejak fase 11 (`EMAIL_PROVIDER=resend`), dengan batasan penerima di 10.3 — lihat `docs/fases.md`.
 
 ### 10.5 Bersih-bersih
 
@@ -543,4 +564,4 @@ Kalau butuh SQL yang lebih rumit daripada satu baris, tunnel lama masih tersedia
 
 - Kontrak lengkap (body, respons, kode error): **`docs/api.md`**
 - Peta fase & backlog: **`docs/fases.md`**
-- 12 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden` (403) · `not_found` (404) · `email_taken` (409) · `rate_limited` (429) · `internal_error` (500) · `ai_unavailable` (503)
+- 16 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed`, `invalid_token` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden`, `email_not_verified` (403) · `not_found` (404) · `email_taken`, `email_already_verified` (409) · `rate_limited` (429) · `internal_error` (500) · `ai_unavailable`, `email_unavailable` (503)

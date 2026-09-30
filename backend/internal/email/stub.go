@@ -1,6 +1,7 @@
-// Package email holds verification-email senders. Stub is the offline stand-in
-// used until a provider is chosen; a real sender is just another type that
-// satisfies service.VerificationSender, wired in cmd/api/main.go.
+// Package email holds verification-email senders. Resend is the real provider
+// behind EMAIL_PROVIDER=resend; Stub is the offline stand-in kept for local runs
+// and tests. Both satisfy service.VerificationSender and are wired in
+// cmd/api/main.go.
 package email
 
 import (
@@ -12,9 +13,9 @@ import (
 // no network call, so the flow and its tests work without a provider or
 // credentials — copy the link out of the API log to finish verifying.
 //
-// It deliberately logs the raw link, so the token lands in the log. That is
-// acceptable while no real provider exists, and it is why cmd/api logs a
-// warning when this sender is selected in production.
+// It deliberately logs the raw link, so the token lands in the log. That is why
+// cmd/api refuses to boot with this sender in production: a verification mail
+// that only ever reaches the log leaves real users unable to verify.
 type Stub struct {
 	logger *slog.Logger
 }

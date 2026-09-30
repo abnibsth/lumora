@@ -689,13 +689,21 @@ func TestResendVerificationUnknownUser(t *testing.T) {
 func TestResendVerificationReturnsSendError(t *testing.T) {
 	// Unlike Register, a failed resend must surface: nothing irreversible has
 	// happened, and staying silent leaves the user waiting for mail that will
-	// never arrive.
+	// never arrive. The provider's cause is collapsed into one retryable
+	// sentinel so the HTTP layer maps a single code.
 	svc, _ := newTestAuthService()
 	user, _ := registerAndReturn(t, svc)
 	senderOf(t, svc).err = errors.New("smtp down")
 
-	if err := svc.ResendVerification(context.Background(), user.ID); err == nil {
+	err := svc.ResendVerification(context.Background(), user.ID)
+	if err == nil {
 		t.Fatal("err = nil, want the send failure")
+	}
+	if !errors.Is(err, domain.ErrEmailUnavailable) {
+		t.Errorf("err = %v, want it to wrap ErrEmailUnavailable", err)
+	}
+	if !strings.Contains(err.Error(), "smtp down") {
+		t.Errorf("err = %v, want it to keep the underlying cause for logs", err)
 	}
 }
 

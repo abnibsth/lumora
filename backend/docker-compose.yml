@@ -66,9 +66,13 @@ services:
       AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR: ${AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR:-300}
       AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR: ${AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR:-30}
       # Verification mail. The stub only logs the link, so `docker compose logs
-      # api` is where you grab it during a local smoke test. FRONTEND_BASE_URL
-      # points at the frontend page that POSTs the token back to this API.
+      # api` is where you grab it during a local smoke test. Set
+      # EMAIL_PROVIDER=resend plus RESEND_API_KEY to send for real.
+      # FRONTEND_BASE_URL points at the frontend page that POSTs the token back
+      # to this API.
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-stub}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
       AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR: ${AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR:-300}
       AUTH_RESEND_LIMIT_PER_HOUR: ${AUTH_RESEND_LIMIT_PER_HOUR:-3}

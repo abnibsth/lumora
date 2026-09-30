@@ -18,6 +18,11 @@ var (
 	// ErrEmailAlreadyVerified is returned when a resend is asked for an address
 	// that is already verified.
 	ErrEmailAlreadyVerified = errors.New("email already verified")
+	// ErrEmailUnavailable means the email sender could not be reached: the
+	// provider is down, its quota is exhausted, or its response could not be
+	// trusted. Deliberately coarse so the HTTP layer maps one retryable code,
+	// the same way AI failures collapse into ErrAIUnavailable.
+	ErrEmailUnavailable = errors.New("email unavailable")
 )
 
 // Roles mirrors the CHECK constraint on users.role.

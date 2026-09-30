@@ -57,6 +57,13 @@ func main() {
 	if err := cfg.RequireGeminiKey(); err != nil {
 		logging.Fatal("config check failed", "err", err)
 	}
+	// Same split for email: only this binary sends mail, so only this binary
+	// refuses to boot on a sender that cannot send. Putting this in Load would
+	// also stop the migrate step docker-entrypoint.sh runs before the API, and
+	// break the whole deploy.
+	if err := cfg.RequireEmailSender(); err != nil {
+		logging.Fatal("config check failed", "err", err)
+	}
 
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -79,21 +86,19 @@ func main() {
 	businessService := service.NewBusinessService(queries, service.NewPoolTxRunner(pool))
 	businessHandler := handler.NewBusinessHandler(businessService)
 
-	// EMAIL_PROVIDER selects the verification sender. Only "stub" exists so
-	// far; it logs the link instead of mailing it, which is fine locally and
-	// silently useless in production, so a production boot on the stub warns
-	// loudly rather than pretending users will receive mail. config.Load
-	// rejects every value outside EmailProviders, and the default below
-	// catches a provider added to the allowlist without an implementation here.
+	// EMAIL_PROVIDER selects the verification sender. "resend" is the real one;
+	// "stub" logs the link instead of mailing it, which is fine locally and is
+	// refused in production by RequireEmailSender above. config.Load rejects
+	// every value outside EmailProviders, and the default below catches a
+	// provider added to the allowlist without an implementation here.
 	var sender service.VerificationSender
 	switch cfg.EmailProvider {
 	case config.EmailProviderStub:
 		sender = email.NewStub()
+	case config.EmailProviderResend:
+		sender = email.NewResend(cfg.ResendAPIKey, cfg.ResendFrom)
 	default:
 		logging.Fatal("email provider has no implementation", "provider", cfg.EmailProvider)
-	}
-	if cfg.IsProduction() && cfg.EmailProvider == config.EmailProviderStub {
-		slog.Warn("EMAIL_PROVIDER=stub in production: verification links are logged, not sent")
 	}
 
 	authService := service.NewAuthService(queries, queries, queries, sender, cfg.FrontendBaseURL)

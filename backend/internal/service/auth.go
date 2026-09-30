@@ -272,7 +272,12 @@ func (s *AuthService) issueVerification(ctx context.Context, user store.User) er
 
 	link := fmt.Sprintf("%s/verify-email?token=%s", s.frontendBaseURL, url.QueryEscape(raw))
 	if err := s.sender.SendVerification(ctx, user.Email, link); err != nil {
-		return fmt.Errorf("send verification email: %w", err)
+		// Every provider failure collapses into one retryable sentinel, the
+		// same way AI failures collapse into domain.ErrAIUnavailable. The cause
+		// still rides along in the second %w so logs can tell an exhausted
+		// quota from a network fault, while the message to the client stays
+		// a single code.
+		return fmt.Errorf("send verification email: %w: %w", domain.ErrEmailUnavailable, err)
 	}
 	return nil
 }
