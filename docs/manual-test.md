@@ -109,6 +109,33 @@ $c = "$env:TEMP\lumora\cookies.txt"
 
 > Login gagal harus selalu `invalid_credentials` — **jangan** beda antara email tak terdaftar vs password salah (biar tidak jadi indikator akun).
 
+**Verifikasi email — prasyarat §4 #7 (`publish`) dan seluruh §7 (draf AI).**
+
+Kedua endpoint itu digerbangi `RequireVerified`: akun yang belum verifikasi dibalas **`403 email_not_verified`**, bukan `200`. Register **tidak** memverifikasi otomatis — `emailVerified` tetap `false` sampai link-nya diklik. Endpoint lain (edit draft, bookmark, media, arsip) tidak terpengaruh.
+
+`EMAIL_PROVIDER=stub` cuma menulis link ke log, jadi tokennya diambil dari sana:
+
+```powershell
+# token terakhir untuk uji@example.com
+$log   = docker compose logs api 2>&1 | Select-String "uji@example.com"
+$token = ($log | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
+
+"{""token"":""$token""}" | Set-Content "$bodyDir\verify.json"       -Encoding ascii
+'{"token":"salah"}'      | Set-Content "$bodyDir\verify-salah.json" -Encoding ascii
+```
+
+| # | Perintah | Ekspektasi |
+|---|---|---|
+| 1 | `curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify.json" "$api/auth/verify-email"` | **200** `{"status":"ok"}` — tanpa cookie, tokennya sendiri yang jadi kredensial |
+| 2 | ulangi perintah 1 | **200** — verifikasi **idempoten**, klik dua kali tetap sukses |
+| 3 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\login.json" "$api/auth/login"` lalu `curl.exe -b $c "$api/auth/me"` | **`"emailVerified":true`** |
+| 4 | `curl.exe -b $c -X POST "$api/auth/resend-verification"` | **409** `email_already_verified` |
+| 5 | `curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify-salah.json" "$api/auth/verify-email"` | **400** `invalid_token` |
+
+> Perintah 3 perlu login ulang karena langkah 7 di tabel atas sudah logout (`$c` masih ada tapi sesinya mati). Perintah 4 butuh sesi: sebelum terautentikasi tidak ada alamat yang bisa dipakai jadi kunci rate limit — itu sebabnya `resend-verification` wajib login sedangkan `verify-email` tidak.
+>
+> Kalau `$token` kosong, baris log-nya sudah tergeser keluar jendela `docker compose logs`. Pakai `resend-verification` lalu ambil tokennya **segera**.
+
 **Rate limiting login → 429** (pakai email khusus — kuota dihitung **per email**, jadi jangan pakai `uji@example.com` atau alur di atas ikut terkunci 15 menit):
 
 ```powershell
@@ -195,7 +222,7 @@ $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisni
 | 4 | `curl.exe "$api/businesses/uji-manual-test"` | **404** — draft tak pernah terbaca publik |
 | 5 | `curl.exe "$api/businesses"` | `total` **tetap 9** — draft bocor ke list = BUG |
 | 6 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/$bizId"` | 200, `description` berubah, `slug`/`status` tidak berubah |
-| 7 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200, `status="published"`; list jadi `total`=10; perintah 4 kini 200 |
+| 7 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200, `status="published"`; list jadi `total`=10; perintah 4 kini 200. **Butuh email terverifikasi** (blok verifikasi di §3) — kalau belum, `403 email_not_verified` dan `total` tetap 9 |
 
 **Ownership → 403** (pakai akun kedua, `$bizId` milik akun pertama):
 
@@ -210,6 +237,14 @@ $c2 = "$env:TEMP\lumora\cookies2.txt"
 
 curl.exe -H "Content-Type: application/json" -d "@$bodyDir\reg2.json" "$api/auth/register"       # 201
 curl.exe -c $c2 -H "Content-Type: application/json" -d "@$bodyDir\login2.json" "$api/auth/login"  # 200
+
+# verifikasi uji2 juga — tanpa ini baris publish di bawah balas 403 email_not_verified
+# (gate RequireVerified jalan SEBELUM handler, jadi bukan 404/403 ownership)
+$log2 = docker compose logs api 2>&1 | Select-String "uji2@example.com"
+$t2   = ($log2 | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
+"{""token"":""$t2""}" | Set-Content "$bodyDir\verify2.json" -Encoding ascii
+curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify2.json" "$api/auth/verify-email"   # 200
+
 curl.exe -b $c2 -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/$bizId"                        # → 403 forbidden (bukan miliknya)
 curl.exe -b $c2 -X POST "$api/businesses/00000000-0000-4000-8000-000000000000/publish"                                                 # → 404 not_found (UUID valid, tak ada)
 curl.exe -b $c2 -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/id-tidak-ada"                   # → 400 invalid_parameter (bukan UUID)
@@ -278,7 +313,9 @@ $png = [byte[]](0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A) + (New-Object byte[] (6
 
 ---
 
-## 7. AI draft profil (wajib login)
+## 7. AI draft profil (wajib login + email terverifikasi)
+
+> **Butuh email terverifikasi** (blok di §3). Akun yang belum verifikasi dibalas `403 email_not_verified` di **semua** langkah di bawah — termasuk langkah 4 dan 5 yang seharusnya `400`, karena `RequireVerified` jalan sebelum handler. Jadi kalau seluruh tabel ini balas `403`, yang salah bukan narasinya.
 
 ```powershell
 Set-Content "$bodyDir\narasi.json" '{"narrative":"Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor."}' -Encoding ascii
@@ -399,6 +436,14 @@ $b | ConvertTo-Json -Depth 9 | Set-Content "$bodyDir\bisnis.json" -Encoding asci
 ```powershell
 # Jalankan setelah langkah 4 (login) berhasil — create + tangkap id-nya:
 $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisnis.json" "$api/businesses" | ConvertFrom-Json).id
+
+# Verifikasi email — prasyarat langkah 10 (publish) dan §10.4 (AI).
+# Production tetap EMAIL_PROVIDER=stub, jadi tokennya dari log Railway, bukan inbox.
+# Jalankan dari folder backend/ (di situ link project Railway berada).
+$log   = railway logs --service lumora-backend 2>&1 | Select-String "uji-prod@example.com"
+$token = ($log | Select-Object -Last 1) -replace '.*token=([A-Za-z0-9_-]+).*','$1'
+"{""token"":""$token""}" | Set-Content "$bodyDir\verify.json" -Encoding ascii
+curl.exe -H "Content-Type: application/json" -d "@$bodyDir\verify.json" "$api/auth/verify-email"   # 200
 ```
 
 | # | Perintah | Ekspektasi |
@@ -407,17 +452,22 @@ $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisni
 | 2 | `curl.exe "$api/businesses/kopi-ruang-senja"` | 200 — profil seed **ada** di production (di-seed manual 2026-09-30), bukan hanya di lokal |
 | 3 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\reg.json" "$api/auth/register"` | **201** + `Set-Cookie: lumora_session=...; HttpOnly; SameSite=Lax; Secure` — atau **409** `email_taken` kalau sudah pernah; keduanya lanjut ke langkah 4 |
 | 4 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\login.json" "$api/auth/login"` | 200 (**bukan** 401 `invalid_credentials`) |
-| 5 | `curl.exe -b $c "$api/auth/me"` | 200, email = `uji-prod@example.com` |
+| 5 | `curl.exe -b $c "$api/auth/me"` | 200, email = `uji-prod@example.com`, `emailVerified:false` |
 | 6 | `curl.exe "$api/auth/me"` | 401 (tanpa cookie) |
 | 7 | create di atas (`$bizId`) | **201**, `status="draft"`, `slug="uji-prod"` |
 | 8 | `curl.exe "$api/businesses/uji-prod"` | **404** — draft tak pernah terbaca publik |
-| 9 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=10, langkah 8 kini 200 |
+| 9 | verifikasi email (blok di atas) lalu `curl.exe -b $c "$api/auth/me"` | **`"emailVerified":true`** |
+| 10 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=10, langkah 8 kini 200. **Tanpa langkah 9 ini `403 email_not_verified`** dan `total` tetap 9 |
 
+> `railway logs` mengembalikan **jendela log terbatas** (beberapa puluh baris terakhir). Kalau `$token` kosong, baris verifikasinya sudah tergeser — jalankan `POST /auth/resend-verification` (butuh sesi) lalu ambil tokennya **segera**.
+>
 > **Rate limit login juga aktif di production** (kode sama seperti lokal). Kalau mau memastikan: pakai email khusus (mis. `brute-prod@example.com`), lalu ulangi login gagal 10× → yang ke-11 `429 rate_limited` + `Retry-After`. **Jangan** pakai `uji-prod@example.com` — kalau kena limit, langkah 4 di atas ikut terkunci 15 menit. Tidak ada biaya (tidak memanggil AI), tapi ingat katup global login 300/jam.
 
 ### 10.4 AI (berbayar) & kuota
 
-> **Harus sudah login.** `$c` cuma *path* yang didefinisikan di 10.2 — isinya baru terisi setelah **10.3 langkah 3–4** (register/login). `401 unauthenticated` di sini hampir selalu berarti belum login, atau jendela PowerShell-nya baru sehingga `$api`/`$c` hilang. Jebakan diam-diamnya: kalau `$c` kosong, `-b $c` jadi `-b` telanjang dan curl menelan argumen berikutnya sebagai nilai cookie (`-b -H` → cookie literal `"-H"`) — perintahnya terlihat benar tapi tetap 401. Buktikan sesi dulu: `curl.exe -b $c "$api/auth/me"` harus 200.
+> **Harus sudah login _dan_ terverifikasi.** `$c` cuma *path* yang didefinisikan di 10.2 — isinya baru terisi setelah **10.3 langkah 3–4** (register/login). `401 unauthenticated` di sini hampir selalu berarti belum login, atau jendela PowerShell-nya baru sehingga `$api`/`$c` hilang. Jebakan diam-diamnya: kalau `$c` kosong, `-b $c` jadi `-b` telanjang dan curl menelan argumen berikutnya sebagai nilai cookie (`-b -H` → cookie literal `"-H"`) — perintahnya terlihat benar tapi tetap 401. Buktikan sesi dulu: `curl.exe -b $c "$api/auth/me"` harus 200.
+>
+> Kalau balasannya `403 email_not_verified`, berarti **10.3 langkah 9** (verifikasi email) belum dijalankan — gate-nya jalan sebelum handler, jadi langkah yang seharusnya `400` pun ikut `403`.
 >
 > **`invalid_credentials` saat login ≠ masalah cookie.** Itu email/password-nya yang ditolak. Pastikan `reg.json` dan `login.json` memuat email yang sama (`uji-prod@example.com`), lalu jalankan register sekali lagi — kalau akunnya memang belum ada, register balas `201` dan login berikutnya `200`.
 
