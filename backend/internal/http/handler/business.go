@@ -24,6 +24,7 @@ type BusinessService interface {
 	Create(ctx context.Context, userID string, input domain.CreateBusinessInput) (domain.OwnedBusiness, error)
 	Update(ctx context.Context, userID, id string, input domain.UpdateBusinessInput) (domain.OwnedBusiness, error)
 	Publish(ctx context.Context, userID, id string) (domain.OwnedBusiness, error)
+	Archive(ctx context.Context, userID, id string) error
 	ListMine(ctx context.Context, userID string, page, limit int) (domain.OwnedBusinessList, error)
 }
 
@@ -205,6 +206,28 @@ func (h *BusinessHandler) Publish(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, business)
+}
+
+// Archive handles DELETE /api/v1/businesses/:id. The profile is archived, not
+// erased: it disappears from every read path but the row survives. The 200 +
+// {"status":"ok"} shape matches the bookmark delete, the only other DELETE in
+// the API.
+func (h *BusinessHandler) Archive(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	err := h.svc.Archive(c.Request.Context(), user.ID, c.Param("id"))
+	if err != nil {
+		if !writeDomainError(c, err) {
+			slog.Error("archive business failed", "business_id", c.Param("id"), "err", err)
+			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // paginationParams reads and validates the optional page/limit query pair,

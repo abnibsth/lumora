@@ -130,6 +130,54 @@ curl.exe -s -i -H "Content-Type: application/json" -d "@$bodyDir\login-brute.jso
 >
 > Batas per-email bekerja setelah katup **global** (login 300/jam, register 30/jam). Kalau runbook ini diulang berkali-kali dalam satu jam, `429` bisa datang dari katup global, bukan per-email. Reset cepat: restart container `api` (state-nya in-memory, lihat `docs/fases.md`).
 
+**Kelola akun — ganti nama, ganti sandi, hapus akun.**
+
+Pakai akun sekali pakai, **bukan** `uji@example.com` — bagian 4 login ulang dengan akun itu, jadi ia tidak boleh ikut terhapus di sini.
+
+```powershell
+$cH = "$env:TEMP\lumora\cookies-hapus.txt"
+@'
+{"name":"Uji Hapus","email":"uji-hapus@example.com","password":"rahasia123"}
+'@ | Set-Content "$bodyDir\reg-hapus.json" -Encoding ascii
+@'
+{"email":"uji-hapus@example.com","password":"rahasia123"}
+'@ | Set-Content "$bodyDir\login-hapus.json" -Encoding ascii
+@'
+{"email":"uji-hapus@example.com","password":"rahasia456"}
+'@ | Set-Content "$bodyDir\login-hapus-baru.json" -Encoding ascii
+@'
+{"name":"Uji Manual Baru"}
+'@ | Set-Content "$bodyDir\patch-me.json" -Encoding ascii
+@'
+{"currentPassword":"rahasia123","newPassword":"rahasia456"}
+'@ | Set-Content "$bodyDir\ganti-sandi.json" -Encoding ascii
+@'
+{"currentPassword":"rahasia123","newPassword":"rahasia123"}
+'@ | Set-Content "$bodyDir\sandi-sama.json" -Encoding ascii
+
+curl.exe -c $cH -H "Content-Type: application/json" -d "@$bodyDir\reg-hapus.json" "$api/auth/register"   # 201
+```
+
+| # | Perintah | Ekspektasi |
+|---|---|---|
+| 1 | `curl.exe -b $cH -H "Content-Type: application/json" -d "@$bodyDir\patch-me.json" -X PATCH "$api/auth/me"` | 200, `name` = "Uji Manual Baru" |
+| 2 | `curl.exe -b $cH "$api/auth/me"` | 200, `name` benar-benar tersimpan |
+| 3 | `curl.exe -b $cH -H "Content-Type: application/json" -d '{"name":"   "}' -X PATCH "$api/auth/me"` | 400 `validation_failed` (nama kosong) |
+| 4 | `curl.exe -b $cH -H "Content-Type: application/json" -d "@$bodyDir\sandi-sama.json" -X POST "$api/auth/change-password"` | 400 `validation_failed` — sandi baru = lama |
+| 5 | `curl.exe -b $cH -H "Content-Type: application/json" -d '{"currentPassword":"salah","newPassword":"rahasia456"}' -X POST "$api/auth/change-password"` | 401 `invalid_credentials` |
+| 6 | `curl.exe -b $cH -H "Content-Type: application/json" -d "@$bodyDir\ganti-sandi.json" -X POST "$api/auth/change-password"` | 200 `{"status":"ok"}` |
+| 7 | `curl.exe -b $cH "$api/auth/me"` | **200** — sesi yang mengganti tetap hidup |
+| 8 | `curl.exe -H "Content-Type: application/json" -d "@$bodyDir\login-hapus.json" "$api/auth/login"` | **401** — sandi lama sudah tidak berlaku |
+| 9 | `curl.exe -c $cH -H "Content-Type: application/json" -d "@$bodyDir\login-hapus-baru.json" "$api/auth/login"` | 200 — sandi baru berlaku |
+| 10 | `curl.exe -b $cH -H "Content-Type: application/json" -d '{"password":"salah"}' -X DELETE "$api/auth/me"` | 401 `invalid_credentials` |
+| 11 | `curl.exe -b $cH "$api/auth/me"` | **200** — akun masih ada, cookie tidak dihapus |
+| 12 | `curl.exe -s -i -b $cH -H "Content-Type: application/json" -d '{"password":"rahasia456"}' -X DELETE "$api/auth/me"` | 200 `{"status":"ok"}` + `Set-Cookie: lumora_session=; Max-Age=0` |
+| 13 | `curl.exe -b $cH "$api/auth/me"` | **401** — akun & sesinya sudah hilang |
+
+> Perintah 10–11 adalah intinya: kata sandi yang salah **tidak** menghapus apa pun dan **tidak** menghapus cookie. Cookie baru dibersihkan setelah akun benar-benar terhapus.
+>
+> Kalau akun ini punya profil bisnis, perintah 12 juga menghapus profilnya (beserta milestones, BMC, dan bookmark orang lain pada profil itu) lewat `ON DELETE CASCADE`. Di runbook ini akunnya belum punya profil, jadi tidak ada yang ikut hilang.
+
 ---
 
 ## 4. Profil bisnis (tulis)
@@ -165,7 +213,26 @@ curl.exe -c $c2 -H "Content-Type: application/json" -d "@$bodyDir\login2.json" "
 curl.exe -b $c2 -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/$bizId"                        # → 403 forbidden (bukan miliknya)
 curl.exe -b $c2 -X POST "$api/businesses/00000000-0000-4000-8000-000000000000/publish"                                                 # → 404 not_found (UUID valid, tak ada)
 curl.exe -b $c2 -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/id-tidak-ada"                   # → 400 invalid_parameter (bukan UUID)
+curl.exe -b $c2 -X DELETE "$api/businesses/$bizId"                                                                                     # → 403 forbidden (bukan miliknya)
 ```
+
+**Arsip → profil hilang dari semua jalur baca** (jalankan **setelah** blok ownership di atas, karena arsip tidak bisa dibatalkan):
+
+| # | Perintah | Ekspektasi |
+|---|---|---|
+| 1 | `curl.exe -b $c -X DELETE "$api/businesses/$bizId"` | 200 `{"status":"ok"}` — profil **diarsipkan**, barisnya masih ada di DB |
+| 2 | `curl.exe "$api/businesses/uji-manual-test"` | **404** — hilang dari detail publik |
+| 3 | `curl.exe "$api/businesses"` | `total` balik ke **9** |
+| 4 | `curl.exe -b $c "$api/businesses/mine"` | profil itu **tidak muncul** di dashboard |
+| 5 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | **404** — arsip tidak bisa dibatalkan lewat publish |
+| 6 | `curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\patch.json" -X PATCH "$api/businesses/$bizId"` | **404** — PATCH juga menolak profil terarsip |
+| 7 | `curl.exe -b $c -X DELETE "$api/businesses/$bizId"` | **404** — sudah terarsip |
+
+> Perintah 5–6 memastikan arsip benar-benar final: satu-satunya jalan pulih adalah mengubah `status` langsung di DB. Baris di bawah membuktikan profilnya masih ada (bukan terhapus) — perhatikan `status='archived'`:
+>
+> ```powershell
+> docker exec lumora-postgres psql -U lumora -d lumora -c "SELECT slug, status FROM businesses WHERE slug = 'uji-manual-test';"
+> ```
 
 ---
 
@@ -266,7 +333,9 @@ docker exec lumora-postgres psql -U lumora -d lumora -t -c `
 
 > **Kenapa dua perintah uploads?** `docker compose` memasang named volume di `/app/uploads`, jadi file uji **tidak** masuk ke `backend\uploads\` di host — menghapus folder host saja menyisakan file di volume (ketahuan saat runbook ini dijalankan: folder host 0 file, volume masih 1). `backend-api-1` adalah nama container dari `docker compose`; cek dengan `docker compose ps`.
 
-> User & sesi ikut terhapus via `ON DELETE CASCADE` (bookmarks, sessions). Kalau table masih kotor: `users`/`sessions` dihapus manual dengan `psql`.
+> User & sesi ikut terhapus via `ON DELETE CASCADE` (bookmarks, sessions, dan sejak fase 10 juga `businesses` beserta milestones/BMC-nya). Kalau table masih kotor: `users`/`sessions` dihapus manual dengan `psql`.
+>
+> Profil yang diarsipkan **tidak** ikut perintah `DELETE FROM businesses WHERE slug LIKE 'uji-%'` di atas? Ikut — arsip tetap baris biasa di tabel yang sama, jadi slug-nya masih cocok. Yang tidak hilang dengan sendirinya hanyalah arsip milik profil non-uji.
 
 ---
 
@@ -285,7 +354,7 @@ Bagian 1–9 mengasumsikan stack lokal. Bagian ini mengulang alur inti terhadap 
 | Provider AI | `stub` (default compose) | **`gemini` sungguhan — berbayar** |
 | State kuota AI | in-memory, reset saat restart | in-memory, **reset tiap redeploy** |
 | Hapus data uji | `docker exec ... psql` | lewat tunnel Railway (10.5) |
-| Hapus akun | tidak ada endpoint | tidak ada endpoint |
+| Hapus akun | `DELETE /auth/me` (wajib sandi di body) | sama, tapi lihat catatan biaya/isi DB di bawah |
 
 > **Cookie `Secure`.** Di production cookie ditandai `Secure`, jadi curl **hanya** mengirimnya ke `https://`. Kalau `$root` salah tulis `http://`, semua request ber-cookie balas `401` dan terlihat seperti "login gagal" padahal sesinya sehat. Selalu pakai `https://`.
 
@@ -383,7 +452,7 @@ curl.exe -i -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json"
 
 ### 10.5 Bersih-bersih
 
-Tidak ada endpoint hapus akun, dan DB production tidak reachable dari internet, jadi data uji dihapus lewat tunnel Railway.
+`DELETE /auth/me` bisa dipakai untuk membuang akun uji, tapi **tidak cukup untuk membersihkan semuanya**: profil yang diarsipkan (status `archived`) dan baris seed tetap tinggal, dan akun uji yang lupa dihapus juga masih ada. Untuk reset penuh, DB production tidak reachable dari internet — pakai tunnel Railway.
 
 ```powershell
 # Jendela 1 — buka tunnel, biarkan terbuka

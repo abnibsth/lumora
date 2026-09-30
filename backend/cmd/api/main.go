@@ -34,8 +34,9 @@ const (
 	aiWindow = time.Hour
 	// Verification endpoints: the verify valve and both resend limiters share
 	// one window, matching the env var names' _PER_HOUR suffix.
-	authVerifyWindow = time.Hour
-	authResendWindow = time.Hour
+	authVerifyWindow   = time.Hour
+	authResendWindow   = time.Hour
+	authPasswordWindow = time.Hour
 )
 
 // authRateLimitMessage is shared by every auth limiter so a client cannot tell
@@ -154,6 +155,12 @@ func main() {
 	resendAccountLimiter := middleware.NewRateLimiter(cfg.AuthResendLimit, authResendWindow, time.Now)
 	resendGlobalLimiter := middleware.NewRateLimiter(cfg.AuthResendGlobalLimit, authResendWindow, time.Now)
 
+	// Changing a password verifies the current one, so it is an argon2 oracle
+	// for whoever holds a session. The per-account limit bounds the guessing;
+	// the valve bounds the CPU a flood of accounts can force.
+	passwordAccountLimiter := middleware.NewRateLimiter(cfg.AuthPasswordLimit, authPasswordWindow, time.Now)
+	passwordGlobalLimiter := middleware.NewRateLimiter(cfg.AuthPasswordGlobalLimit, authPasswordWindow, time.Now)
+
 	r := gin.New()
 	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
@@ -184,6 +191,9 @@ func main() {
 	// freely, but putting a listing in front of the public needs a verified
 	// address. Drafts stay editable, so the gate never strands unfinished work.
 	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireVerified(), businessHandler.Publish)
+	// Archiving hides a profile rather than erasing it, so it needs no verified
+	// address: nothing new reaches the public, and the opposite is true.
+	v1.DELETE("/businesses/:id", middleware.RequireSession(), businessHandler.Archive)
 
 	// The global valve is mounted FIRST, and that order is load-bearing rather
 	// than stylistic. The limiter allocates a bucket per new key and only sweeps
@@ -201,6 +211,17 @@ func main() {
 		authHandler.Login)
 	v1.POST("/auth/logout", authHandler.Logout)
 	v1.GET("/auth/me", middleware.RequireSession(), authHandler.Me)
+	v1.PATCH("/auth/me", middleware.RequireSession(), authHandler.UpdateProfile)
+	// Deleting an account is irreversible, so it re-checks the password in the
+	// body rather than trusting the session alone.
+	v1.DELETE("/auth/me", middleware.RequireSession(), authHandler.DeleteAccount)
+	// change-password needs a session — it re-authenticates the account it
+	// changes. Valve before per-account limiter, same memory reason as above.
+	v1.POST("/auth/change-password",
+		middleware.RequireSession(),
+		passwordGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", authRateLimitMessage),
+		passwordAccountLimiter.MiddlewareFor(middleware.UserKey, "rate_limited", authRateLimitMessage),
+		authHandler.ChangePassword)
 
 	// verify-email is unauthenticated by design: the link is followed from a
 	// mail client, which has no session. The token in the body is the

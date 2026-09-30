@@ -86,6 +86,15 @@ const (
 	DefaultAuthResendGlobalLimit = 100
 )
 
+// Defaults for the password-change endpoint. Both checks are argon2 verifies,
+// so an authenticated caller could otherwise hammer it to burn CPU and to
+// guess the current password. The per-account limit is the one that matters;
+// the global valve keeps a flood of accounts from growing the bucket map.
+const (
+	DefaultAuthPasswordLimit       = 5
+	DefaultAuthPasswordGlobalLimit = 100
+)
+
 // FrontendBaseURLDefault is where emailed links point when FRONTEND_BASE_URL is
 // unset. Local development matches the Vite dev server.
 const FrontendBaseURLDefault = "http://localhost:3000"
@@ -164,6 +173,9 @@ type Config struct {
 	AuthVerifyGlobalLimit int
 	AuthResendLimit       int
 	AuthResendGlobalLimit int
+	// Password change: a per-account limit plus a global valve, like resend.
+	AuthPasswordLimit       int
+	AuthPasswordGlobalLimit int
 }
 
 func Load() (Config, error) {
@@ -263,6 +275,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	authPasswordLimit, err := positiveIntFromEnv("AUTH_PASSWORD_LIMIT_PER_HOUR", DefaultAuthPasswordLimit, ErrInvalidAuthLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authPasswordGlobalLimit, err := positiveIntFromEnv("AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR", DefaultAuthPasswordGlobalLimit, ErrInvalidAuthLimit)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		Port:                      port,
@@ -284,6 +304,8 @@ func Load() (Config, error) {
 		AuthVerifyGlobalLimit:     authVerifyGlobalLimit,
 		AuthResendLimit:           authResendLimit,
 		AuthResendGlobalLimit:     authResendGlobalLimit,
+		AuthPasswordLimit:         authPasswordLimit,
+		AuthPasswordGlobalLimit:   authPasswordGlobalLimit,
 	}, nil
 }
 

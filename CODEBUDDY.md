@@ -4,7 +4,7 @@ This file provides guidance to CodeBuddy Code when working with code in this rep
 
 ## Repository layout
 
-- `backend/` — Go REST API (Gin + Postgres 16 + pgx/v5 + sqlc + goose); module `github.com/alfian/lumora/backend`, Go 1.27. Actively developed; phases 1–9 complete.
+- `backend/` — Go REST API (Gin + Postgres 16 + pgx/v5 + sqlc + goose); module `github.com/alfian/lumora/backend`, Go 1.27. Actively developed; phases 1–10 complete.
 - `frontend/` — Next.js 16 App Router prototype (marketing + business discovery). Uses hardcoded mock data; it does **not** call the backend yet (only a dormant `/api/:path*` proxy rewrite exists).
 - `docs/` — `api.md` (authoritative endpoint contract), `fases.md` (backend phase history + known gaps), `manual-test.md` (step-by-step endpoint smoke test; its section 10 is the production/Railway runbook).
 
@@ -80,7 +80,8 @@ Every error response is `{"error":{"code": "...", "message": "..."}}`. `writeErr
 - Session token in an `httpOnly` cookie `lumora_session` (`SameSite=Lax`, `Secure` when `APP_ENV=production`). No `Authorization` header, no tokens in `localStorage`.
 - Passwords are argon2id PHC strings (`internal/auth`). Login runs a dummy argon2 verify on the "email not found" path so response timing does not reveal whether an account exists.
 - `AttachSession` is mounted on the `/api/v1` group (not the whole engine). `RequireSession()` guards authenticated routes; `RequireVerified()` is a **soft gate** applied only to the two endpoints that cost money or publish content: `POST /api/v1/businesses/:id/publish` and `POST /api/v1/ai/draft-profile`. Everything else (register, login, editing drafts, bookmarks, media upload) stays reachable unverified.
-- Drafts must never leak to the public list/detail; `GET /api/v1/businesses` and `GET /api/v1/businesses/:slug` return only `published` rows.
+- Drafts must never leak to the public list/detail; `GET /api/v1/businesses` and `GET /api/v1/businesses/:slug` return only `published` rows. `DELETE /api/v1/businesses/:id` **archives** rather than deletes (status `archived`), so it drops out of every read path through that same `published` filter — the only queries that had to learn about it are `ListBusinessesByOwner`/`CountBusinessesByOwner`. `ownedRow` rejects archived rows *before* the ownership check, so a stranger guessing an archived UUID gets 404 rather than a 403 that would confirm the row exists.
+- Deleting an account is one `DELETE FROM users`: sessions, verification tokens, bookmarks, and the account's businesses all cascade, and the businesses take their milestones, BMC blocks, and other users' bookmarks with them. `businesses.owner_user_id` is `ON DELETE CASCADE` (it was `SET NULL` before phase 10, which orphaned profiles permanently).
 
 ### Rate limiting
 
@@ -140,4 +141,4 @@ Some bullets below are corroborated by this repo (`docker-entrypoint.sh`, the Do
 - Keep `gofmt` and `go vet` clean; run the race detector in the `golang:1.27` container (no local gcc).
 - Never commit the real `backend/.env` or API keys; `.env.example` documents every variable.
 - Railway deploy has non-obvious traps — see the section above before touching production.
-- `docs/fases.md` tracks what is done and the open gaps (static 30-day sessions, no seed-owner claim, no real email provider).
+- `docs/fases.md` tracks what is done and the open gaps (static 30-day sessions, no seed-owner claim, no real email provider, no password-reset flow).

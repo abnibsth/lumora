@@ -38,18 +38,21 @@ WHERE b.status = 'published'
 
 -- Owner dashboard list: every profile owned by one account, drafts included,
 -- newest first. The public list only ever shows published rows; this is the
--- query the owner's own dashboard reads.
+-- query the owner's own dashboard reads. Archived profiles are left out: the
+-- owner deleted them, so they must not reappear on the dashboard.
 -- name: ListBusinessesByOwner :many
 SELECT *
 FROM businesses
 WHERE owner_user_id = $1
+  AND status <> 'archived'
 ORDER BY created_at DESC, id ASC
 LIMIT $2 OFFSET $3;
 
 -- name: CountBusinessesByOwner :one
 SELECT count(*)
 FROM businesses
-WHERE owner_user_id = $1;
+WHERE owner_user_id = $1
+  AND status <> 'archived';
 
 -- name: GetBusinessesByIDs :many
 SELECT *

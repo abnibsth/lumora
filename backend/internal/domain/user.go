@@ -78,6 +78,59 @@ type LoginParams struct {
 	Password string `json:"password"`
 }
 
+// UpdateProfileParams is the validated PATCH /auth/me body. Only the display
+// name is editable: email is the login identity and a UNIQUE column, and role
+// is a trust field the account must not raise for itself.
+type UpdateProfileParams struct {
+	Name string `json:"name"`
+}
+
+// ChangePasswordParams is the validated POST /auth/change-password body.
+type ChangePasswordParams struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// DeleteAccountParams is the validated DELETE /auth/me body. The password is
+// required because deleting an account is irreversible: without it, a stolen
+// session alone would be enough to destroy the account.
+type DeleteAccountParams struct {
+	Password string `json:"password"`
+}
+
+// Validate normalizes and checks the profile patch payload.
+func (p *UpdateProfileParams) Validate() error {
+	p.Name = strings.TrimSpace(p.Name)
+	if p.Name == "" {
+		return invalid("Nama wajib diisi.")
+	}
+	if len(p.Name) > MaxNameLength {
+		return invalid("Nama maksimal 100 karakter.")
+	}
+	return nil
+}
+
+// Validate normalizes and checks the password change payload. The current
+// password is only checked for presence here; whether it is correct is the
+// service's job, since that needs the stored hash.
+func (p *ChangePasswordParams) Validate() error {
+	if p.CurrentPassword == "" {
+		return invalid("Kata sandi saat ini wajib diisi.")
+	}
+	if err := validatePasswordLength(p.NewPassword); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate checks the account deletion payload.
+func (p *DeleteAccountParams) Validate() error {
+	if p.Password == "" {
+		return invalid("Kata sandi wajib diisi.")
+	}
+	return nil
+}
+
 const (
 	// MinPasswordLength matches the minLength=8 on the frontend form.
 	MinPasswordLength = 8

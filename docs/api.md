@@ -1,6 +1,6 @@
 # LUMORA API — Kontrak Backend (Go)
 
-Status spek ini: **Phase 1–9 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register, verifikasi email saat register). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
+Status spek ini: **Phase 1–10 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register, verifikasi email saat register, hapus profil (arsip) + kelola akun). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
 
 - Base URL development: `http://localhost:8080`
 - Prefix semua endpoint: `/api/v1`
@@ -247,6 +247,76 @@ Tanpa cookie / cookie kedaluwarsa → `401 unauthenticated`. Pakai endpoint ini 
 
 > `emailVerified` adalah **boolean**, bukan timestamp — frontend cuma butuh ya/tidak. Namanya sengaja beda dari `verified` milik `Business` (badge pada profil), supaya tidak tertukar.
 
+### `PATCH /api/v1/auth/me`
+
+Butuh cookie valid. Mengubah nama tampilan akun.
+
+```json
+{ "name": "Budi Santoso" }
+```
+
+`200` → body `User` yang sudah diperbarui (bentuk sama dengan `GET /auth/me`).
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `User` terbaru |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Nama kosong / > 100 karakter | 400 | `validation_failed` |
+| Body bukan JSON / rusak | 400 | `invalid_body` |
+
+**Hanya `name` yang bisa diubah.** `role` sengaja tidak bisa — itu field kepercayaan, dan membiarkan akun menaikkan dirinya ke `mitra` sendiri adalah eskalasi hak akses. `email` juga tidak bisa, karena email adalah identitas login sekaligus kolom `UNIQUE`; menggantinya butuh alur verifikasi alamat baru tersendiri.
+
+### `DELETE /api/v1/auth/me`
+
+Butuh cookie valid **dan** kata sandi di body. Menghapus akun secara permanen.
+
+```json
+{ "password": "rahasia123" }
+```
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `{ "status": "ok" }` + cookie dihapus |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Kata sandi salah | 401 | `invalid_credentials` (cookie **tidak** dihapus) |
+| Kata sandi kosong | 400 | `validation_failed` |
+| Body bukan JSON / rusak | 400 | `invalid_body` |
+
+> Kata sandi diminta karena aksi ini tidak bisa dibatalkan: tanpa itu, satu cookie yang dicuri sudah cukup untuk menghancurkan akun. Cookie baru dihapus setelah akun benar-benar terhapus, jadi penolakan kata sandi meninggalkan sesi seperti semula.
+
+**Yang ikut terhapus** (semua lewat `ON DELETE CASCADE`, satu `DELETE` di DB):
+
+- akun, seluruh sesi, dan token verifikasi emailnya
+- bookmark yang **dia** buat
+- **semua profil bisnis miliknya** — draft maupun yang sudah terbit — beserta milestones dan blok BMC-nya
+- bookmark yang **user lain** buat pada profil-profil itu
+
+Jadi menghapus akun bisa mengurangi daftar publik dan menghilangkan profil dari daftar simpanan user lain. Kalau frontend mau mencegah kecelakaan, tampilkan konfirmasi eksplisit sebelum memanggil endpoint ini.
+
+### `POST /api/v1/auth/change-password`
+
+Butuh cookie valid. Mengganti kata sandi akun yang sedang masuk.
+
+```json
+{ "currentPassword": "rahasia123", "newPassword": "rahasia456" }
+```
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `{ "status": "ok" }` |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Kata sandi saat ini salah | 401 | `invalid_credentials` |
+| Kata sandi baru < 8 / > 128 karakter | 400 | `validation_failed` |
+| Kata sandi baru sama dengan yang sekarang | 400 | `validation_failed` |
+| Kuota per akun / valve global habis | 429 | `rate_limited` + `Retry-After` |
+| Body bukan JSON / rusak | 400 | `invalid_body` |
+
+**Perangkat lain otomatis logout.** Semua sesi akun dihapus **kecuali** sesi yang memakai cookie pengirim request ini — jadi perangkat yang mengganti tetap masuk, sementara sesi lain harus login ulang dengan kata sandi baru. Ini perilaku yang diinginkan saat seseorang mengganti kata sandi karena mencurigai ada perangkat yang tidak lagi dia kuasai.
+
+Kata sandi baru harus 8–128 karakter, sama dengan aturan register.
+
+> Endpoint ini memverifikasi kata sandi lama, jadi ia bisa dipakai pemegang sesi untuk menebak sandi. Karena itu ia dibatasi: `AUTH_PASSWORD_LIMIT_PER_HOUR` (default **5**, per akun) di belakang valve `AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR` (default **100**, semua akun), jendela 1 jam. Urutannya valve global dulu, baru per akun — sama seperti endpoint auth lain.
+
 ### Rate limiting login/register (phase 8 — aktif)
 
 Kedua endpoint auth dibatasi **per email**, bukan per IP. Di belakang proxy Railway alamat klien tidak bisa dipercaya — jawaban resmi Railway sendiri saling bertentangan soal isi `X-Forwarded-For`, dan alamat peer langsungnya berbeda tiap request — jadi IP tidak dipakai sebagai kunci. Yang dibatasi adalah alamat yang diserang, dan itu justru lebih tepat: brute-force menyasar satu akun.
@@ -393,9 +463,39 @@ Body berisi field yang mau diubah saja; sisanya tidak disentuh:
 
 Catatan: profil hasil **seed** tidak punya pemilik (`owner_user_id` NULL), jadi tidak bisa diedit/di-publish lewat API — hanya profil yang dibuat lewat `POST` yang bisa dikelola.
 
+### `DELETE /api/v1/businesses/:id` — hapus profil (arsip)
+
+Wajib login dan harus pemiliknya. Tanpa body → `200 { "status": "ok" }`.
+
+**Profil diarsipkan, bukan dihapus dari DB.** Barisnya tetap ada beserta milestones dan blok BMC-nya; yang berubah cuma `status` menjadi `archived`. Karena semua query publik sudah memfilter `status = 'published'`, efeknya langsung terasa tanpa perlu query baru:
+
+| Tempat | Sebelum arsip | Sesudah arsip |
+|---|---|---|
+| `GET /businesses` (publik) | muncul | hilang, `total` berkurang 1 |
+| `GET /businesses/:slug` | 200 | `404 not_found` |
+| `GET /businesses/mine` | muncul | hilang |
+| `GET /bookmarks` (user yang menyimpannya) | muncul | hilang |
+| `POST /businesses/:id/publish` | 200 | `404 not_found` |
+| `PATCH /businesses/:id` | 200 | `404 not_found` |
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `{ "status": "ok" }` |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Bukan pemilik (atau profil seed tanpa pemilik) | 403 | `forbidden` |
+| Id bukan UUID | 400 | `invalid_parameter` |
+| Id tidak ada, atau **sudah** terarsip | 404 | `not_found` |
+
+Beberapa konsekuensi yang perlu diketahui frontend:
+
+- **Tidak ada cara membatalkan lewat API.** `publish` dan `PATCH` pada profil terarsip sama-sama `404`, jadi arsip tidak bisa "dihidupkan lagi". Pemulihan hanya bisa lewat akses DB langsung.
+- **Bookmark user lain tidak dihapus** — barisnya masih ada, cuma tidak lagi tampil karena filternya `status = 'published'`. Jadi kalau nanti profilnya dipulihkan, bookmark-nya ikut kembali.
+- **Slug tidak dilepas.** Kolom `slug` tetap `UNIQUE`, jadi membuat profil baru dengan nama yang sama akan mendapat sufiks `-2` (mis. hapus "Kopi Senja" lalu buat lagi → slug `kopi-senja-2`).
+- **Tidak butuh email terverifikasi.** Berbeda dari `publish`, arsip tidak menerbitkan konten apa pun ke publik.
+
 ### `GET /api/v1/businesses/mine` — daftar profil milik sendiri
 
-Wajib login. Mengembalikan **semua** profil milik akun (draft **dan** published), terbaru dulu — inilah yang dipakai dashboard UMKM untuk menampilkan draft yang belum tayang.
+Wajib login. Mengembalikan **semua** profil milik akun (draft **dan** published), terbaru dulu — inilah yang dipakai dashboard UMKM untuk menampilkan draft yang belum tayang. Profil yang sudah **diarsipkan tidak muncul** di sini.
 
 | Query | Tipe | Default | Catatan |
 |---|---|---|---|
@@ -549,7 +649,8 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 
 ## Endpoint planned (belum ada — jangan dipanggil dulu)
 
-Tidak ada. Fase 1–9 sudah aktif semua.
+- **Lupa / reset kata sandi.** Belum ada, dan sengaja ditunda: alurnya butuh mengirim email, sedangkan `EMAIL_PROVIDER` masih `stub` (link hanya masuk log) — jadi di production alurnya tidak akan berfungsi. Dikerjakan setelah provider email asli ada.
+- **Pulihkan profil yang diarsipkan.** `DELETE /businesses/:id` hanya mengarsipkan; tidak ada endpoint untuk mengembalikannya.
 
 ---
 
@@ -563,7 +664,8 @@ Tidak ada. Fase 1–9 sudah aktif semua.
 - [ ] Pakai `emailVerified` dari `/auth/me` untuk menampilkan ajakan verifikasi + tombol `POST /auth/resend-verification` (`409 email_already_verified` = sudah beres, `429` = tunggu). Tangani `403 email_not_verified` saat publish / draf AI dengan arahan ke halaman verifikasi.
 - [ ] `businessName` di form register diabaikan backend — profil dibuat lewat `POST /businesses` (butuh login), jadi simpan dulu di state sampai form profil ada.
 - [ ] Kalau ada form buat/edit profil → `POST /businesses` (buat), `PATCH /businesses/:id` (edit), `POST /businesses/:id/publish` (tayang); semua wajib login, baca `status` dari respons, tampilkan `error.message` untuk `validation_failed`.
-- [ ] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`.
+- [ ] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`. Tombol hapus → `DELETE /businesses/:id` (arsip; konfirmasi dulu di UI karena tidak bisa dibatalkan lewat API).
+- [ ] Halaman akun: `PATCH /auth/me` untuk ganti nama, `POST /auth/change-password` untuk ganti kata sandi (ingatkan bahwa perangkat lain akan logout), `DELETE /auth/me` untuk hapus akun (wajib minta kata sandi + konfirmasi eksplisit).
 - [ ] `/explore` + `BusinessDiscoveryExplorer`: ganti `import { businesses } from "@/data/businesses"` → fetch `GET /businesses?limit=50`, filter `q`/`category` dikirim sebagai query (server side).
 - [ ] `/business/[slug]`: hapus `generateStaticParams` berbasis data lokal, ganti ke fetch di Server Component + `next: { revalidate: 60 }` supaya SEO tetap jalan. 404 → panggil `notFound()`.
 - [ ] Homepage (featured discovery): fetch `GET /businesses?limit=6`.
@@ -603,7 +705,7 @@ curl "http://localhost:8080/api/v1/businesses?q=kopi"
 curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 ```
 
-Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, `EMAIL_PROVIDER`, `FRONTEND_BASE_URL`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`, `AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR`, `AUTH_RESEND_LIMIT_PER_HOUR`, `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR`.
+Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, `EMAIL_PROVIDER`, `FRONTEND_BASE_URL`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`, `AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR`, `AUTH_RESEND_LIMIT_PER_HOUR`, `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR`, `AUTH_PASSWORD_LIMIT_PER_HOUR`, `AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR`.
 
 Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`.
 

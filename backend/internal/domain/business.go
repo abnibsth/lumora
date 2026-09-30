@@ -17,6 +17,10 @@ var (
 const (
 	StatusDraft     = "draft"
 	StatusPublished = "published"
+	// StatusArchived is a profile its owner deleted. The row is kept (nothing
+	// is destroyed) but every public read filters on 'published', so an
+	// archived profile is invisible and unmanageable through the API.
+	StatusArchived = "archived"
 )
 
 // Categories mirrors BUSINESS_CATEGORIES in frontend/types/business.ts. The

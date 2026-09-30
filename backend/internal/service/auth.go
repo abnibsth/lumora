@@ -33,6 +33,9 @@ type UserStore interface {
 	InsertUser(ctx context.Context, arg store.InsertUserParams) (store.User, error)
 	GetUserByEmail(ctx context.Context, arg store.GetUserByEmailParams) (store.User, error)
 	GetUserByID(ctx context.Context, arg store.GetUserByIDParams) (store.User, error)
+	UpdateUserName(ctx context.Context, arg store.UpdateUserNameParams) (store.User, error)
+	UpdateUserPassword(ctx context.Context, arg store.UpdateUserPasswordParams) error
+	DeleteUser(ctx context.Context, arg store.DeleteUserParams) error
 }
 
 // SessionStore is the slice of the sqlc store AuthService needs for sessions.
@@ -40,6 +43,7 @@ type SessionStore interface {
 	InsertSession(ctx context.Context, arg store.InsertSessionParams) error
 	GetSessionByToken(ctx context.Context, arg store.GetSessionByTokenParams) (store.GetSessionByTokenRow, error)
 	DeleteSessionByToken(ctx context.Context, arg store.DeleteSessionByTokenParams) error
+	DeleteOtherSessions(ctx context.Context, arg store.DeleteOtherSessionsParams) error
 	DeleteExpiredSessions(ctx context.Context) error
 }
 
@@ -353,6 +357,119 @@ func (s *AuthService) ResendVerification(ctx context.Context, userID string) err
 		return fmt.Errorf("clear verification tokens: %w", err)
 	}
 	return s.issueVerification(ctx, row)
+}
+
+// UpdateProfile changes the account's display name. Email and role are
+// deliberately not editable here: email is the login identity and a UNIQUE
+// column, and role is a trust field an account must not raise for itself.
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, params domain.UpdateProfileParams) (domain.User, error) {
+	if err := params.Validate(); err != nil {
+		return domain.User{}, err
+	}
+
+	row, err := s.users.UpdateUserName(ctx, store.UpdateUserNameParams{
+		ID:   parseID(userID),
+		Name: params.Name,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.User{}, domain.ErrUnauthenticated
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("update user name: %w", err)
+	}
+	return toDomainUser(row), nil
+}
+
+// ChangePassword re-hashes the new password and signs out every other device.
+//
+// The caller's own session is spared: invalidating the cookie that made this
+// request would look like the change failed. Every other session is dropped
+// because a password change is exactly what someone does when they suspect a
+// device they no longer control is signed in.
+func (s *AuthService) ChangePassword(ctx context.Context, userID, currentToken string, params domain.ChangePasswordParams) error {
+	if err := params.Validate(); err != nil {
+		return err
+	}
+
+	row, err := s.requirePassword(ctx, userID, params.CurrentPassword)
+	if err != nil {
+		return err
+	}
+
+	// Costs a second argon2 verify, but "that is already your password" beats a
+	// silent no-op that reads as a successful change.
+	reused, err := s.verify(row.PasswordHash, params.NewPassword)
+	if err != nil {
+		return fmt.Errorf("verify new password: %w", err)
+	}
+	if reused {
+		return &domain.ValidationError{Message: "Kata sandi baru harus berbeda dari kata sandi saat ini."}
+	}
+
+	hashed, err := s.hash(params.NewPassword)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	if err := s.users.UpdateUserPassword(ctx, store.UpdateUserPasswordParams{
+		ID:           row.ID,
+		PasswordHash: hashed,
+	}); err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+
+	if err := s.sessions.DeleteOtherSessions(ctx, store.DeleteOtherSessionsParams{
+		UserID: row.ID,
+		Token:  currentToken,
+	}); err != nil {
+		return fmt.Errorf("delete other sessions: %w", err)
+	}
+	return nil
+}
+
+// DeleteAccount removes the account after proving the caller knows its
+// password. Deleting is irreversible, so a session alone must not be enough —
+// otherwise a stolen cookie could destroy the account.
+//
+// One DELETE is all it takes: sessions, verification tokens, bookmarks, and
+// the account's own profiles all hang off foreign keys that cascade, and the
+// profiles take their milestones, BMC blocks, and other users' bookmarks with
+// them.
+func (s *AuthService) DeleteAccount(ctx context.Context, userID string, params domain.DeleteAccountParams) error {
+	if err := params.Validate(); err != nil {
+		return err
+	}
+
+	row, err := s.requirePassword(ctx, userID, params.Password)
+	if err != nil {
+		return err
+	}
+
+	if err := s.users.DeleteUser(ctx, store.DeleteUserParams{ID: row.ID}); err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	return nil
+}
+
+// requirePassword loads the account and proves the caller knows its password.
+// Shared by ChangePassword and DeleteAccount, the two endpoints that gate an
+// irreversible or security-sensitive change behind re-authentication.
+func (s *AuthService) requirePassword(ctx context.Context, userID, password string) (store.User, error) {
+	row, err := s.users.GetUserByID(ctx, store.GetUserByIDParams{ID: parseID(userID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return store.User{}, domain.ErrUnauthenticated
+	}
+	if err != nil {
+		return store.User{}, fmt.Errorf("load user: %w", err)
+	}
+
+	match, err := s.verify(row.PasswordHash, password)
+	if err != nil {
+		return store.User{}, fmt.Errorf("verify password: %w", err)
+	}
+	if !match {
+		return store.User{}, domain.ErrInvalidCredentials
+	}
+	return row, nil
 }
 
 func (s *AuthService) startSession(ctx context.Context, userID string) (domain.Session, error) {

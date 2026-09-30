@@ -21,6 +21,24 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
 	return err
 }
 
+const deleteOtherSessions = `-- name: DeleteOtherSessions :exec
+DELETE FROM sessions
+WHERE user_id = $1
+  AND token <> $2
+`
+
+type DeleteOtherSessionsParams struct {
+	UserID pgtype.UUID
+	Token  string
+}
+
+// Changing a password logs out every other device but keeps the caller signed
+// in, so the request that changed it does not invalidate its own cookie.
+func (q *Queries) DeleteOtherSessions(ctx context.Context, arg DeleteOtherSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteOtherSessions, arg.UserID, arg.Token)
+	return err
+}
+
 const deleteSessionByToken = `-- name: DeleteSessionByToken :exec
 DELETE FROM sessions
 WHERE token = $1

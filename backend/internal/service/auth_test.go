@@ -64,6 +64,43 @@ func (f *fakeUserStore) GetUserByID(_ context.Context, arg store.GetUserByIDPara
 	return user, nil
 }
 
+func (f *fakeUserStore) UpdateUserName(_ context.Context, arg store.UpdateUserNameParams) (store.User, error) {
+	key := keyOf(arg.ID)
+	user, ok := f.byID[key]
+	if !ok {
+		return store.User{}, pgx.ErrNoRows
+	}
+	user.Name = arg.Name
+	f.byID[key] = user
+	f.byEmail[user.Email] = user
+	return user, nil
+}
+
+func (f *fakeUserStore) UpdateUserPassword(_ context.Context, arg store.UpdateUserPasswordParams) error {
+	key := keyOf(arg.ID)
+	user, ok := f.byID[key]
+	if !ok {
+		return nil
+	}
+	user.PasswordHash = arg.PasswordHash
+	f.byID[key] = user
+	f.byEmail[user.Email] = user
+	return nil
+}
+
+// DeleteUser mirrors the real cascade closely enough for assertions: the
+// account's sessions go with it, because that is what the foreign key does.
+func (f *fakeUserStore) DeleteUser(_ context.Context, arg store.DeleteUserParams) error {
+	key := keyOf(arg.ID)
+	user, ok := f.byID[key]
+	if !ok {
+		return nil
+	}
+	delete(f.byID, key)
+	delete(f.byEmail, user.Email)
+	return nil
+}
+
 type fakeSessionStore struct {
 	byToken map[string]store.GetSessionByTokenRow
 }
@@ -91,6 +128,15 @@ func (f *fakeSessionStore) GetSessionByToken(_ context.Context, arg store.GetSes
 
 func (f *fakeSessionStore) DeleteSessionByToken(_ context.Context, arg store.DeleteSessionByTokenParams) error {
 	delete(f.byToken, arg.Token)
+	return nil
+}
+
+func (f *fakeSessionStore) DeleteOtherSessions(_ context.Context, arg store.DeleteOtherSessionsParams) error {
+	for token, row := range f.byToken {
+		if row.UserID == arg.UserID && token != arg.Token {
+			delete(f.byToken, token)
+		}
+	}
 	return nil
 }
 
@@ -650,5 +696,167 @@ func TestResendVerificationReturnsSendError(t *testing.T) {
 
 	if err := svc.ResendVerification(context.Background(), user.ID); err == nil {
 		t.Fatal("err = nil, want the send failure")
+	}
+}
+
+func usersOf(t *testing.T, svc *AuthService) *fakeUserStore {
+	t.Helper()
+	users, ok := svc.users.(*fakeUserStore)
+	if !ok {
+		t.Fatalf("users is %T, want *fakeUserStore", svc.users)
+	}
+	return users
+}
+
+func TestUpdateProfileChangesOnlyTheName(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, _ := registerAndReturn(t, svc)
+
+	updated, err := svc.UpdateProfile(context.Background(), user.ID, domain.UpdateProfileParams{Name: "  Budi Santoso  "})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if updated.Name != "Budi Santoso" {
+		t.Errorf("Name = %q, want the trimmed new name", updated.Name)
+	}
+	if updated.Email != user.Email || updated.Role != user.Role {
+		t.Errorf("email/role changed: got %q/%q, want %q/%q", updated.Email, updated.Role, user.Email, user.Role)
+	}
+
+	// The stored row, not just the response, has to carry the new name.
+	stored, err := usersOf(t, svc).GetUserByID(context.Background(), store.GetUserByIDParams{ID: parseID(user.ID)})
+	if err != nil {
+		t.Fatalf("GetUserByID: %v", err)
+	}
+	if stored.Name != "Budi Santoso" {
+		t.Errorf("stored Name = %q, want Budi Santoso", stored.Name)
+	}
+}
+
+func TestUpdateProfileRejectsEmptyName(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, _ := registerAndReturn(t, svc)
+
+	_, err := svc.UpdateProfile(context.Background(), user.ID, domain.UpdateProfileParams{Name: "   "})
+	var validationErr *domain.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Errorf("err = %v, want a ValidationError", err)
+	}
+}
+
+func TestUpdateProfileUnknownUser(t *testing.T) {
+	svc, _ := newTestAuthService()
+
+	_, err := svc.UpdateProfile(context.Background(), uuid.New().String(), domain.UpdateProfileParams{Name: "Siapa"})
+	if !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Errorf("err = %v, want ErrUnauthenticated", err)
+	}
+}
+
+func TestChangePasswordKeepsCurrentSessionAndDropsOthers(t *testing.T) {
+	svc, sessions := newTestAuthService()
+	user, session := registerAndReturn(t, svc)
+
+	// A second device signing in, so the "log out everywhere else" behaviour
+	// has something to actually drop.
+	other, err := svc.startSession(context.Background(), user.ID)
+	if err != nil {
+		t.Fatalf("startSession: %v", err)
+	}
+
+	err = svc.ChangePassword(context.Background(), user.ID, session.Token, domain.ChangePasswordParams{
+		CurrentPassword: "rahasia123",
+		NewPassword:     "rahasia456",
+	})
+	if err != nil {
+		t.Fatalf("ChangePassword: %v", err)
+	}
+
+	// The cookie that made this request must keep working; dropping it would
+	// look like the change failed.
+	if _, ok := sessions.byToken[session.Token]; !ok {
+		t.Error("current session was deleted")
+	}
+	if _, ok := sessions.byToken[other.Token]; ok {
+		t.Error("other session survived the password change")
+	}
+
+	if _, _, err := svc.Login(context.Background(), domain.LoginParams{Email: user.Email, Password: "rahasia456"}); err != nil {
+		t.Errorf("login with the new password: %v", err)
+	}
+	_, _, err = svc.Login(context.Background(), domain.LoginParams{Email: user.Email, Password: "rahasia123"})
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Errorf("login with the old password err = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestChangePasswordRejectsWrongCurrentPassword(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, session := registerAndReturn(t, svc)
+
+	err := svc.ChangePassword(context.Background(), user.ID, session.Token, domain.ChangePasswordParams{
+		CurrentPassword: "salah",
+		NewPassword:     "rahasia456",
+	})
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Errorf("err = %v, want ErrInvalidCredentials", err)
+	}
+	if _, _, err := svc.Login(context.Background(), domain.LoginParams{Email: user.Email, Password: "rahasia123"}); err != nil {
+		t.Errorf("old password stopped working after a rejected change: %v", err)
+	}
+}
+
+func TestChangePasswordRejectsReusedPassword(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, session := registerAndReturn(t, svc)
+
+	err := svc.ChangePassword(context.Background(), user.ID, session.Token, domain.ChangePasswordParams{
+		CurrentPassword: "rahasia123",
+		NewPassword:     "rahasia123",
+	})
+	var validationErr *domain.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Errorf("err = %v, want a ValidationError", err)
+	}
+}
+
+func TestChangePasswordRejectsShortNewPassword(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, session := registerAndReturn(t, svc)
+
+	err := svc.ChangePassword(context.Background(), user.ID, session.Token, domain.ChangePasswordParams{
+		CurrentPassword: "rahasia123",
+		NewPassword:     "pendek",
+	})
+	var validationErr *domain.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Errorf("err = %v, want a ValidationError", err)
+	}
+}
+
+func TestDeleteAccountRemovesUser(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, _ := registerAndReturn(t, svc)
+
+	if err := svc.DeleteAccount(context.Background(), user.ID, domain.DeleteAccountParams{Password: "rahasia123"}); err != nil {
+		t.Fatalf("DeleteAccount: %v", err)
+	}
+
+	_, err := usersOf(t, svc).GetUserByID(context.Background(), store.GetUserByIDParams{ID: parseID(user.ID)})
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("user still present: err = %v", err)
+	}
+}
+
+func TestDeleteAccountRejectsWrongPassword(t *testing.T) {
+	svc, _ := newTestAuthService()
+	user, _ := registerAndReturn(t, svc)
+
+	err := svc.DeleteAccount(context.Background(), user.ID, domain.DeleteAccountParams{Password: "salah"})
+	if !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Errorf("err = %v, want ErrInvalidCredentials", err)
+	}
+	if _, err := usersOf(t, svc).GetUserByID(context.Background(), store.GetUserByIDParams{ID: parseID(user.ID)}); err != nil {
+		t.Errorf("account was deleted despite the wrong password: %v", err)
 	}
 }

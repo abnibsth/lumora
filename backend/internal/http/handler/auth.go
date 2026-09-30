@@ -21,6 +21,9 @@ type AuthService interface {
 	UserByToken(ctx context.Context, token string) (domain.User, error)
 	VerifyEmail(ctx context.Context, token string) error
 	ResendVerification(ctx context.Context, userID string) error
+	UpdateProfile(ctx context.Context, userID string, params domain.UpdateProfileParams) (domain.User, error)
+	ChangePassword(ctx context.Context, userID, currentToken string, params domain.ChangePasswordParams) error
+	DeleteAccount(ctx context.Context, userID string, params domain.DeleteAccountParams) error
 }
 
 type AuthHandler struct {
@@ -147,6 +150,97 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 		slog.Error("resend verification failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	}
+}
+
+// UpdateProfile handles PATCH /api/v1/auth/me. Route is behind
+// middleware.RequireSession, so the user is always present here.
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	var params domain.UpdateProfileParams
+	if err := c.ShouldBindJSON(&params); err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_body", "Format permintaan tidak valid.")
+		return
+	}
+
+	updated, err := h.svc.UpdateProfile(c.Request.Context(), user.ID, params)
+	switch {
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case errors.Is(err, domain.ErrUnauthenticated):
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+	case err != nil:
+		slog.Error("update profile failed", "user_id", user.ID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, updated)
+	}
+}
+
+// ChangePassword handles POST /api/v1/auth/change-password. The current session
+// token travels with the request so the service can keep this device signed in
+// while dropping every other one.
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	var params domain.ChangePasswordParams
+	if err := c.ShouldBindJSON(&params); err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_body", "Format permintaan tidak valid.")
+		return
+	}
+
+	token, _ := c.Cookie(domain.SessionCookieName)
+	err := h.svc.ChangePassword(c.Request.Context(), user.ID, token, params)
+	switch {
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case errors.Is(err, domain.ErrInvalidCredentials):
+		writeError(c, http.StatusUnauthorized, "invalid_credentials", "Kata sandi saat ini salah.")
+	case err != nil:
+		slog.Error("change password failed", "user_id", user.ID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	}
+}
+
+// DeleteAccount handles DELETE /api/v1/auth/me. The cookie is cleared only
+// after the account is really gone, so a rejected password leaves the caller
+// signed in as before.
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	var params domain.DeleteAccountParams
+	if err := c.ShouldBindJSON(&params); err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_body", "Format permintaan tidak valid.")
+		return
+	}
+
+	err := h.svc.DeleteAccount(c.Request.Context(), user.ID, params)
+	switch {
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case errors.Is(err, domain.ErrInvalidCredentials):
+		writeError(c, http.StatusUnauthorized, "invalid_credentials", "Kata sandi salah.")
+	case err != nil:
+		slog.Error("delete account failed", "user_id", user.ID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		h.clearSessionCookie(c)
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	}
 }

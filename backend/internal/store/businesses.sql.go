@@ -15,6 +15,7 @@ const countBusinessesByOwner = `-- name: CountBusinessesByOwner :one
 SELECT count(*)
 FROM businesses
 WHERE owner_user_id = $1
+  AND status <> 'archived'
 `
 
 type CountBusinessesByOwnerParams struct {
@@ -421,6 +422,7 @@ const listBusinessesByOwner = `-- name: ListBusinessesByOwner :many
 SELECT id, slug, owner_user_id, name, category, location, description, story, cover_image, cover_position, logo, founded_year, revenue_label, growth_label, revenue_series, seeking, seeking_objective, owner_name, owner_role, owner_bio, status, verified, created_at, updated_at
 FROM businesses
 WHERE owner_user_id = $1
+  AND status <> 'archived'
 ORDER BY created_at DESC, id ASC
 LIMIT $2 OFFSET $3
 `
@@ -433,7 +435,8 @@ type ListBusinessesByOwnerParams struct {
 
 // Owner dashboard list: every profile owned by one account, drafts included,
 // newest first. The public list only ever shows published rows; this is the
-// query the owner's own dashboard reads.
+// query the owner's own dashboard reads. Archived profiles are left out: the
+// owner deleted them, so they must not reappear on the dashboard.
 func (q *Queries) ListBusinessesByOwner(ctx context.Context, arg ListBusinessesByOwnerParams) ([]Business, error) {
 	rows, err := q.db.Query(ctx, listBusinessesByOwner, arg.OwnerUserID, arg.Limit, arg.Offset)
 	if err != nil {

@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–9 selesai**.
+Status: **fase 1–10 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -18,9 +18,10 @@ Status: **fase 1–9 selesai**.
 | 7 | Rate limiting endpoint AI (per akun + anggaran global) | ✅ **Selesai** |
 | 8 | Rate limiting login/register (per email) | ✅ **Selesai** |
 | 9 | Verifikasi email saat register | ✅ **Selesai** |
+| 10 | Hapus profil (arsip) + kelola akun (edit nama, ganti sandi, hapus akun) | ✅ **Selesai** |
 
-Total tes saat ini: **208 tes utama / 320 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 4**.
-Ditambah **9 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
+Total tes saat ini: **243 tes utama / 389 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 5**.
+Ditambah **11 integration test** (17 kasus) yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
 
@@ -279,6 +280,47 @@ Respons `User` kini punya field `emailVerified` (boolean, bukan timestamp — fr
 
 ---
 
+## Fase 10 — Hapus profil (arsip) + kelola akun ✅
+
+**Isi:**
+- `migrations/0005_archive_and_account_deletion.sql`: `status` menerima `'archived'`, dan FK `businesses.owner_user_id` berubah dari `ON DELETE SET NULL` menjadi `ON DELETE CASCADE`. Keduanya `DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT` supaya idempoten; nama constraint aslinya dicek dulu lewat `\d businesses` (bukan ditebak dari konvensi Postgres).
+- `domain.StatusArchived`. `domain/user.go` dapat tiga tipe params baru — `UpdateProfileParams`, `ChangePasswordParams`, `DeleteAccountParams` — beserta `Validate()` yang memakai `invalid()`/`ValidationError` yang sudah ada, jadi pesannya Bahasa Indonesia dan ter-map ke `400 validation_failed` tanpa kode error baru.
+- **Arsip, bukan hapus baris.** `BusinessService.Archive` memuat baris lewat `ownedRow`, set `Status = StatusArchived`, lalu menulis ulang dengan `UpdateBusiness` — query yang sama yang dipakai `Publish`, karena `UpdateBusiness` sudah menerima `status` sebagai parameter. Tidak ada query hapus bisnis baru.
+- **`ownedRow` menolak arsip sebelum cek kepemilikan.** Urutannya load-bearing: kalau cek pemilik lebih dulu, orang asing yang menebak UUID profil terarsip akan dapat `403` sementara UUID tak dikenal memberi `404` — selisih itu mengonfirmasi barisnya ada. Efek sampingnya diinginkan: `Update` dan `Publish` pada profil terarsip sama-sama `404`, jadi `Publish` bukan jalan pintas membatalkan arsip.
+- **Query baca publik tidak berubah.** `ListPublishedBusinessIDs`, `CountPublishedBusinesses`, `GetPublishedBusinessBySlug`, dan `ListBookmarks` semuanya sudah memfilter `status = 'published'`, jadi profil terarsip hilang dari list, detail, dan bookmark tanpa satu pun perubahan SQL. Yang perlu diubah hanya dua query milik pemilik: `ListBusinessesByOwner` dan `CountBusinessesByOwner` mendapat `AND status <> 'archived'`, supaya profil yang sudah "dihapus" tidak muncul lagi di dashboard.
+- **Hapus akun = satu `DELETE`.** `DeleteUser` cukup satu baris karena seluruh jejaknya bergantung pada foreign key: `sessions`, `email_verification_tokens`, dan `bookmarks.user_id` sudah `CASCADE`; setelah migrasi ini `businesses.owner_user_id` juga, dan dari situ `business_milestones`, `bmc_entries`, serta bookmark milik **user lain** pada profil tersebut ikut terhapus. Karena itu service auth tidak butuh `Transactor` (yang saat ini bertipe `BusinessRepository`).
+- **`DELETE /auth/me` mewajibkan kata sandi di body.** Ini aksi destruktif dan tidak bisa dibatalkan; tanpa re-autentikasi, satu cookie yang dicuri sudah cukup menghancurkan akun. Cookie baru dihapus setelah akun benar-benar hilang, jadi kata sandi yang salah meninggalkan sesi apa adanya — ada testnya.
+- **Ganti kata sandi = logout perangkat lain.** `DeleteOtherSessions` menghapus semua sesi akun **kecuali** token pengirim request. Sesi yang mengganti tetap hidup (kalau tidak, request itu sendiri yang jadi terlihat gagal), sementara perangkat lain harus login ulang dengan sandi baru. Sandi baru yang sama dengan yang lama ditolak `400` — butuh verifikasi argon2 kedua, tapi percobaan itu dibatasi limiter.
+- **`PATCH /auth/me` hanya mengubah `name`.** `role` tidak boleh diubah sendiri karena itu field kepercayaan (eskalasi ke `mitra`), dan `email` tidak boleh karena ia identitas login sekaligus kolom `UNIQUE` — menggantinya butuh alur verifikasi alamat baru tersendiri.
+- `internal/service/auth.go`: `requirePassword` dipakai bersama `ChangePassword` dan `DeleteAccount` — load akun, `s.verify` terhadap hash tersimpan, salah → `domain.ErrInvalidCredentials`, akun tak ada → `ErrUnauthenticated`.
+- **Rate limit endpoint ganti sandi.** Endpoint ini memverifikasi sandi lama, jadi ia adalah oracle tebak-sandi bagi pemegang sesi, sekaligus sumber kerja argon2id ganda. Dibatasi per akun + valve global, mengikuti pola fase 8 (valve **dulu**, baru per-akun, dengan alasan pertumbuhan map bucket yang sama).
+
+**Endpoint aktif:**
+
+| Method | Path | Respons |
+|---|---|---|
+| DELETE | `/api/v1/businesses/:id` | 200 `{"status":"ok"}` — arsip; `403 forbidden` bukan pemilik, `404 not_found` id tak ada / sudah terarsip, `400 invalid_parameter` id bukan uuid |
+| PATCH | `/api/v1/auth/me` | 200 `User` terbaru; `400 validation_failed` nama kosong / > 100 karakter |
+| DELETE | `/api/v1/auth/me` | 200 `{"status":"ok"}` + cookie dihapus; `401 invalid_credentials` sandi salah (cookie **tidak** dihapus) |
+| POST | `/api/v1/auth/change-password` | 200 `{"status":"ok"}`; `401 invalid_credentials` sandi lama salah; `400 validation_failed` sandi baru < 8 / > 128 / sama dengan yang lama; `429 rate_limited` |
+
+Keempatnya wajib login. Tidak ada yang memakai gate `RequireVerified`: arsip justru menghilangkan konten dari publik, bukan menerbitkannya.
+
+**Config (`internal/config/config.go`):**
+
+| Variabel | Default | Jendela (hardcode `cmd/api`) |
+|---|---|---|
+| `AUTH_PASSWORD_LIMIT_PER_HOUR` | 5 | 1 jam |
+| `AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR` | 100 | 1 jam |
+
+**Verifikasi:** 3 test domain baru / 9 kasus (`Validate` ketiga params: trim, kosong, batas 100 karakter, sandi terlalu pendek/panjang) + 9 test service auth (nama berubah dan tersimpan, `role`/`email` tidak tersentuh, user tak dikenal, sandi lama salah tidak mengubah apa pun, sandi baru = lama ditolak, sesi pengirim bertahan sementara sesi lain terhapus, login pakai sandi baru berhasil dan sandi lama gagal, hapus akun menghilangkan user, sandi salah tidak menghapus) + 3 test service bisnis (`Archive` menyimpan `status` arsip dan membuat `Update`/`Publish`/`Archive` kedua `404`, ownership `403`/`400`/`404`, profil tanpa pemilik `403`) + 13 test handler (9 auth: status, kode error, token sesi diteruskan ke service, cookie dibersihkan saat sukses dan **tidak** dibersihkan saat sandi salah; 4 bisnis: 401, 200 + userID/id diteruskan, tabel mapping `404`/`403`/`400`, error tak terduga `500`) + 2 test config yang diperluas (default dan override dua variabel baru, plus masuk ke tabel penolakan `abc`/`0`/`-5`/`1.5`) + 2 integration test ke Postgres asli: arsip menghilangkan profil dari list publik, detail, dan dashboard sementara barisnya masih ada di DB (dibuktikan dengan `count(*)`), dan hapus akun mengosongkan enam tabel sekaligus (users, sessions, bookmarks, businesses, business_milestones, bmc_entries). Semua test fase 1–9 tetap hijau; `sqlc generate` tidak menghasilkan drift.
+
+**Catatan:** tidak ada endpoint untuk **membatalkan** arsip, dan itu memang tidak diminta — `Publish` dan `PATCH` pada profil terarsip sama-sama `404`, jadi satu-satunya jalan pulih adalah akses DB langsung. Slug juga tidak dilepas saat arsip (kolomnya tetap `UNIQUE`), jadi membuat profil baru dengan nama sama akan mendapat sufiks `-2`. Kalau salah satu dari keduanya perlu diubah, itu endpoint/migrasi baru, bukan penyesuaian di fase ini.
+
+**Ditunda (keputusan sadar):** alur **lupa / reset kata sandi**. Alurnya butuh mengirim email, sedangkan `EMAIL_PROVIDER` masih `stub` — link hanya masuk log, jadi di production fiturnya akan terlihat ada tapi tidak berfungsi. Dikerjakan setelah provider email asli terpasang.
+
+---
+
 ## Pekerjaan di luar fase (backlog / known gaps)
 
 | Item | Status |
@@ -287,10 +329,13 @@ Respons `User` kini punya field `emailVerified` (boolean, bukan timestamp — fr
 | Provider AI asli | ✔ **selesai** — Google Gemini (`AI_PROVIDER=gemini`, default) dengan structured output; stub tetap ada untuk run tanpa kredensial |
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
+| Hapus profil bisnis | ✔ **selesai** — fase 10: `DELETE /businesses/:id` **mengarsipkan** (status `archived`), bukan menghapus baris. Query publik sudah memfilter `published`, jadi tidak ada perubahan SQL di sana; yang ditambah `AND status <> 'archived'` hanya dua query dashboard pemilik. Tidak ada endpoint pembatalan arsip |
+| Edit & hapus akun | ✔ **selesai** — fase 10: `PATCH /auth/me` (nama saja; `role`/`email` sengaja tidak bisa), `POST /auth/change-password` (verifikasi sandi lama, logout semua perangkat lain, rate limit per akun + valve), `DELETE /auth/me` (wajib sandi di body, cascade ke sesi/bookmark/profil miliknya) |
+| Lupa / reset kata sandi | ❌ **ditunda** — butuh kirim email, sedangkan `EMAIL_PROVIDER` masih `stub`; di production fiturnya akan terlihat ada tapi tidak jalan. Dikerjakan setelah provider email asli ada |
 | Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
 | Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), `EMAIL_PROVIDER=stub` (link ke log), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global). **Sisa:** provider email asli — selama masih `stub`, email tidak benar-benar terkirim |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
-| Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
+| Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca, arsip hilang dari semua jalur baca, hapus akun meng-CASCADE enam tabel. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ✔ **selesai** — `.github/workflows/backend.yml`: job `test` (gofmt gate, vet, build, unit test, race), `integration` (Postgres 16 + migrate + seed), `sqlc` (drift check, sqlc 1.31.1 dipin) |
 | Struktur logging | ✔ **selesai** — `log/slog` terstruktur lewat `internal/logging` (JSON saat production, text selain itu), `LOG_LEVEL` divalidasi fail-fast, access log + `X-Request-ID` menggantikan `gin.Logger` |
 | CORS | ✔ **sengaja tidak ada** — frontend lewat proxy rewrite `next.config.ts`, jadi same-origin |

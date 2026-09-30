@@ -315,6 +315,8 @@ var authLimitEnvNames = []string{
 	"AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR",
 	"AUTH_RESEND_LIMIT_PER_HOUR",
 	"AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR",
+	"AUTH_PASSWORD_LIMIT_PER_HOUR",
+	"AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR",
 }
 
 func TestLoadDefaultsAuthLimits(t *testing.T) {
@@ -340,6 +342,8 @@ func TestLoadDefaultsAuthLimits(t *testing.T) {
 		{"AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR", cfg.AuthVerifyGlobalLimit, DefaultAuthVerifyGlobalLimit},
 		{"AUTH_RESEND_LIMIT_PER_HOUR", cfg.AuthResendLimit, DefaultAuthResendLimit},
 		{"AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR", cfg.AuthResendGlobalLimit, DefaultAuthResendGlobalLimit},
+		{"AUTH_PASSWORD_LIMIT_PER_HOUR", cfg.AuthPasswordLimit, DefaultAuthPasswordLimit},
+		{"AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR", cfg.AuthPasswordGlobalLimit, DefaultAuthPasswordGlobalLimit},
 	}
 
 	for _, tc := range cases {
@@ -362,6 +366,8 @@ func TestLoadReadsAuthLimits(t *testing.T) {
 	t.Setenv("AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR", " 11 ")
 	t.Setenv("AUTH_RESEND_LIMIT_PER_HOUR", "12")
 	t.Setenv("AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR", "13")
+	t.Setenv("AUTH_PASSWORD_LIMIT_PER_HOUR", "14")
+	t.Setenv("AUTH_PASSWORD_GLOBAL_LIMIT_PER_HOUR", " 15 ")
 
 	cfg, err := Load()
 	if err != nil {
@@ -388,6 +394,12 @@ func TestLoadReadsAuthLimits(t *testing.T) {
 	}
 	if cfg.AuthResendGlobalLimit != 13 {
 		t.Errorf("AuthResendGlobalLimit = %d, want 13", cfg.AuthResendGlobalLimit)
+	}
+	if cfg.AuthPasswordLimit != 14 {
+		t.Errorf("AuthPasswordLimit = %d, want 14", cfg.AuthPasswordLimit)
+	}
+	if cfg.AuthPasswordGlobalLimit != 15 {
+		t.Errorf("AuthPasswordGlobalLimit = %d, want 15", cfg.AuthPasswordGlobalLimit)
 	}
 }
 

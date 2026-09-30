@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,6 +52,12 @@ func (f *fakeBusinessService) Publish(_ context.Context, userID, id string) (dom
 	return f.publishResult, f.err
 }
 
+func (f *fakeBusinessService) Archive(_ context.Context, userID, id string) error {
+	f.gotUserID = userID
+	f.gotID = id
+	return f.err
+}
+
 func (f *fakeBusinessService) ListMine(_ context.Context, userID string, _, _ int) (domain.OwnedBusinessList, error) {
 	f.gotUserID = userID
 	return f.listMineResult, f.err
@@ -69,6 +76,7 @@ func newBusinessTestRouter(svc BusinessService, auth *fakeAuthService) *gin.Engi
 	v1.POST("/businesses", middleware.RequireSession(), h.Create)
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), h.Update)
 	v1.POST("/businesses/:id/publish", middleware.RequireSession(), h.Publish)
+	v1.DELETE("/businesses/:id", middleware.RequireSession(), h.Archive)
 	return router
 }
 
@@ -216,5 +224,79 @@ func TestListMineReturnsOwnProfilesWithStatus(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"draft"`) {
 		t.Errorf("body = %s, want status draft", recorder.Body.String())
+	}
+}
+
+func TestArchiveRequiresSession(t *testing.T) {
+	router := newBusinessTestRouter(&fakeBusinessService{}, newFakeService())
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/api/v1/businesses/6cceac2f-7a80-4f9e-98ba-391d61be10fc", nil))
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", recorder.Code)
+	}
+}
+
+func TestArchiveSuccessIs200(t *testing.T) {
+	svc := &fakeBusinessService{}
+	router := newBusinessTestRouter(svc, newFakeService())
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, sessionRequest(http.MethodDelete, "/api/v1/businesses/6cceac2f-7a80-4f9e-98ba-391d61be10fc", ""))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"status":"ok"`) {
+		t.Errorf("body = %s, want status ok", recorder.Body.String())
+	}
+	if svc.gotUserID != "4f446e73-4e11-46f7-9b6b-35a1585bdf3c" {
+		t.Errorf("userID = %q, want the session user", svc.gotUserID)
+	}
+	if svc.gotID != "6cceac2f-7a80-4f9e-98ba-391d61be10fc" {
+		t.Errorf("id = %q, want the path parameter", svc.gotID)
+	}
+}
+
+func TestArchiveErrorMapping(t *testing.T) {
+	cases := []struct {
+		name     string
+		err      error
+		wantCode int
+		wantBody string
+	}{
+		{"not found", domain.ErrNotFound, http.StatusNotFound, "not_found"},
+		{"not the owner", domain.ErrForbidden, http.StatusForbidden, "forbidden"},
+		{"bad uuid", domain.ErrInvalidParameter, http.StatusBadRequest, "invalid_parameter"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			router := newBusinessTestRouter(&fakeBusinessService{err: tc.err}, newFakeService())
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, sessionRequest(http.MethodDelete, "/api/v1/businesses/6cceac2f-7a80-4f9e-98ba-391d61be10fc", ""))
+
+			if recorder.Code != tc.wantCode {
+				t.Fatalf("status = %d, want %d (body: %s)", recorder.Code, tc.wantCode, recorder.Body.String())
+			}
+			if !strings.Contains(recorder.Body.String(), tc.wantBody) {
+				t.Errorf("body = %s, want code %s", recorder.Body.String(), tc.wantBody)
+			}
+		})
+	}
+}
+
+func TestArchiveUnexpectedErrorIs500(t *testing.T) {
+	router := newBusinessTestRouter(&fakeBusinessService{err: errors.New("db down")}, newFakeService())
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, sessionRequest(http.MethodDelete, "/api/v1/businesses/6cceac2f-7a80-4f9e-98ba-391d61be10fc", ""))
+
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "internal_error") {
+		t.Errorf("body = %s, want internal_error", recorder.Body.String())
 	}
 }
