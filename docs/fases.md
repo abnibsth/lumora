@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–6 selesai**.
+Status: **fase 1–7 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -15,8 +15,9 @@ Status: **fase 1–6 selesai**.
 | 4 | Bookmark per akun | ✅ **Selesai** |
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
 | 6 | AI draft profil | ✅ **Selesai** |
+| 7 | Rate limiting endpoint AI (per akun) | ✅ **Selesai** |
 
-Total tes saat ini: **128 tes utama / 186 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih. Migrasi DB: **version 3**.
+Total tes saat ini: **150 tes utama / 216 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
 Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -160,15 +161,41 @@ Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lal
 
 ---
 
+## Fase 7 — Rate limiting endpoint AI (per akun) ✅
+
+**Isi:**
+- `internal/http/middleware/ratelimit.go`: **token bucket** per akun, murni di memori proses, tanpa dependensi baru dan tanpa goroutine background. Refill dihitung *lazy* saat request datang (`elapsed × rate`, dibatasi `capacity`), jadi tidak butuh ticker. Satu `sync.Mutex` menjaga map + seluruh bucket; refill-dan-consume terjadi dalam **satu critical section**, karena baca di luar lock lalu tulis di dalam lock adalah data race yang `-race` memang menangkap.
+- **Kuncinya user ID, bukan IP.** `cmd/api/main.go` memakai `SetTrustedProxies(nil)`, jadi di belakang proxy Railway `ClientIP()` berisi IP edge yang **sama untuk semua orang** — pembatas per-IP justru akan menghitung seluruh internet sebagai satu klien. Per akun juga lebih tepat secara biaya: yang dibatasi adalah pengeluaran per akun.
+- **Kuota dipakai saat request masuk, bukan saat sukses.** Body yang ditolak validasi dan request yang timeout ke provider sama-sama memakai satu token. Disengaja: provider mungkin sudah menagih walau kita timeout, dan tidak ada refund supaya percobaan berulang tidak gratis.
+- Bucket baru **mulai penuh** — kalau mulai kosong, request pertama setiap akun langsung `429`. Eviction dijalankan di jalur insert tiap 256 kunci baru (map hanya tumbuh saat kunci baru datang, jadi sweep di situ cukup dan tidak perlu goroutine). **TTL eviction = satu jendela penuh**: kalau lebih pendek, bucket yang masih terisi sebagian akan dihapus lalu dibuat ulang **penuh** — itu celah reset gratis, jadi ini parameter kebenaran, bukan knob memori.
+- `internal/config/config.go`: `AI_DRAFT_LIMIT_PER_HOUR` (default **20**). Nilai tidak valid / nol / negatif **ditolak saat start** (`ErrInvalidAIDraftLimit`) — dibaca sebagai "tanpa batas" akan menghapus satu-satunya penjaga di endpoint berbayar.
+- `abortWithError` di `internal/http/middleware/session.go`: envelope error yang sama dengan `handler.writeError`, dipakai `RequireSession` dan limiter. Tidak bisa memakai `writeError` langsung karena `handler` meng-import `middleware` (kalau dibalik jadi import cycle).
+
+**Endpoint aktif:**
+
+| Method | Path | Respons |
+|---|---|---|
+| POST | `/api/v1/ai/draft-profile` | 200 draf profil; `429 rate_limited` + header `Retry-After` (detik, dibulatkan ke atas) kalau kuota akun habis |
+
+Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, supaya request tanpa sesi ditolak `401` tanpa ikut memakai kuota. Kalau limiter sampai dipasang tanpa sesi, ia **fail closed** (`500`), bukan menghitung semua pemanggil sebagai satu kunci kosong.
+
+`429 rate_limited` (klien harus menunggu) sengaja dibedakan dari `503 ai_unavailable` (provider yang gagal) — beda arti, beda penanganan di frontend.
+
+**Verifikasi:** 19 test middleware / 23 kasus — kapasitas, bucket baru mulai penuh, refill sesuai rate, refill berhenti di kapasitas, `Retry-After` (memakai jendela 2048 detik supaya rate-nya pangkat dua eksak dan nilai yang diharapkan bukan artefak floating point), antar-kunci saling lepas, **jam mundur tidak menguras bucket**, entri idle ter-evict, entri dalam TTL dipertahankan, 200 goroutine pada satu kunci → **tepat** `capacity` yang lolos, 200 kunci berbeda tanpa concurrent map write, plus test HTTP untuk 200/429/envelope/`Retry-After`/per-akun/urutan terhadap 401/fail-closed dan test regresi envelope `401` setelah refactor `abortWithError`. Ditambah 3 test config / 7 kasus (default, nilai valid, dan penolakan `abc`/`0`/`-5`/`1.5`).
+
+**Catatan:** ini **sengaja** state in-memory, bukan Redis. API dijalankan satu instance (volume Railway memblokir replica), jadi state per-proses sudah benar di sini. Dua konsekuensi yang harus diingat: kuota **reset tiap restart/redeploy**, dan begitu butuh lebih dari satu replica, penghitung ini **harus** pindah ke Redis — bukan ditambah lock.
+
+---
+
 ## Pekerjaan di luar fase (backlog / known gaps)
 
 | Item | Status |
 |---|---|
 | Git commit | ✔ **selesai** — `backend/` + `docs/` sudah di-commit dan di-push ke `origin/backend`. Sisa: edit `frontend/next.config.ts` (scope frontend) |
 | Provider AI asli | ✔ **selesai** — Google Gemini (`AI_PROVIDER=gemini`, default) dengan structured output; stub tetap ada untuk run tanpa kredensial |
-| Rate limiting endpoint AI | ❌ belum — tiap panggilan ke Gemini berbiaya, jadi ini yang paling layak dikerjakan berikutnya |
+| Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
-| Rate limiting login/register | ❌ belum (brute-force masih mungkin) |
+| Rate limiting login/register | ❌ belum (brute-force masih mungkin) — **terhalang**: endpoint ini belum login, jadi butuh kunci per-IP, sedangkan `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang. Perlu percayai rentang proxy Railway + baca `X-Forwarded-For` dengan benar |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |
@@ -194,5 +221,12 @@ curl.exe http://localhost:8080/healthz   # {"status":"ok"}
 Catatan Docker: image multi-binary (`Dockerfile` → `api` + `migrate` + `seed`), migrasi pakai `cmd/migrate`
 (goose sebagai library — tidak perlu install goose CLI), one-shot `migrate`/`seed` jalan tiap `up` (idempoten),
 data di volume `lumora-pgdata` + `lumora-uploads`. Jalankan tanpa Go pun bisa (cukup Docker Desktop).
+
+**Race detector** — host tidak punya gcc, jadi `-race` harus lewat container (dari Git Bash):
+
+```bash
+cd backend
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src golang:1.27 go test -race ./...
+```
 
 Detail kontrak tiap endpoint (body, status, kode error): **`docs/api.md`**.

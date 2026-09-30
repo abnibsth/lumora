@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -23,6 +24,15 @@ var ErrUnknownAIProvider = errors.New("AI_PROVIDER tidak dikenal")
 // answering 503 while the process looks healthy, which is harder to notice than
 // a refused boot. Use AI_PROVIDER=stub for a keyless run.
 var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY wajib diisi saat AI_PROVIDER=gemini")
+
+// ErrInvalidAIDraftLimit is returned for a non-numeric or non-positive
+// AI_DRAFT_LIMIT_PER_HOUR. Reading a bad value as "unlimited" would silently
+// remove the only guard on an endpoint that bills per call.
+var ErrInvalidAIDraftLimit = errors.New("AI_DRAFT_LIMIT_PER_HOUR harus bilangan bulat positif")
+
+// DefaultAIDraftLimitPerHour is the per-account budget for
+// POST /api/v1/ai/draft-profile when AI_DRAFT_LIMIT_PER_HOUR is unset.
+const DefaultAIDraftLimitPerHour = 20
 
 // AIProviderGemini is the default: the real generator. AIProviderStub is the
 // offline generator kept for tests and keyless runs.
@@ -48,6 +58,9 @@ type Config struct {
 	// GeminiModel is passed through as-is; the empty default lives in the ai
 	// package next to the provider that uses it.
 	GeminiModel string
+	// AIDraftLimitPerHour is the per-account draft budget. The window itself is
+	// a constant in cmd/api, so this stays a single number to tune.
+	AIDraftLimitPerHour int
 }
 
 func Load() (Config, error) {
@@ -89,14 +102,24 @@ func Load() (Config, error) {
 
 	geminiAPIKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
 
+	aiDraftLimit := DefaultAIDraftLimitPerHour
+	if raw := strings.TrimSpace(os.Getenv("AI_DRAFT_LIMIT_PER_HOUR")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			return Config{}, fmt.Errorf("%w: %q", ErrInvalidAIDraftLimit, raw)
+		}
+		aiDraftLimit = parsed
+	}
+
 	return Config{
-		Port:         port,
-		DatabaseURL:  databaseURL,
-		AppEnv:       appEnv,
-		UploadDir:    uploadDir,
-		AIProvider:   aiProvider,
-		GeminiAPIKey: geminiAPIKey,
-		GeminiModel:  strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		Port:                port,
+		DatabaseURL:         databaseURL,
+		AppEnv:              appEnv,
+		UploadDir:           uploadDir,
+		AIProvider:          aiProvider,
+		GeminiAPIKey:        geminiAPIKey,
+		GeminiModel:         strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		AIDraftLimitPerHour: aiDraftLimit,
 	}, nil
 }
 

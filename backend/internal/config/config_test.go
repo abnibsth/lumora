@@ -198,3 +198,55 @@ func TestLoadLeavesGeminiModelEmptyForTheProviderDefault(t *testing.T) {
 		t.Fatalf("GeminiModel = %q, want empty", cfg.GeminiModel)
 	}
 }
+
+func TestLoadDefaultsAIDraftLimit(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("AI_DRAFT_LIMIT_PER_HOUR", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AIDraftLimitPerHour != DefaultAIDraftLimitPerHour {
+		t.Fatalf("got %d, want %d", cfg.AIDraftLimitPerHour, DefaultAIDraftLimitPerHour)
+	}
+}
+
+func TestLoadReadsAIDraftLimit(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("AI_DRAFT_LIMIT_PER_HOUR", " 50 ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AIDraftLimitPerHour != 50 {
+		t.Fatalf("got %d, want 50", cfg.AIDraftLimitPerHour)
+	}
+}
+
+func TestLoadRejectsInvalidAIDraftLimit(t *testing.T) {
+	// A bad value must not be read as "unlimited": that would silently remove
+	// the only guard on an endpoint that bills per call.
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"not a number", "abc"},
+		{"zero", "0"},
+		{"negative", "-5"},
+		{"float", "1.5"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AI_PROVIDER", AIProviderStub)
+			t.Setenv("AI_DRAFT_LIMIT_PER_HOUR", tc.raw)
+
+			_, err := Load()
+			if !errors.Is(err, ErrInvalidAIDraftLimit) {
+				t.Fatalf("got %v, want ErrInvalidAIDraftLimit", err)
+			}
+		})
+	}
+}

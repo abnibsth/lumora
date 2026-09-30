@@ -49,14 +49,24 @@ func CurrentUser(c *gin.Context) (domain.User, bool) {
 func RequireSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if _, ok := CurrentUser(c); !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": gin.H{
-					"code":    "unauthenticated",
-					"message": "Silakan masuk terlebih dahulu.",
-				},
-			})
+			abortWithError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
 			return
 		}
 		c.Next()
 	}
+}
+
+// abortWithError writes the API's single error envelope and stops the chain.
+//
+// It lives here rather than in the handler package because handler imports
+// middleware, so middleware cannot import writeError back. Keep the shape in
+// sync with handler.writeError: this is the same contract, documented in
+// docs/api.md.
+func abortWithError(c *gin.Context, status int, code, message string) {
+	c.AbortWithStatusJSON(status, gin.H{
+		"error": gin.H{
+			"code":    code,
+			"message": message,
+		},
+	})
 }

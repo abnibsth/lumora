@@ -249,4 +249,4 @@ docker exec lumora-postgres psql -U lumora -d lumora -t -c `
 
 - Kontrak lengkap (body, respons, kode error): **`docs/api.md`**
 - Peta fase & backlog: **`docs/fases.md`**
-- 11 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden` (403) · `not_found` (404) · `email_taken` (409) · `internal_error` (500) · `ai_unavailable` (503)
+- 12 kode error: `invalid_body`, `invalid_parameter`, `invalid_category`, `validation_failed` (400) · `unauthenticated`, `invalid_credentials` (401) · `forbidden` (403) · `not_found` (404) · `email_taken` (409) · `rate_limited` (429) · `internal_error` (500) · `ai_unavailable` (503)

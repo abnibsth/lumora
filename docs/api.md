@@ -55,7 +55,7 @@ Dengan proxy ini frontend dan backend diorigin yang sama, jadi:
 
 ## Envelope error
 
-Semua error (400/401/403/404/409/500) memakai bentuk yang sama:
+Semua error (400/401/403/404/409/429/500) memakai bentuk yang sama:
 
 ```json
 {
@@ -79,6 +79,7 @@ Kode yang dipakai:
 | `forbidden` | 403 | Login, tapi resource bukan milikmu |
 | `not_found` | 404 | Resource tidak ada (atau draft yang tidak kamu miliki) |
 | `email_taken` | 409 | Register dengan email sudah terdaftar |
+| `rate_limited` | 429 | Kuota draf AI per akun habis — lihat header `Retry-After` |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
@@ -383,7 +384,7 @@ Respons `200`:
 
 ---
 
-## AI draft profil (phase 6 — aktif)
+## AI draft profil (phase 6–7 — aktif)
 
 ### `POST /api/v1/ai/draft-profile`
 
@@ -433,7 +434,10 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 - Field gambar (`coverImage`, `coverPosition`, `logo`) **tidak ada** di draf — gambar diunggah lewat `POST /api/v1/media` lalu URL-nya diisi manual.
 - Semua field slice selalu array (`[]`), tidak pernah `null`.
 - Body maksimal 64 KB.
-- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
+- **Dibatasi per akun: `AI_DRAFT_LIMIT_PER_HOUR` draf per jam (default 20).** Setiap draf memanggil provider berbayar, jadi kuotanya dijaga di server. Kuota dihitung **per akun** (bukan per IP — di belakang proxy Railway semua request datang dari IP yang sama). Satu token dipakai **saat request masuk**, bukan saat sukses: body yang ditolak validasi pun tetap memakai kuota, supaya percobaan berulang tidak gratis.
+- Kalau kuota habis: `429 rate_limited` + header `Retry-After` berisi detik (dibulatkan ke atas, minimal 1). `429` artinya klien harus menunggu (salah klien); `503 ai_unavailable` artinya provider yang gagal (salah server) — beda arti, beda penanganan di frontend.
+- Kuota **reset saat proses restart** (mis. redeploy). Ini karena penghiitungnya ada di memori proses, dan API sengaja dijalankan satu instance. Kalau nanti perlu lebih dari satu replica, penghitung ini harus pindah ke Redis.
+- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `429 rate_limited` (kuota per akun habis), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
 
 ### Provider AI
 
@@ -453,7 +457,7 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 
 ## Endpoint planned (belum ada — jangan dipanggil dulu)
 
-Tidak ada. Fase 1–6 sudah aktif semua.
+Tidak ada. Fase 1–7 sudah aktif semua.
 
 ---
 
@@ -505,6 +509,6 @@ curl "http://localhost:8080/api/v1/businesses?q=kopi"
 curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 ```
 
-Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`.
+Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`.
 
 Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`. Stack `docker compose` di atas sudah otomatis `stub`; untuk memakai Gemini di situ, ekspor `AI_PROVIDER=gemini` dan `GEMINI_API_KEY` sebelum `docker compose up`.

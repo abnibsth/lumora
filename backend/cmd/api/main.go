@@ -78,6 +78,11 @@ func main() {
 	aiService := service.NewAIDraftService(drafter, service.DefaultAITimeout)
 	aiHandler := handler.NewAIHandler(aiService)
 
+	// Every draft bills the provider, so the endpoint is metered per account.
+	// config.Load rejects a non-positive limit, so the constructor cannot see
+	// one. The window lives here; config only carries the count.
+	aiLimiter := middleware.NewRateLimiter(cfg.AIDraftLimitPerHour, time.Hour, time.Now)
+
 	r := gin.New()
 	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
@@ -117,7 +122,9 @@ func main() {
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
 
-	v1.POST("/ai/draft-profile", middleware.RequireSession(), aiHandler.Draft)
+	// RequireSession runs first so unauthenticated traffic is rejected before it
+	// can consume budget or create a bucket.
+	v1.POST("/ai/draft-profile", middleware.RequireSession(), aiLimiter.Middleware(), aiHandler.Draft)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

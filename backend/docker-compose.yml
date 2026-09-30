@@ -53,6 +53,9 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-stub}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      # Per-account draft quota. Bump it while developing so the local stack
+      # does not answer 429.
+      AI_DRAFT_LIMIT_PER_HOUR: ${AI_DRAFT_LIMIT_PER_HOUR:-20}
     ports:
       - "8080:8080"
     volumes:
