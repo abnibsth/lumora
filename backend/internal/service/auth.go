@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +44,14 @@ type AuthService struct {
 	hash     func(password string) (string, error)
 	verify   func(encoded, password string) (bool, error)
 	newToken func() (string, error)
+
+	// dummyOnce guards building dummyHash, which Login verifies against when
+	// the email is unknown so that both paths cost the same argon2 work. Built
+	// lazily through hash — never in the constructor — so startup pays nothing
+	// and tests that inject a fake hash pay nothing either. sync.Once supplies
+	// the happens-before edge needed to read dummyHash afterwards.
+	dummyOnce sync.Once
+	dummyHash string
 }
 
 func NewAuthService(users UserStore, sessions SessionStore) *AuthService {
@@ -90,8 +99,11 @@ func (s *AuthService) Register(ctx context.Context, params domain.RegisterParams
 }
 
 // Login verifies credentials and opens a session. Unknown email and wrong
-// password return the same error so the endpoint can't be used to enumerate
-// accounts.
+// password return the same error AND do the same work, so the endpoint can't be
+// used to enumerate accounts — neither by the response body nor by how long it
+// takes. The identical error alone was not enough: returning early on an
+// unknown email skipped argon2 entirely, leaving the two paths trivially
+// distinguishable by timing. See payDummyVerify.
 func (s *AuthService) Login(ctx context.Context, params domain.LoginParams) (domain.User, domain.Session, error) {
 	if err := params.Validate(); err != nil {
 		return domain.User{}, domain.Session{}, err
@@ -99,6 +111,7 @@ func (s *AuthService) Login(ctx context.Context, params domain.LoginParams) (dom
 
 	row, err := s.users.GetUserByEmail(ctx, store.GetUserByEmailParams{Email: params.Email})
 	if errors.Is(err, pgx.ErrNoRows) {
+		s.payDummyVerify(params.Password)
 		return domain.User{}, domain.Session{}, domain.ErrInvalidCredentials
 	}
 	if err != nil {
@@ -122,6 +135,28 @@ func (s *AuthService) Login(ctx context.Context, params domain.LoginParams) (dom
 		return domain.User{}, domain.Session{}, err
 	}
 	return user, session, nil
+}
+
+// payDummyVerify spends the argon2 work that a known email would have spent, so
+// an unknown email and a wrong password cannot be told apart by response time.
+//
+// The hash is derived from s.hash rather than hardcoded so it tracks the
+// configured argon2 parameters: raising them raises this cost too, and the
+// timing gap cannot silently reappear. A hash failure leaves dummyHash empty and
+// the verify is skipped — that degrades to the old behaviour instead of failing
+// a login that has already failed.
+func (s *AuthService) payDummyVerify(password string) {
+	s.dummyOnce.Do(func() {
+		if encoded, err := s.hash("lumora-timing-equalizer"); err == nil {
+			s.dummyHash = encoded
+		}
+	})
+	if s.dummyHash == "" {
+		return
+	}
+	// Always false for any password that is not the dummy's: the point is the
+	// work, not the answer.
+	_, _ = s.verify(s.dummyHash, password)
 }
 
 // UserByToken resolves a session cookie to its account, or

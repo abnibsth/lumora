@@ -198,6 +198,77 @@ func TestLoginFailureModesAreIndistinguishable(t *testing.T) {
 	}
 }
 
+func TestLoginSpendsTheSameVerifyWorkForUnknownEmail(t *testing.T) {
+	// The identical error above was not enough on its own to hide account
+	// existence: returning early on an unknown email skipped argon2 entirely, so
+	// the two paths were told apart by how long they took. This asserts the
+	// mechanism that closes that gap — verify runs either way.
+	svc, _ := newTestAuthService()
+
+	if _, _, err := svc.Register(context.Background(), domain.RegisterParams{
+		Name: "Budi", Email: "budi@example.com", Password: "rahasia123",
+	}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	var verifies int
+	innerVerify := svc.verify
+	svc.verify = func(encoded, password string) (bool, error) {
+		verifies++
+		return innerVerify(encoded, password)
+	}
+
+	cases := []struct {
+		name     string
+		email    string
+		password string
+	}{
+		{"known email, wrong password", "budi@example.com", "salah"},
+		{"unknown email", "belum-ada@example.com", "rahasia123"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			verifies = 0
+
+			_, _, err := svc.Login(context.Background(), domain.LoginParams{
+				Email: tc.email, Password: tc.password,
+			})
+			if !errors.Is(err, domain.ErrInvalidCredentials) {
+				t.Fatalf("err = %v, want ErrInvalidCredentials", err)
+			}
+			if verifies != 1 {
+				t.Errorf("verify called %d times, want 1 — this path skipped the argon2 work", verifies)
+			}
+		})
+	}
+}
+
+func TestLoginBuildsTheDummyHashOnce(t *testing.T) {
+	// The dummy hash exists to spend argon2, so building it per request would
+	// double the cost of an unknown-email login. sync.Once must cache it.
+	svc, _ := newTestAuthService()
+
+	var hashes int
+	innerHash := svc.hash
+	svc.hash = func(password string) (string, error) {
+		hashes++
+		return innerHash(password)
+	}
+
+	for i := 0; i < 3; i++ {
+		if _, _, err := svc.Login(context.Background(), domain.LoginParams{
+			Email: "belum-ada@example.com", Password: "rahasia123",
+		}); !errors.Is(err, domain.ErrInvalidCredentials) {
+			t.Fatalf("login %d: err = %v, want ErrInvalidCredentials", i+1, err)
+		}
+	}
+
+	if hashes != 1 {
+		t.Errorf("hash called %d times across 3 logins, want 1", hashes)
+	}
+}
+
 func TestLoginLogoutInvalidatesSession(t *testing.T) {
 	svc, sessions := newTestAuthService()
 

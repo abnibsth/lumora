@@ -250,3 +250,104 @@ func TestLoadRejectsInvalidAIDraftLimit(t *testing.T) {
 		})
 	}
 }
+
+// authLimitEnvNames is every variable the auth limiter reads, so each test can
+// neutralise the ones it is not exercising. Load also reads backend/.env through
+// godotenv, and a stray value there would otherwise leak into these assertions.
+var authLimitEnvNames = []string{
+	"AUTH_LOGIN_LIMIT_PER_15_MIN",
+	"AUTH_REGISTER_LIMIT_PER_HOUR",
+	"AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR",
+	"AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR",
+}
+
+func TestLoadDefaultsAuthLimits(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	for _, name := range authLimitEnvNames {
+		t.Setenv(name, "")
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		got  int
+		want int
+	}{
+		{"AUTH_LOGIN_LIMIT_PER_15_MIN", cfg.AuthLoginLimit, DefaultAuthLoginLimit},
+		{"AUTH_REGISTER_LIMIT_PER_HOUR", cfg.AuthRegisterLimit, DefaultAuthRegisterLimit},
+		{"AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR", cfg.AuthLoginGlobalLimit, DefaultAuthLoginGlobalLimit},
+		{"AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR", cfg.AuthRegisterGlobalLimit, DefaultAuthRegisterGlobalLimit},
+	}
+
+	for _, tc := range cases {
+		if tc.got != tc.want {
+			t.Errorf("%s: got %d, want %d", tc.name, tc.got, tc.want)
+		}
+	}
+}
+
+func TestLoadReadsAuthLimits(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	for _, name := range authLimitEnvNames {
+		t.Setenv(name, "")
+	}
+	// Surrounding whitespace must be trimmed, as for every other numeric var.
+	t.Setenv("AUTH_LOGIN_LIMIT_PER_15_MIN", " 7 ")
+	t.Setenv("AUTH_REGISTER_LIMIT_PER_HOUR", "8")
+	t.Setenv("AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR", "9")
+	t.Setenv("AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR", "10")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.AuthLoginLimit != 7 {
+		t.Errorf("AuthLoginLimit = %d, want 7", cfg.AuthLoginLimit)
+	}
+	if cfg.AuthRegisterLimit != 8 {
+		t.Errorf("AuthRegisterLimit = %d, want 8", cfg.AuthRegisterLimit)
+	}
+	if cfg.AuthLoginGlobalLimit != 9 {
+		t.Errorf("AuthLoginGlobalLimit = %d, want 9", cfg.AuthLoginGlobalLimit)
+	}
+	if cfg.AuthRegisterGlobalLimit != 10 {
+		t.Errorf("AuthRegisterGlobalLimit = %d, want 10", cfg.AuthRegisterGlobalLimit)
+	}
+}
+
+func TestLoadRejectsInvalidAuthLimits(t *testing.T) {
+	// A bad value must not be read as "unlimited": that would silently remove a
+	// brute-force and mass-registration guard, and the failure would look like
+	// healthy traffic.
+	values := []struct {
+		name string
+		raw  string
+	}{
+		{"not a number", "abc"},
+		{"zero", "0"},
+		{"negative", "-5"},
+		{"float", "1.5"},
+	}
+
+	for _, variable := range authLimitEnvNames {
+		for _, value := range values {
+			t.Run(variable+"/"+value.name, func(t *testing.T) {
+				t.Setenv("AI_PROVIDER", AIProviderStub)
+				for _, name := range authLimitEnvNames {
+					t.Setenv(name, "")
+				}
+				t.Setenv(variable, value.raw)
+
+				_, err := Load()
+				if !errors.Is(err, ErrInvalidAuthLimit) {
+					t.Fatalf("got %v, want ErrInvalidAuthLimit", err)
+				}
+			})
+		}
+	}
+}

@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -480,5 +482,347 @@ func TestRequireSessionKeepsTheStandardErrorEnvelope(t *testing.T) {
 	}
 	if body.Error.Message != "Silakan masuk terlebih dahulu." {
 		t.Errorf("message = %q, want the documented Indonesian message", body.Error.Message)
+	}
+}
+
+// --- MiddlewareFor: the key-agnostic variant used by the auth endpoints ---
+
+// authTestMessage mirrors the shared auth message in cmd/api/main.go.
+const authTestMessage = "Terlalu banyak percobaan. Coba lagi nanti."
+
+// newAuthRateLimitTestRouter mirrors the auth wiring in cmd/api/main.go: the
+// global valve mounted ahead of the per-email limiter, in that order. The stub
+// handler binds the body exactly as the real handler does, so a middleware that
+// fails to restore it surfaces as a bind failure instead of passing silently.
+func newAuthRateLimitTestRouter(global, perEmail *RateLimiter) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.POST("/api/v1/auth/login",
+		global.MiddlewareFor(GlobalKey, "rate_limited", authTestMessage),
+		perEmail.MiddlewareFor(EmailKey, "rate_limited", authTestMessage),
+		func(c *gin.Context) {
+			var params domain.LoginParams
+			if err := c.ShouldBindJSON(&params); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "invalid_body"}})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"email": params.Email})
+		})
+	return r
+}
+
+// loginBody builds a well-formed login body for one address.
+func loginBody(email string) string {
+	return fmt.Sprintf(`{"email":%q,"password":"rahasia123"}`, email)
+}
+
+func serveAuth(router *gin.Engine, body string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body)))
+	return recorder
+}
+
+// emailKeyContext runs EmailKey against a bare body, for the unit-level cases.
+func emailKeyContext(body string) *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	return c
+}
+
+func TestMiddlewareForPassesRequestsUnderTheLimit(t *testing.T) {
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(3, time.Hour, newTestClock().now),
+	)
+
+	for i := 0; i < 3; i++ {
+		recorder := serveAuth(router, loginBody("a@example.com"))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200 (body: %s)", i+1, recorder.Code, recorder.Body)
+		}
+	}
+}
+
+func TestMiddlewareForReturns429EnvelopeAndRetryAfter(t *testing.T) {
+	// A 2048-second window keeps the refill rate an exact power of two, so the
+	// expected header is the true value and not a floating-point artefact.
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(1, 2048*time.Second, newTestClock().now),
+	)
+
+	if recorder := serveAuth(router, loginBody("a@example.com")); recorder.Code != http.StatusOK {
+		t.Fatalf("first request: status = %d, want 200", recorder.Code)
+	}
+
+	recorder := serveAuth(router, loginBody("a@example.com"))
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request: status = %d, want 429 (body: %s)", recorder.Code, recorder.Body)
+	}
+	if got := recorder.Header().Get("Retry-After"); got != "2048" {
+		t.Errorf("Retry-After = %q, want %q", got, "2048")
+	}
+
+	// Same envelope as every other error, so the frontend needs no special case.
+	var body struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v (body: %s)", err, recorder.Body)
+	}
+	if body.Error.Code != "rate_limited" {
+		t.Errorf("code = %q, want %q", body.Error.Code, "rate_limited")
+	}
+	if body.Error.Message != authTestMessage {
+		t.Errorf("message = %q, want the configured %q", body.Error.Message, authTestMessage)
+	}
+}
+
+func TestMiddlewareForUsesTheConfiguredMessage(t *testing.T) {
+	// Guards against the message being hardcoded the way Middleware's is: the
+	// auth message differs from the draft one, so it must come from the caller.
+	gin.SetMode(gin.TestMode)
+	const custom = "Pesan khusus untuk uji."
+
+	l := NewRateLimiter(1, time.Hour, newTestClock().now)
+	r := gin.New()
+	r.POST("/x", l.MiddlewareFor(GlobalKey, "rate_limited", custom), func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	call := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		r.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/x", nil))
+		return recorder
+	}
+
+	call() // spend the only token
+	recorder := call()
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", recorder.Code)
+	}
+
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body.Error.Message != custom {
+		t.Errorf("message = %q, want the configured %q", body.Error.Message, custom)
+	}
+}
+
+func TestMiddlewareForKeysPerEmail(t *testing.T) {
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+	)
+
+	if recorder := serveAuth(router, loginBody("a@example.com")); recorder.Code != http.StatusOK {
+		t.Fatalf("a@example.com first request: status = %d, want 200", recorder.Code)
+	}
+	if recorder := serveAuth(router, loginBody("a@example.com")); recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("a@example.com second request: status = %d, want 429", recorder.Code)
+	}
+
+	// One address being throttled must not touch another's budget.
+	if recorder := serveAuth(router, loginBody("b@example.com")); recorder.Code != http.StatusOK {
+		t.Errorf("b@example.com request: status = %d, want 200", recorder.Code)
+	}
+}
+
+func TestMiddlewareForSharesABucketAcrossEmailSpellings(t *testing.T) {
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+	)
+
+	if recorder := serveAuth(router, loginBody("ada@example.com")); recorder.Code != http.StatusOK {
+		t.Fatalf("first spelling: status = %d, want 200", recorder.Code)
+	}
+
+	// Same address, different spelling: it must hit the bucket the first
+	// request drained, otherwise normalization in EmailKey is not working.
+	if recorder := serveAuth(router, loginBody("  ADA@Example.COM ")); recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("second spelling: status = %d, want 429 — spellings did not share a bucket", recorder.Code)
+	}
+}
+
+func TestMiddlewareForRestoresBodyForTheHandler(t *testing.T) {
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+	)
+
+	const raw = "Ada@Example.com "
+	recorder := serveAuth(router, loginBody(raw))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — the handler could not read the body it was given (body: %s)", recorder.Code, recorder.Body)
+	}
+
+	var body struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v (body: %s)", err, recorder.Body)
+	}
+	// Verbatim, not normalized: normalization is the service's job, and the
+	// middleware must hand the handler exactly the bytes that arrived.
+	if body.Email != raw {
+		t.Errorf("handler saw email %q, want %q", body.Email, raw)
+	}
+}
+
+func TestMiddlewareForSkipsRequestsWithoutAUsableEmail(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"malformed JSON", "{not json"},
+		{"missing email", `{"password":"rahasia123"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// One token, two requests: if the request were metered under a
+			// shared key the second would be 429. Metering unparseable bodies
+			// together would hand an attacker a global lockout for the price of
+			// bad JSON, so they must be skipped and left to the handler's 400.
+			router := newAuthRateLimitTestRouter(
+				NewRateLimiter(100, time.Hour, newTestClock().now),
+				NewRateLimiter(1, time.Hour, newTestClock().now),
+			)
+
+			for i := 0; i < 2; i++ {
+				recorder := serveAuth(router, tc.body)
+				if recorder.Code == http.StatusTooManyRequests {
+					t.Fatalf("request %d was metered, want it skipped (body: %s)", i+1, recorder.Body)
+				}
+			}
+		})
+	}
+}
+
+func TestEmailKeyNormalizesEmail(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"already normal", `{"email":"a@example.com"}`, "a@example.com"},
+		{"uppercase folded", `{"email":"ADA@EXAMPLE.COM"}`, "ada@example.com"},
+		{"surrounding space trimmed", `{"email":"  a@example.com  "}`, "a@example.com"},
+		{"both", `{"email":" Ada@Example.COM "}`, "ada@example.com"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := EmailKey(emailKeyContext(tc.body))
+			if !ok {
+				t.Fatalf("EmailKey(%s) reported no key, want %q", tc.body, tc.want)
+			}
+			if got != tc.want {
+				t.Errorf("EmailKey(%s) = %q, want %q", tc.body, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEmailKeyRejectsUnusableBodies(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"malformed JSON", "{not json"},
+		{"missing email", `{"password":"rahasia123"}`},
+		{"empty email", `{"email":""}`},
+		{"whitespace email", `{"email":"   "}`},
+		{"non-string email", `{"email":123}`},
+		{"oversized body", `{"email":"` + strings.Repeat("a", maxAuthRequestBytes) + `@example.com"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if key, ok := EmailKey(emailKeyContext(tc.body)); ok {
+				t.Errorf("EmailKey reported key %q, want no usable key", key)
+			}
+		})
+	}
+}
+
+func TestEmailKeyRestoresTheBodyItRead(t *testing.T) {
+	// A skipped request still has to reach the handler with its bytes intact,
+	// otherwise the handler answers 400 for a body that was actually fine.
+	body := `{"email":"","password":"rahasia123"}`
+	c := emailKeyContext(body)
+
+	if _, ok := EmailKey(c); ok {
+		t.Fatal("EmailKey accepted an empty email")
+	}
+
+	restored, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		t.Fatalf("read restored body: %v", err)
+	}
+	if string(restored) != body {
+		t.Errorf("restored body = %q, want %q", restored, body)
+	}
+}
+
+func TestAuthGlobalValveRunsBeforeThePerEmailBucket(t *testing.T) {
+	// The valve holds one token while each address has ten. A second request
+	// from a *different* address must still be refused: only the valve can
+	// produce that, so it proves the mounting order.
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+	)
+
+	if recorder := serveAuth(router, loginBody("a@example.com")); recorder.Code != http.StatusOK {
+		t.Fatalf("first request: status = %d, want 200", recorder.Code)
+	}
+	if recorder := serveAuth(router, loginBody("b@example.com")); recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("second request from a fresh address: status = %d, want 429 from the valve", recorder.Code)
+	}
+}
+
+func TestAuthGlobalValveIsSharedAcrossEmails(t *testing.T) {
+	router := newAuthRateLimitTestRouter(
+		NewRateLimiter(2, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+	)
+
+	for i, email := range []string{"a@example.com", "b@example.com"} {
+		if recorder := serveAuth(router, loginBody(email)); recorder.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d, want 200", i+1, recorder.Code)
+		}
+	}
+	if recorder := serveAuth(router, loginBody("c@example.com")); recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("third distinct address: status = %d, want 429 — the valve is not shared", recorder.Code)
+	}
+}
+
+func TestAuthGlobalValveBoundsPerEmailBucketGrowth(t *testing.T) {
+	// This is why the valve is mounted first. allow() allocates a bucket per new
+	// key and only sweeps buckets idle for a full window, so a per-email limiter
+	// running first would let a flood of distinct addresses grow its map without
+	// bound. With the valve ahead of it, the map stays bounded by the valve.
+	global := NewRateLimiter(1, time.Hour, newTestClock().now)
+	perEmail := NewRateLimiter(10, time.Hour, newTestClock().now)
+	router := newAuthRateLimitTestRouter(global, perEmail)
+
+	serveAuth(router, loginBody("a@example.com")) // admitted: allocates one bucket
+	for i := 0; i < 50; i++ {
+		serveAuth(router, loginBody(fmt.Sprintf("flood-%d@example.com", i)))
+	}
+
+	if got := len(perEmail.buckets); got != 1 {
+		t.Errorf("per-email buckets = %d, want 1 — the flood reached the per-email limiter", got)
 	}
 }

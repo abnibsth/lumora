@@ -1,9 +1,13 @@
 package middleware
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,16 +87,108 @@ func (l *RateLimiter) Middleware() gin.HandlerFunc {
 
 		allowed, wait := l.allow(user.ID)
 		if !allowed {
-			// Set the header before aborting: AbortWithStatusJSON writes the
-			// response, so a later Header call would be dropped.
-			c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(wait)))
-			abortWithError(c, http.StatusTooManyRequests, "rate_limited", "Terlalu banyak permintaan draf. Coba lagi nanti.")
+			writeRateLimited(c, wait, "rate_limited", "Terlalu banyak permintaan draf. Coba lagi nanti.")
 			return
 		}
 
 		c.Next()
 	}
 }
+
+// KeyFunc derives the token-bucket key for one request. ok=false means no
+// usable key could be derived, and MiddlewareFor lets that request through
+// unmetered.
+//
+// The two-value form is deliberate. Returning "" to mean "no key" would be
+// indistinguishable from a legitimate empty key, which is exactly the
+// collapse-everyone-onto-one-bucket failure mode Middleware guards against by
+// failing closed.
+type KeyFunc func(c *gin.Context) (key string, ok bool)
+
+// MiddlewareFor meters one request per key produced by keyFn, answering 429
+// with code and message when that key's bucket is empty. It is the key-agnostic
+// counterpart of Middleware.
+//
+// Unlike Middleware it does NOT fail closed on a missing key: it skips. That
+// difference is the whole reason the two exist separately. Middleware guards a
+// paid endpoint behind RequireSession, so a missing user is a programming
+// error worth a loud 500. MiddlewareFor guards endpoints reachable without a
+// session, where the natural key lives in the request body and an unparseable
+// body is ordinary client error — the handler rejects it for free with 400.
+// Folding both into one function behind a mode flag would make it possible to
+// un-meter the paid endpoint by flipping a boolean.
+func (l *RateLimiter) MiddlewareFor(keyFn KeyFunc, code, message string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		key, ok := keyFn(c)
+		if !ok {
+			c.Next()
+			return
+		}
+
+		allowed, wait := l.allow(key)
+		if !allowed {
+			writeRateLimited(c, wait, code, message)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// maxAuthRequestBytes caps how much of an auth body EmailKey buffers to find
+// the email. The largest legitimate register body (100-character name,
+// 254-character email, 128-character password, role) is under 1 KB of ASCII
+// and roughly 2 KB in worst-case multi-byte UTF-8, so 4 KB is generous
+// headroom without letting a client make the middleware buffer megabytes.
+// Compare maxDraftRequestBytes (64 KB) in handler/ai.go.
+const maxAuthRequestBytes = 4 << 10
+
+// EmailKey meters by the email address in the JSON body, normalized the same
+// way domain.RegisterParams.Validate and LoginParams.Validate normalize it, so
+// two spellings of one address share a bucket.
+//
+// It reads the body and puts it back, because the handler's ShouldBindJSON
+// reads the same stream afterwards. It deliberately does not validate the
+// address: a present-but-malformed email still earns a bucket (bounded by the
+// global valve) and the handler rejects it cheaply. Only an absent or
+// whitespace-only email counts as no usable key.
+//
+// ok=false makes the request unmetered rather than collapsing it onto a shared
+// key. Metering unparseable bodies under one key would hand an attacker a
+// global lockout for the price of sending malformed JSON.
+func EmailKey(c *gin.Context) (string, bool) {
+	if c.Request.Body == nil {
+		return "", false
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, maxAuthRequestBytes))
+	// Restore unconditionally, including after a read error: the handler binds
+	// from this stream next, and a request we skip must still arrive there with
+	// whatever bytes were sent so it can answer 400 itself.
+	c.Request.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		return "", false
+	}
+
+	var payload struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return "", false
+	}
+
+	email := strings.ToLower(strings.TrimSpace(payload.Email))
+	if email == "" {
+		return "", false
+	}
+	return email, true
+}
+
+// GlobalKey is the KeyFunc for a per-endpoint "safety valve": every request
+// shares one bucket. Mounted ahead of a per-identity limiter it bounds what a
+// flood of distinct identities can cost, both in work done and in buckets
+// allocated. See the ordering note in cmd/api/main.go.
+func GlobalKey(*gin.Context) (string, bool) { return "global", true }
 
 // allow consumes one token for key, reporting whether the request may proceed
 // and, when it may not, how long until a token is available again.
@@ -147,6 +243,14 @@ func (l *RateLimiter) sweepLocked(now time.Time) {
 			delete(l.buckets, key)
 		}
 	}
+}
+
+// writeRateLimited answers 429 for an exhausted bucket. The header must be set
+// before aborting, because AbortWithStatusJSON writes the response and a later
+// Header call would be dropped.
+func writeRateLimited(c *gin.Context, wait time.Duration, code, message string) {
+	c.Header("Retry-After", strconv.Itoa(retryAfterSeconds(wait)))
+	abortWithError(c, http.StatusTooManyRequests, code, message)
 }
 
 // retryAfterSeconds converts a wait into whole seconds, rounded up. Rounding

@@ -109,6 +109,27 @@ $c = "$env:TEMP\lumora\cookies.txt"
 
 > Login gagal harus selalu `invalid_credentials` — **jangan** beda antara email tak terdaftar vs password salah (biar tidak jadi indikator akun).
 
+**Rate limiting login → 429** (pakai email khusus — kuota dihitung **per email**, jadi jangan pakai `uji@example.com` atau alur di atas ikut terkunci 15 menit):
+
+```powershell
+@'
+{"email":"brute@example.com","password":"salah"}
+'@ | Set-Content "$bodyDir\login-brute.json" -Encoding ascii
+
+# 10 percobaan pertama (default AUTH_LOGIN_LIMIT_PER_15_MIN=10) → semua 401 invalid_credentials
+1..10 | ForEach-Object {
+  curl.exe -s -o NUL -w "%{http_code} " -H "Content-Type: application/json" -d "@$bodyDir\login-brute.json" "$api/auth/login"
+}
+# percobaan ke-11 → 429 rate_limited + header Retry-After (tampil via -i)
+curl.exe -s -i -H "Content-Type: application/json" -d "@$bodyDir\login-brute.json" "$api/auth/login"
+```
+
+→ keluaran loop `401 401 ... 401`, lalu respons terakhir `HTTP/1.1 429` + `Retry-After: <detik>` + body `{"error":{"code":"rate_limited",...}}`.
+
+> Endpoint `register` berperilaku sama (`AUTH_REGISTER_LIMIT_PER_HOUR` default 10, global 30/jam). Register ulang ke email yang sama tetap **memakai** token walau balasannya `409 email_taken` — jadi 10× register ke satu email → yang ke-11 `429`.
+>
+> Batas per-email bekerja setelah katup **global** (login 300/jam, register 30/jam). Kalau runbook ini diulang berkali-kali dalam satu jam, `429` bisa datang dari katup global, bukan per-email. Reset cepat: restart container `api` (state-nya in-memory, lihat `docs/fases.md`).
+
 ---
 
 ## 4. Profil bisnis (tulis)
@@ -320,6 +341,8 @@ $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisni
 | 7 | create di atas (`$bizId`) | **201**, `status="draft"`, `slug="uji-prod"` |
 | 8 | `curl.exe "$api/businesses/uji-prod"` | **404** — draft tak pernah terbaca publik |
 | 9 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=1, langkah 8 kini 200 |
+
+> **Rate limit login juga aktif di production** (kode sama seperti lokal). Kalau mau memastikan: pakai email khusus (mis. `brute-prod@example.com`), lalu ulangi login gagal 10× → yang ke-11 `429 rate_limited` + `Retry-After`. **Jangan** pakai `uji-prod@example.com` — kalau kena limit, langkah 4 di atas ikut terkunci 15 menit. Tidak ada biaya (tidak memanggil AI), tapi ingat katup global login 300/jam.
 
 ### 10.4 AI (berbayar) & kuota
 

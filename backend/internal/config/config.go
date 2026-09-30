@@ -30,9 +30,30 @@ var ErrMissingGeminiAPIKey = errors.New("GEMINI_API_KEY wajib diisi saat AI_PROV
 // remove the only guard on an endpoint that bills per call.
 var ErrInvalidAIDraftLimit = errors.New("AI_DRAFT_LIMIT_PER_HOUR harus bilangan bulat positif")
 
+// ErrInvalidAuthLimit is returned for a non-numeric or non-positive auth
+// rate-limit value. Reading one as "unlimited" would silently remove a
+// brute-force and mass-registration guard, and the failure would look like
+// healthy traffic.
+var ErrInvalidAuthLimit = errors.New("batas rate-limit auth harus bilangan bulat positif")
+
 // DefaultAIDraftLimitPerHour is the per-account budget for
 // POST /api/v1/ai/draft-profile when AI_DRAFT_LIMIT_PER_HOUR is unset.
 const DefaultAIDraftLimitPerHour = 20
+
+// Defaults for the auth rate limits. Each is a count of requests per window;
+// the windows are constants in cmd/api, so config carries numbers only.
+//
+// The two per-identity limits protect one account or one email address. The two
+// global limits are per-endpoint "safety valves" that cap what a flood of
+// distinct identities can cost: the register valve bounds mass account
+// creation, the login valve bounds argon2id work, which is deliberately
+// expensive and therefore a CPU target when spread across many addresses.
+const (
+	DefaultAuthLoginLimit          = 10
+	DefaultAuthRegisterLimit       = 10
+	DefaultAuthLoginGlobalLimit    = 300
+	DefaultAuthRegisterGlobalLimit = 30
+)
 
 // AIProviderGemini is the default: the real generator. AIProviderStub is the
 // offline generator kept for tests and keyless runs.
@@ -61,6 +82,13 @@ type Config struct {
 	// AIDraftLimitPerHour is the per-account draft budget. The window itself is
 	// a constant in cmd/api, so this stays a single number to tune.
 	AIDraftLimitPerHour int
+
+	// Auth rate limits: per-email counts plus a per-endpoint global valve.
+	// Windows live in cmd/api for the same reason as above.
+	AuthLoginLimit          int
+	AuthRegisterLimit       int
+	AuthLoginGlobalLimit    int
+	AuthRegisterGlobalLimit int
 }
 
 func Load() (Config, error) {
@@ -111,16 +139,53 @@ func Load() (Config, error) {
 		aiDraftLimit = parsed
 	}
 
+	authLoginLimit, err := positiveIntFromEnv("AUTH_LOGIN_LIMIT_PER_15_MIN", DefaultAuthLoginLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authRegisterLimit, err := positiveIntFromEnv("AUTH_REGISTER_LIMIT_PER_HOUR", DefaultAuthRegisterLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authLoginGlobalLimit, err := positiveIntFromEnv("AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR", DefaultAuthLoginGlobalLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authRegisterGlobalLimit, err := positiveIntFromEnv("AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR", DefaultAuthRegisterGlobalLimit)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		Port:                port,
-		DatabaseURL:         databaseURL,
-		AppEnv:              appEnv,
-		UploadDir:           uploadDir,
-		AIProvider:          aiProvider,
-		GeminiAPIKey:        geminiAPIKey,
-		GeminiModel:         strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
-		AIDraftLimitPerHour: aiDraftLimit,
+		Port:                    port,
+		DatabaseURL:             databaseURL,
+		AppEnv:                  appEnv,
+		UploadDir:               uploadDir,
+		AIProvider:              aiProvider,
+		GeminiAPIKey:            geminiAPIKey,
+		GeminiModel:             strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
+		AIDraftLimitPerHour:     aiDraftLimit,
+		AuthLoginLimit:          authLoginLimit,
+		AuthRegisterLimit:       authRegisterLimit,
+		AuthLoginGlobalLimit:    authLoginGlobalLimit,
+		AuthRegisterGlobalLimit: authRegisterGlobalLimit,
 	}, nil
+}
+
+// positiveIntFromEnv reads a positive integer from the environment, falling
+// back to fallback when the variable is unset or blank. One sentinel covers all
+// four auth limits; the wrapped error names the offending variable so a typo in
+// one does not leave the operator guessing which.
+func positiveIntFromEnv(name string, fallback int) (int, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%w: %s=%q", ErrInvalidAuthLimit, name, raw)
+	}
+	return parsed, nil
 }
 
 // RequireGeminiKey reports whether the selected provider can actually run. Only

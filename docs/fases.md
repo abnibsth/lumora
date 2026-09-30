@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–7 selesai**.
+Status: **fase 1–8 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -16,8 +16,9 @@ Status: **fase 1–7 selesai**.
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
 | 6 | AI draft profil | ✅ **Selesai** |
 | 7 | Rate limiting endpoint AI (per akun) | ✅ **Selesai** |
+| 8 | Rate limiting login/register (per email) | ✅ **Selesai** |
 
-Total tes saat ini: **150 tes utama / 216 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
+Total tes saat ini: **168 tes utama / 264 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
 Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -187,6 +188,51 @@ Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, sup
 
 ---
 
+## Fase 8 — Rate limiting login/register (per email) ✅
+
+**Isi:**
+- Mesin limiter fase 7 dipakai ulang **tanpa duplikasi**. `allow(key)` sekarang jadi inti yang kunci-agnostik, dan dua adapter tipis menurunkan kunci dari request:
+  - `Middleware()` — perilaku fase 7 (kunci = user ID, dipasang setelah `RequireSession`).
+  - `MiddlewareFor(keyFn, code, message)` — umum: ambil kunci lewat `keyFn`, kalau `ok == false` **lewati** (`c.Next()`) dan biarkan handler yang menjawab.
+- `KeyFunc func(*gin.Context) (string, bool)` sengaja **dua nilai balik**: "tidak ada kunci yang bisa dipakai" berbeda dari "kunci bernilai string kosong". Kalau dipaksa satu nilai, body tanpa `email` akan jadi kunci `""` yang dipakai bersama oleh semua request rusak — satu bucket palsu.
+- `EmailKey` membaca body untuk mengambil `email`, lalu **selalu memulihkan** `c.Request.Body` (`io.ReadAll(http.MaxBytesReader(..., 4 KB))` → `io.NopCloser(bytes.NewReader(body))`). Pemulihan dilakukan **tanpa syarat**, termasuk saat `ReadAll` error, supaya handler di belakangnya tetap bisa membaca body (dan menjawab `400`) — kalau tidak, handler akan melihat body kosong.
+- `GlobalKey` mengembalikan kunci tetap `"global"`.
+
+**Dua katup per endpoint, urutan global-dulu:**
+- Tiap endpoint auth punya **dua** limiter: katup **global** (satu bucket untuk seluruh proses) lalu katup **per-email**. Global dulu, baru per-email.
+- Urutan ini keputusan **keamanan memori**, bukan estetika. `allow` mengalokasikan satu bucket untuk **setiap kunci baru** dan hanya menyapu bucket yang idle **satu jendela penuh**. Kalau per-email didahulukan, banjir ribuan email berbeda (semuanya ditolak katup per-email) tetap **membuat bucket baru** untuk tiap email sebelum katup global sempat menahan — map tumbuh tanpa batas. Dengan global dulu, email-email baru itu berhenti di katup global dan tidak pernah menyentuh map per-email.
+- Konsekuensi yang diterima: kuota per-email dihitung **setelah** token global lolos, jadi serangan pada satu email tetap ikut memakai jatah global.
+
+**Endpoint aktif:**
+
+| Method | Path | Respons |
+|---|---|---|
+| POST | `/api/v1/auth/register` | 201 seperti biasa; `429 rate_limited` + `Retry-After` kalau kuota email/global habis |
+| POST | `/api/v1/auth/login` | 200 seperti biasa; `429 rate_limited` + `Retry-After` kalau kuota email/global habis |
+
+Pesan `429` sengaja **sama** untuk kedua endpoint (`authRateLimitMessage`) dan tidak menyebut endpoint mana yang kena, supaya tidak jadi oracle tambahan.
+
+**Perbaikan timing oracle di login (ikut fase ini):**
+- `Login` dulu **pulang lebih awal** saat email tak terdaftar (`pgx.ErrNoRows`) tanpa menjalankan argon2, sedangkan email terdaftar menjalankan argon2 — jadi waktu respons membedakan "email ada" vs "email tidak ada" walau pesannya sama (`invalid_credentials`). Itu membatalkan justru usaha anti-enumerasi fase 2.
+- Sekarang cabang tak-terdaftar memanggil `payDummyVerify(password)`: argon2 terhadap **hash dummy** sehingga kedua jalur membakar kerja verifikasi yang setara. Hash dummy dibuat **sekali** (`sync.Once`) dari `s.hash` yang sama, jadi parameternya ikut kalau parameter argon2 diubah. `sync.Once` + field di struct service (bukan variabel paket) supaya test bisa menyuntik dan menghitungnya.
+
+**Config (`internal/config/config.go`):**
+
+| Variabel | Default | Jendela (hardcode `cmd/api`) |
+|---|---|---|
+| `AUTH_LOGIN_LIMIT_PER_15_MIN` | 10 | 15 menit |
+| `AUTH_REGISTER_LIMIT_PER_HOUR` | 10 | 1 jam |
+| `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR` | 300 | 1 jam |
+| `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR` | 30 | 1 jam |
+
+Konvensi tetap seperti fase 7: **jumlahnya** dari env, **jendelanya** hardcode di `cmd/api` (satu jendela per limiter, `NewRateLimiter` menerimanya sekali). Nilai tidak valid / nol / negatif **ditolak saat start** (`ErrInvalidAuthLimit`) — sama alasannya dengan `AI_DRAFT_LIMIT_PER_HOUR`: dibaca sebagai "tanpa batas" akan menghapus penjaganya. Register global (30/jam) sengaja lebih ketat dari login global (300/jam) karena register menulis baris `users` baru.
+
+**Verifikasi:** 13 test middleware baru / 25 kasus (lolos di bawah limit, `429` + envelope + `Retry-After`, pesan terkonfigurasi, kunci per-email, varian penulisan email berbagi satu bucket, body dipulihkan untuk handler, lewati saat tanpa email, normalisasi `EmailKey`, tolak body tak terpakai, `EmailKey` memulihkan body yang dibacanya, **katup global jalan sebelum bucket per-email**, katup global dibagi antar-email, katup global membatasi pertumbuhan bucket per-email) + 3 test config / 19 kasus (default, `" 7 "` di-trim, penolakan `abc`/`0`/`-5`/`1.5` untuk 4 variabel) + 2 test service / 3 kasus (`Login` membakar satu verifikasi di kedua jalur, hash dummy dibuat sekali). Semua test AI fase 7 tetap hijau (19 test / 23 kasus tidak tersentuh).
+
+**Catatan:** sama seperti fase 7, ini state in-memory — kuota **reset tiap restart/redeploy**, dan pindah ke Redis begitu butuh lebih dari satu replica.
+
+---
+
 ## Pekerjaan di luar fase (backlog / known gaps)
 
 | Item | Status |
@@ -195,8 +241,8 @@ Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, sup
 | Provider AI asli | ✔ **selesai** — Google Gemini (`AI_PROVIDER=gemini`, default) dengan structured output; stub tetap ada untuk run tanpa kredensial |
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
-| Rate limiting login/register | ❌ belum (brute-force masih mungkin) — **terhalang**: endpoint ini belum login, jadi butuh kunci per-IP, sedangkan `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang. Perlu percayai rentang proxy Railway + baca `X-Forwarded-For` dengan benar |
-| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi kuota AI per akun (`AI_DRAFT_LIMIT_PER_HOUR`) bisa dilewati dengan mendaftar banyak akun. Butuh kolom status di `users` + tabel token + pengiriman email. Ini juga celah pendaftaran massal untuk spam profil |
+| Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
+| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi kuota AI per akun (`AI_DRAFT_LIMIT_PER_HOUR`) bisa dilewati dengan mendaftar banyak akun. Katup global register (30/jam) **mempersempit** celah ini tapi tidak menutupnya. Butuh kolom status di `users` + tabel token + pengiriman email. Ini juga celah pendaftaran massal untuk spam profil |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |

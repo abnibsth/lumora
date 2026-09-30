@@ -1,6 +1,6 @@
 # LUMORA API — Kontrak Backend (Go)
 
-Status spek ini: **Phase 1–6 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
+Status spek ini: **Phase 1–8 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
 
 - Base URL development: `http://localhost:8080`
 - Prefix semua endpoint: `/api/v1`
@@ -79,7 +79,7 @@ Kode yang dipakai:
 | `forbidden` | 403 | Login, tapi resource bukan milikmu |
 | `not_found` | 404 | Resource tidak ada (atau draft yang tidak kamu miliki) |
 | `email_taken` | 409 | Register dengan email sudah terdaftar |
-| `rate_limited` | 429 | Kuota draf AI per akun habis — lihat header `Retry-After` |
+| `rate_limited` | 429 | Limit habis: kuota draf AI per akun, atau percobaan login/register per email maupun valve global — lihat header `Retry-After` |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
@@ -214,13 +214,15 @@ Field asing diabaikan — **`businessName` tidak dipakai di endpoint ini**. Prof
 { "id": "…", "name": "Budi Santoso", "email": "budi@example.com", "role": "umkm", "createdAt": "…" }
 ```
 
-Error: `400 validation_failed` (pesan per kasus, contoh "Format email tidak valid."), `409 email_taken` (case-insensitive), `400 invalid_body` (JSON rusak).
+Error: `400 validation_failed` (pesan per kasus, contoh "Format email tidak valid."), `409 email_taken` (case-insensitive), `400 invalid_body` (JSON rusak), `429 rate_limited` (lihat "Rate limiting login/register").
 
 ### `POST /api/v1/auth/login`
 
 Body `{ "email": "...", "password": "..." }` → `200` + user + `Set-Cookie`.
 
-Error: `401 invalid_credentials` — **satu error yang sama** untuk email tidak terdaftar dan password salah (biar endpoint gak bisa dipakai menebak akun), `400 validation_failed`.
+Error: `401 invalid_credentials` — **satu error yang sama** untuk email tidak terdaftar dan password salah, `400 validation_failed`, `429 rate_limited`.
+
+> **Enumerasi akun.** Responsnya identik, dan bebannya juga identik: email yang tidak terdaftar tetap menjalankan satu verifikasi argon2id terhadap hash sekali-pakai, supaya waktu respons tidak membocorkan keberadaan akun. Sebelum phase 8, jalur "email tidak ada" `return` lebih awal tanpa argon2 — selisih waktunya cukup untuk menebak email mana yang terdaftar.
 
 ### `POST /api/v1/auth/logout`
 
@@ -235,6 +237,23 @@ Butuh cookie valid.
 ```
 
 Tanpa cookie / cookie kedaluwarsa → `401 unauthenticated`. Pakai endpoint ini saat hydration untuk mengisi state navbar (tombol Masuk/Buat Profil ↔ nama user).
+
+### Rate limiting login/register (phase 8 — aktif)
+
+Kedua endpoint auth dibatasi **per email**, bukan per IP. Di belakang proxy Railway alamat klien tidak bisa dipercaya — jawaban resmi Railway sendiri saling bertentangan soal isi `X-Forwarded-For`, dan alamat peer langsungnya berbeda tiap request — jadi IP tidak dipakai sebagai kunci. Yang dibatasi adalah alamat yang diserang, dan itu justru lebih tepat: brute-force menyasar satu akun.
+
+| Variabel | Default | Kunci | Jendela |
+|---|---|---|---|
+| `AUTH_LOGIN_LIMIT_PER_15_MIN` | 10 | email di `POST /auth/login` | 15 menit |
+| `AUTH_REGISTER_LIMIT_PER_HOUR` | 10 | email di `POST /auth/register` | 1 jam |
+| `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR` | 300 | semua pemanggil login | 1 jam |
+| `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR` | 30 | semua pemanggil register | 1 jam |
+
+Dua baris terakhir adalah **valve global**: satu kuota bersama untuk semua orang, per endpoint. Ini yang membatasi pendaftaran massal (penyerang memakai banyak email berbeda, jadi batas per-email tidak menahannya) sekaligus membatasi kerja argon2id yang bisa dipaksa lewat login. Konsekuensinya harus disadari: penyerang bisa menghabiskan valve lalu memblokir login/register yang sah sampai jendelanya lewat.
+
+Saat kena: `429 rate_limited` + `Retry-After` (detik, dibulatkan ke atas, minimal 1). Kode dan pesannya **sama** untuk kedua bucket dan kedua endpoint, jadi klien tidak bisa membedakan limit mana yang kena. Batas juga **reset saat restart**, seperti kuota AI.
+
+Request yang emailnya tidak bisa dibaca dari body (JSON rusak, `email` kosong) **tidak** dimeter — langsung ditolak handler dengan `400`. Jadi mengirim JSON rusak tidak bisa dipakai mengunci pengguna lain.
 
 ---
 
@@ -509,7 +528,7 @@ curl "http://localhost:8080/api/v1/businesses?q=kopi"
 curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 ```
 
-Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`.
+Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`.
 
 Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`.
 
@@ -519,4 +538,4 @@ Provider mana yang dipakai `docker compose` **tergantung ada tidaknya `backend/.
 docker compose config | grep -E "AI_PROVIDER|AI_DRAFT_LIMIT_PER_HOUR"
 ```
 
-Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR`, default 20).
+Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR`, default 20) dan batas percobaan login/register (`AUTH_*`, lihat "Rate limiting login/register").

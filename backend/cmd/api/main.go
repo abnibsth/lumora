@@ -21,6 +21,18 @@ import (
 	"github.com/alfian/lumora/backend/internal/store"
 )
 
+// Rate-limit windows. config carries only counts; the windows live beside the
+// wiring so an env var name and its duration cannot drift apart unnoticed.
+const (
+	authLoginWindow    = 15 * time.Minute
+	authRegisterWindow = time.Hour
+	authGlobalWindow   = time.Hour
+)
+
+// authRateLimitMessage is shared by every auth limiter so a client cannot tell
+// which bucket it exhausted. Only Retry-After differs between them.
+const authRateLimitMessage = "Terlalu banyak percobaan. Coba lagi nanti."
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -83,6 +95,22 @@ func main() {
 	// one. The window lives here; config only carries the count.
 	aiLimiter := middleware.NewRateLimiter(cfg.AIDraftLimitPerHour, time.Hour, time.Now)
 
+	// The auth endpoints are reachable without a session, so they are metered by
+	// the email in the request body — not by account (there is none yet) and not
+	// by client IP. Railway's edge rewrites the forwarded-for chain in ways
+	// Railway's own answers contradict, and the direct peer address varies per
+	// request, so no IP reaching this process is trustworthy enough to key a
+	// security control on. See docs/fases.md.
+	//
+	// Each endpoint gets a per-email limiter plus a global safety valve: the
+	// valve bounds mass registration across many distinct addresses, and the
+	// argon2id work a login flood can force, which the per-email limiter alone
+	// cannot.
+	loginEmailLimiter := middleware.NewRateLimiter(cfg.AuthLoginLimit, authLoginWindow, time.Now)
+	loginGlobalLimiter := middleware.NewRateLimiter(cfg.AuthLoginGlobalLimit, authGlobalWindow, time.Now)
+	registerEmailLimiter := middleware.NewRateLimiter(cfg.AuthRegisterLimit, authRegisterWindow, time.Now)
+	registerGlobalLimiter := middleware.NewRateLimiter(cfg.AuthRegisterGlobalLimit, authGlobalWindow, time.Now)
+
 	r := gin.New()
 	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
@@ -111,8 +139,20 @@ func main() {
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), businessHandler.Update)
 	v1.POST("/businesses/:id/publish", middleware.RequireSession(), businessHandler.Publish)
 
-	v1.POST("/auth/register", authHandler.Register)
-	v1.POST("/auth/login", authHandler.Login)
+	// The global valve is mounted FIRST, and that order is load-bearing rather
+	// than stylistic. The limiter allocates a bucket per new key and only sweeps
+	// buckets that have been idle for a full window, so a per-email limiter
+	// running first would let a flood of distinct emails grow its map without
+	// bound. With the valve ahead of it, per-email buckets are only created for
+	// requests the valve admits, which bounds that map by the valve's capacity.
+	v1.POST("/auth/register",
+		registerGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", authRateLimitMessage),
+		registerEmailLimiter.MiddlewareFor(middleware.EmailKey, "rate_limited", authRateLimitMessage),
+		authHandler.Register)
+	v1.POST("/auth/login",
+		loginGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", authRateLimitMessage),
+		loginEmailLimiter.MiddlewareFor(middleware.EmailKey, "rate_limited", authRateLimitMessage),
+		authHandler.Login)
 	v1.POST("/auth/logout", authHandler.Logout)
 	v1.GET("/auth/me", middleware.RequireSession(), authHandler.Me)
 
