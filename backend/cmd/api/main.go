@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ import (
 	"github.com/alfian/lumora/backend/internal/email"
 	"github.com/alfian/lumora/backend/internal/http/handler"
 	"github.com/alfian/lumora/backend/internal/http/middleware"
+	"github.com/alfian/lumora/backend/internal/logging"
 	"github.com/alfian/lumora/backend/internal/service"
 	"github.com/alfian/lumora/backend/internal/store"
 )
@@ -44,13 +45,16 @@ const authRateLimitMessage = "Terlalu banyak percobaan. Coba lagi nanti."
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		logging.Fatal("config load failed", "err", err)
 	}
+	// Install the logger before anything captures slog.Default, notably the
+	// email stub below.
+	logging.Setup(cfg.AppEnv, cfg.LogLevel)
 	// Only this binary generates drafts, so only this binary insists on the
 	// provider's key. cmd/migrate and cmd/seed share config.Load and must keep
 	// working on a machine that has no AI credentials.
 	if err := cfg.RequireGeminiKey(); err != nil {
-		log.Fatalf("config: %v", err)
+		logging.Fatal("config check failed", "err", err)
 	}
 
 	if cfg.IsProduction() {
@@ -62,12 +66,12 @@ func main() {
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("db pool: %v", err)
+		logging.Fatal("db pool failed", "err", err)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("db ping: %v", err)
+		logging.Fatal("db ping failed", "err", err)
 	}
 
 	queries := store.New(pool)
@@ -85,10 +89,10 @@ func main() {
 	case config.EmailProviderStub:
 		sender = email.NewStub()
 	default:
-		log.Fatalf("email: provider %q belum punya implementasi", cfg.EmailProvider)
+		logging.Fatal("email provider has no implementation", "provider", cfg.EmailProvider)
 	}
 	if cfg.IsProduction() && cfg.EmailProvider == config.EmailProviderStub {
-		log.Printf("peringatan: EMAIL_PROVIDER=stub di production — tautan verifikasi hanya masuk log, tidak dikirim ke pengguna")
+		slog.Warn("EMAIL_PROVIDER=stub in production: verification links are logged, not sent")
 	}
 
 	authService := service.NewAuthService(queries, queries, queries, sender, cfg.FrontendBaseURL)
@@ -110,7 +114,7 @@ func main() {
 	case config.AIProviderGemini:
 		drafter = ai.NewGemini(cfg.GeminiAPIKey, cfg.GeminiModel)
 	default:
-		log.Fatalf("ai: provider %q belum punya implementasi", cfg.AIProvider)
+		logging.Fatal("ai provider has no implementation", "provider", cfg.AIProvider)
 	}
 	aiService := service.NewAIDraftService(drafter, service.DefaultAITimeout)
 	aiHandler := handler.NewAIHandler(aiService)
@@ -155,12 +159,12 @@ func main() {
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
 	// on ClientIP, so the direct peer is the honest answer.
 	_ = r.SetTrustedProxies(nil)
-	r.Use(gin.Logger(), gin.Recovery())
+	r.Use(middleware.AccessLog(), gin.Recovery())
 
 	// Uploaded covers/logos are public, like the seed images: served from disk
 	// under a server-generated filename.
 	if err := os.MkdirAll(cfg.UploadDir, 0o755); err != nil {
-		log.Fatalf("upload dir: %v", err)
+		logging.Fatal("upload dir failed", "err", err)
 	}
 	r.Static("/uploads", cfg.UploadDir)
 
@@ -255,9 +259,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("LUMORA API listening on :%s", cfg.Port)
+		slog.Info("LUMORA API listening", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("server: %v", err)
+			logging.Fatal("server failed", "err", err)
 		}
 	}()
 
@@ -266,12 +270,12 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("shutting down...")
+	slog.Info("shutting down")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		slog.Error("shutdown failed", "err", err)
 	}
-	log.Println("server stopped")
+	slog.Info("server stopped")
 }

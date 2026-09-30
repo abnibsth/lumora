@@ -25,6 +25,11 @@ var ErrUnknownAIProvider = errors.New("AI_PROVIDER tidak dikenal")
 // verification mail that was only ever printed to the log.
 var ErrUnknownEmailProvider = errors.New("EMAIL_PROVIDER tidak dikenal")
 
+// ErrUnknownLogLevel is returned for a LOG_LEVEL outside LogLevels. A typo must
+// fail startup rather than silently pick a verbosity, for the same reason the
+// provider allowlists exist.
+var ErrUnknownLogLevel = errors.New("LOG_LEVEL tidak dikenal")
+
 // ErrMissingGeminiAPIKey is returned when the API starts with the Gemini
 // provider selected but no key. Starting anyway would leave every draft request
 // answering 503 while the process looks healthy, which is harder to notice than
@@ -105,13 +110,31 @@ const EmailProviderStub = "stub"
 // value here together with its implementation in cmd/api/main.go.
 var EmailProviders = []string{EmailProviderStub}
 
+// Log levels accepted by LOG_LEVEL. Add a value here together with its case in
+// internal/logging.parseLevel.
+const (
+	LogLevelDebug = "debug"
+	LogLevelInfo  = "info"
+	LogLevelWarn  = "warn"
+	LogLevelError = "error"
+)
+
+// LogLevels lists the accepted LOG_LEVEL values.
+var LogLevels = []string{LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError}
+
+// DefaultLogLevel is used when LOG_LEVEL is unset.
+const DefaultLogLevel = LogLevelInfo
+
 // Config holds everything read from the environment. Outside production,
 // values fall back to local-development defaults so `go run ./cmd/api` works
 // without a .env file.
 type Config struct {
-	Port         string
-	DatabaseURL  string
-	AppEnv       string
+	Port        string
+	DatabaseURL string
+	AppEnv      string
+	// LogLevel is the minimum level the default slog logger emits. Validated
+	// against LogLevels here; internal/logging parses it.
+	LogLevel     string
 	UploadDir    string
 	AIProvider   string
 	GeminiAPIKey string
@@ -195,6 +218,14 @@ func Load() (Config, error) {
 		frontendBaseURL = FrontendBaseURLDefault
 	}
 
+	logLevel := strings.ToLower(strings.TrimSpace(os.Getenv("LOG_LEVEL")))
+	if logLevel == "" {
+		logLevel = DefaultLogLevel
+	}
+	if !knownLogLevel(logLevel) {
+		return Config{}, fmt.Errorf("%w: %q", ErrUnknownLogLevel, logLevel)
+	}
+
 	aiDraftLimit, err := positiveIntFromEnv("AI_DRAFT_LIMIT_PER_HOUR", DefaultAIDraftLimitPerHour, ErrInvalidAIDraftLimit)
 	if err != nil {
 		return Config{}, err
@@ -237,6 +268,7 @@ func Load() (Config, error) {
 		Port:                      port,
 		DatabaseURL:               databaseURL,
 		AppEnv:                    appEnv,
+		LogLevel:                  logLevel,
 		UploadDir:                 uploadDir,
 		AIProvider:                aiProvider,
 		GeminiAPIKey:              geminiAPIKey,
@@ -294,6 +326,15 @@ func knownAIProvider(provider string) bool {
 func knownEmailProvider(provider string) bool {
 	for _, known := range EmailProviders {
 		if provider == known {
+			return true
+		}
+	}
+	return false
+}
+
+func knownLogLevel(level string) bool {
+	for _, known := range LogLevels {
+		if level == known {
 			return true
 		}
 	}

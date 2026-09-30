@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -101,8 +101,11 @@ func (g *Gemini) Draft(ctx context.Context, in domain.DraftProfileInput) (domain
 		// enum and the model — enough to tell a retired model (404/NOT_FOUND)
 		// from a demand spike (503/UNAVAILABLE) without touching the payload.
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-		log.Printf("gemini: generateContent failed status=%d provider_status=%q model=%s",
-			resp.StatusCode, providerStatus(errBody), g.model)
+		slog.Error("gemini generateContent failed",
+			"status", resp.StatusCode,
+			"provider_status", providerStatus(errBody),
+			"model", g.model,
+		)
 		return domain.DraftProfile{}, fmt.Errorf("gemini: status %d", resp.StatusCode)
 	}
 

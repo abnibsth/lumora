@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -56,7 +56,7 @@ func (h *BusinessHandler) List(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidParameter):
 		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
 	case err != nil:
-		log.Printf("list businesses: %v", err)
+		slog.Error("list businesses failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, result)
@@ -72,7 +72,7 @@ func (h *BusinessHandler) Detail(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidParameter):
 		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
 	case err != nil:
-		log.Printf("business detail %q: %v", c.Param("slug"), err)
+		slog.Error("business detail failed", "slug", c.Param("slug"), "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, business)
@@ -96,7 +96,7 @@ func (h *BusinessHandler) ListMine(c *gin.Context) {
 	result, err := h.svc.ListMine(c.Request.Context(), user.ID, page, limit)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("list own businesses: %v", err)
+			slog.Error("list own businesses failed", "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -155,7 +155,7 @@ func (h *BusinessHandler) Create(c *gin.Context) {
 	business, err := h.svc.Create(c.Request.Context(), user.ID, input)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("create business: %v", err)
+			slog.Error("create business failed", "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -180,7 +180,7 @@ func (h *BusinessHandler) Update(c *gin.Context) {
 	business, err := h.svc.Update(c.Request.Context(), user.ID, c.Param("id"), input)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("update business %q: %v", c.Param("id"), err)
+			slog.Error("update business failed", "business_id", c.Param("id"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -199,7 +199,7 @@ func (h *BusinessHandler) Publish(c *gin.Context) {
 	business, err := h.svc.Publish(c.Request.Context(), user.ID, c.Param("id"))
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("publish business %q: %v", c.Param("id"), err)
+			slog.Error("publish business failed", "business_id", c.Param("id"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return

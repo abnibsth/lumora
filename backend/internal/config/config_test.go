@@ -488,3 +488,56 @@ func TestLoadReadsFrontendBaseURL(t *testing.T) {
 		t.Fatalf("got %q, want the trimmed value", cfg.FrontendBaseURL)
 	}
 }
+
+func TestLoadDefaultsLogLevel(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("LOG_LEVEL", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.LogLevel != DefaultLogLevel {
+		t.Fatalf("got %q, want %q", cfg.LogLevel, DefaultLogLevel)
+	}
+}
+
+func TestLoadReadsLogLevel(t *testing.T) {
+	// Surrounding whitespace and letter case are normalized, so LOG_LEVEL=WARN
+	// behaves like warn.
+	cases := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"lowercase", "debug", LogLevelDebug},
+		{"padded and uppercase", "  WARN ", LogLevelWarn},
+		{"mixed case", "Error", LogLevelError},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AI_PROVIDER", AIProviderStub)
+			t.Setenv("LOG_LEVEL", tc.raw)
+
+			cfg, err := Load()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.LogLevel != tc.want {
+				t.Fatalf("got %q, want %q", cfg.LogLevel, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsUnknownLogLevel(t *testing.T) {
+	// A typo must fail loudly rather than silently pick a verbosity.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("LOG_LEVEL", "verbose")
+
+	_, err := Load()
+	if !errors.Is(err, ErrUnknownLogLevel) {
+		t.Fatalf("got %v, want ErrUnknownLogLevel", err)
+	}
+}

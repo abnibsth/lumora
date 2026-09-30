@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -50,7 +50,7 @@ func (h *AIHandler) Draft(c *gin.Context) {
 	draft, err := h.svc.Draft(c.Request.Context(), input)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("ai draft: user=%s err=%v", user.ID, err)
+			slog.Error("ai draft failed", "user_id", user.ID, "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return

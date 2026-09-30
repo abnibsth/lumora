@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -135,7 +135,7 @@ func (s *AuthService) Register(ctx context.Context, params domain.RegisterParams
 	// exists — and a retry would then answer email_taken. The user can ask for
 	// another link instead, so the failure is logged rather than returned.
 	if err := s.issueVerification(ctx, row); err != nil {
-		log.Printf("register: kirim verifikasi email gagal user=%s: %v", user.ID, err)
+		slog.Error("send verification email failed", "user_id", user.ID, "err", err)
 	}
 
 	return user, session, nil

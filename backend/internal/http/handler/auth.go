@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -49,7 +49,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	case errors.Is(err, domain.ErrEmailTaken):
 		writeError(c, http.StatusConflict, "email_taken", "Email sudah terdaftar.")
 	case err != nil:
-		log.Printf("register: %v", err)
+		slog.Error("register failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		h.setSessionCookie(c, session)
@@ -72,7 +72,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		writeError(c, http.StatusUnauthorized, "invalid_credentials", "Email atau kata sandi salah.")
 	case err != nil:
-		log.Printf("login: %v", err)
+		slog.Error("login failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		h.setSessionCookie(c, session)
@@ -88,7 +88,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	h.clearSessionCookie(c)
 
 	if err != nil {
-		log.Printf("logout: %v", err)
+		slog.Error("logout failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		return
 	}
@@ -123,7 +123,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidToken):
 		writeError(c, http.StatusBadRequest, "invalid_token", "Tautan verifikasi tidak valid atau kedaluwarsa.")
 	case err != nil:
-		log.Printf("verify email: %v", err)
+		slog.Error("verify email failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -144,7 +144,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 	case errors.Is(err, domain.ErrEmailAlreadyVerified):
 		writeError(c, http.StatusConflict, "email_already_verified", "Email sudah terverifikasi.")
 	case err != nil:
-		log.Printf("resend verification: %v", err)
+		slog.Error("resend verification failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

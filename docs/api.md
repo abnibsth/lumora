@@ -86,6 +86,8 @@ Kode yang dipakai:
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
+Setiap respons juga membawa header `X-Request-ID` (di-generate server). Sertakan nilainya saat melaporkan error — log server memakai id yang sama untuk menelusuri request tersebut.
+
 ---
 
 ## Endpoint aktif

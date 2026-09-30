@@ -291,8 +291,8 @@ Respons `User` kini punya field `emailVerified` (boolean, bukan timestamp — fr
 | Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), `EMAIL_PROVIDER=stub` (link ke log), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global). **Sisa:** provider email asli — selama masih `stub`, email tidak benar-benar terkirim |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
-| CI (lint + test otomatis) | ❌ belum ada |
-| Struktur logging | ❌ masih `log.Printf` standar |
+| CI (lint + test otomatis) | ✔ **selesai** — `.github/workflows/backend.yml`: job `test` (gofmt gate, vet, build, unit test, race), `integration` (Postgres 16 + migrate + seed), `sqlc` (drift check, sqlc 1.31.1 dipin) |
+| Struktur logging | ✔ **selesai** — `log/slog` terstruktur lewat `internal/logging` (JSON saat production, text selain itu), `LOG_LEVEL` divalidasi fail-fast, access log + `X-Request-ID` menggantikan `gin.Logger` |
 | CORS | ✔ **sengaja tidak ada** — frontend lewat proxy rewrite `next.config.ts`, jadi same-origin |
 
 ---

@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/alfian/lumora/backend/internal/config"
+	"github.com/alfian/lumora/backend/internal/logging"
 	"github.com/alfian/lumora/backend/internal/store"
 )
 
@@ -15,23 +16,24 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		logging.Fatal("config load failed", "err", err)
 	}
+	logging.Setup(cfg.AppEnv, cfg.LogLevel)
 	ctx := context.Background()
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("db pool: %v", err)
+		logging.Fatal("db pool failed", "err", err)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("db ping: %v", err)
+		logging.Fatal("db ping failed", "err", err)
 	}
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		log.Fatalf("begin tx: %v", err)
+		logging.Fatal("begin tx failed", "err", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -41,7 +43,7 @@ func main() {
 	for _, business := range seedBusinesses {
 		exists, err := qtx.ExistsBusinessBySlug(ctx, store.ExistsBusinessBySlugParams{Slug: business.Slug})
 		if err != nil {
-			log.Fatalf("cek slug %s: %v", business.Slug, err)
+			logging.Fatal("check slug failed", "slug", business.Slug, "err", err)
 		}
 		if exists {
 			skipped++
@@ -70,7 +72,7 @@ func main() {
 			Verified:         false,
 		})
 		if err != nil {
-			log.Fatalf("insert %s: %v", business.Slug, err)
+			logging.Fatal("insert business failed", "slug", business.Slug, "err", err)
 		}
 
 		for position, milestone := range business.Milestones {
@@ -81,7 +83,7 @@ func main() {
 				Description: strPtr(milestone.Description),
 				Position:    int32(position),
 			}); err != nil {
-				log.Fatalf("insert milestone %s: %v", business.Slug, err)
+				logging.Fatal("insert milestone failed", "slug", business.Slug, "err", err)
 			}
 		}
 
@@ -92,17 +94,17 @@ func main() {
 				Value:      entry.Value,
 				Position:   int32(position),
 			}); err != nil {
-				log.Fatalf("insert bmc %s: %v", business.Slug, err)
+				logging.Fatal("insert bmc failed", "slug", business.Slug, "err", err)
 			}
 		}
 		inserted++
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		log.Fatalf("commit: %v", err)
+		logging.Fatal("commit failed", "err", err)
 	}
 
-	log.Printf("seed selesai: %d disisipkan, %d dilewati (sudah ada)", inserted, skipped)
+	slog.Info("seed selesai", "inserted", inserted, "skipped", skipped)
 }
 
 // strPtr maps an empty string to SQL NULL so optional columns stay optional.
