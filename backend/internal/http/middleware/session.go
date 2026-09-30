@@ -56,6 +56,25 @@ func RequireSession() gin.HandlerFunc {
 	}
 }
 
+// RequireVerified answers 403 when the session is valid but the account has not
+// proven its email address yet. It guards only the endpoints that cost money or
+// publish content (see docs/api.md); everything else stays reachable unverified,
+// so signing up still works without a detour through an inbox.
+func RequireVerified() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentUser(c)
+		if !ok {
+			abortWithError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+			return
+		}
+		if !user.EmailVerified {
+			abortWithError(c, http.StatusForbidden, "email_not_verified", "Verifikasi email Anda dulu sebelum melanjutkan.")
+			return
+		}
+		c.Next()
+	}
+}
+
 // abortWithError writes the API's single error envelope and stops the chain.
 //
 // It lives here rather than in the handler package because handler imports

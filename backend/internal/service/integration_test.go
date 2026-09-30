@@ -65,7 +65,7 @@ func uniqueName(prefix string) string {
 func createTestOwner(t *testing.T, pool *pgxpool.Pool, queries *store.Queries) string {
 	t.Helper()
 
-	user, _, err := NewAuthService(queries, queries).Register(context.Background(), domain.RegisterParams{
+	user, _, err := NewAuthService(queries, queries, queries, &fakeSender{}, "http://localhost:3000").Register(context.Background(), domain.RegisterParams{
 		Name:     "Uji Owner",
 		Email:    uniqueName("uji-owner") + "@example.com",
 		Password: "rahasia123",
@@ -166,7 +166,7 @@ func TestIntegrationAuthSessionLifecycle(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
 	queries := store.New(pool)
-	svc := NewAuthService(queries, queries)
+	svc := NewAuthService(queries, queries, queries, &fakeSender{}, "http://localhost:3000")
 
 	email := uniqueName("uji-auth") + "@example.com"
 	t.Cleanup(func() {
@@ -201,6 +201,59 @@ func TestIntegrationAuthSessionLifecycle(t *testing.T) {
 	}
 	if _, err := svc.UserByToken(ctx, session.Token); !errors.Is(err, domain.ErrUnauthenticated) {
 		t.Errorf("UserByToken after logout err = %v, want ErrUnauthenticated", err)
+	}
+}
+
+// TestIntegrationEmailVerification is the only test that runs the verification
+// SQL against the real schema: the token lookup by hash, the consume update,
+// and the guarded UPDATE that stamps email_verified_at.
+func TestIntegrationEmailVerification(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	sender := &fakeSender{}
+	svc := NewAuthService(queries, queries, queries, sender, "http://localhost:3000")
+
+	email := uniqueName("uji-verify") + "@example.com"
+	user, _, err := svc.Register(ctx, domain.RegisterParams{
+		Name: "Uji Verifikasi", Email: email, Password: "rahasia123",
+	})
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE id = $1", user.ID)
+	})
+
+	firstToken := sender.tokenAt(t, 0)
+
+	// Resend drops the pending token, so the first link is dead and only the
+	// newest one works — against the real DELETE, not the fake.
+	if err := svc.ResendVerification(ctx, user.ID); err != nil {
+		t.Fatalf("ResendVerification: %v", err)
+	}
+	secondToken := sender.lastToken(t)
+	if err := svc.VerifyEmail(ctx, firstToken); !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("superseded token err = %v, want ErrInvalidToken", err)
+	}
+
+	if err := svc.VerifyEmail(ctx, secondToken); err != nil {
+		t.Fatalf("VerifyEmail: %v", err)
+	}
+	row, err := queries.GetUserByID(ctx, store.GetUserByIDParams{ID: parseID(user.ID)})
+	if err != nil {
+		t.Fatalf("GetUserByID: %v", err)
+	}
+	if !row.EmailVerifiedAt.Valid {
+		t.Error("email_verified_at is still NULL after verification")
+	}
+
+	// Idempotent against the real schema too.
+	if err := svc.VerifyEmail(ctx, secondToken); err != nil {
+		t.Errorf("second VerifyEmail: %v", err)
+	}
+	if err := svc.ResendVerification(ctx, user.ID); !errors.Is(err, domain.ErrEmailAlreadyVerified) {
+		t.Errorf("ResendVerification err = %v, want ErrEmailAlreadyVerified", err)
 	}
 }
 

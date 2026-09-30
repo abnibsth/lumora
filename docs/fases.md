@@ -1,6 +1,6 @@
 # Fase-fase Backend LUMORA
 
-Status: **fase 1–8 selesai**.
+Status: **fase 1–9 selesai**.
 "Selesai" = endpoint terpasang di `cmd/api/main.go` + unit test hijau + smoke test live lolos + terdokumentasi di `docs/api.md`.
 
 ---
@@ -17,9 +17,10 @@ Status: **fase 1–8 selesai**.
 | 6 | AI draft profil | ✅ **Selesai** |
 | 7 | Rate limiting endpoint AI (per akun + anggaran global) | ✅ **Selesai** |
 | 8 | Rate limiting login/register (per email) | ✅ **Selesai** |
+| 9 | Verifikasi email saat register | ✅ **Selesai** |
 
-Total tes saat ini: **175 tes utama / 275 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
-Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
+Total tes saat ini: **208 tes utama / 320 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 4**.
+Ditambah **9 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
 
@@ -234,6 +235,50 @@ Konvensi tetap seperti fase 7: **jumlahnya** dari env, **jendelanya** hardcode d
 
 ---
 
+## Fase 9 — Verifikasi email saat register ✅
+
+**Isi:**
+- `migrations/0004_email_verification.sql`: kolom `users.email_verified_at timestamptz` (NULL = belum, timestamp = kapan) + tabel `email_verification_tokens` (`token_hash` PK, `user_id` FK `ON DELETE CASCADE`, `created_at`, `expires_at`, `used_at`) + dua index (per user, per `expires_at`).
+- Token disimpan **hanya sebagai hash** SHA-256 (`auth.HashToken`), bukan token mentah — bocornya DB tidak bisa di-replay ke API. Tanpa salt/stretching: masukannya sudah 256 bit acak, jadi tidak ada yang bisa di-brute-force.
+- `auth.NewVerificationToken`: 32 byte random (base64url) — entropi sama dengan token sesi, tidak pernah diturunkan dari data user.
+- **Backfill akun lama ada di file migrasi yang sama**: `UPDATE users SET email_verified_at = now() WHERE email_verified_at IS NULL`. Harus satu file dengan `ALTER`, karena goose membungkus satu file dalam satu transaksi; kalau dipisah ke migrasi berikutnya, akun baru yang belum verifikasi ikut ter-stamp verified. Akun yang lahir sebelum kontrak ini tidak boleh mendadak terkunci dari publish/draft.
+- `internal/email/stub.go` + `internal/service/email.go`: interface `VerificationSender` (dideklarasikan di sisi konsumen, seperti `Drafter`) menerima **link jadi**, bukan token, sehingga pengirim tidak perlu tahu cara menyusun link. Stub hanya menulis link ke log — tanpa jaringan, tanpa kredensial.
+- `internal/service/auth.go`: `VerificationTTL` 24 jam; `issueVerification` (mint token → simpan hash → kirim link) dipakai bersama `Register` dan `ResendVerification` supaya keduanya menghasilkan token & link yang sama bentuknya.
+- **Register tidak gagal kalau email gagal terkirim** (best effort, cuma di-log): akun + sesi sudah commit, jadi mengembalikan error akan bilang "register gagal" padahal akun ada — dan retry berikutnya justru menjawab `email_taken`. User bisa minta link baru. Sebaliknya `ResendVerification` **mengembalikan** error kirim: tidak ada yang irreversible, dan diam akan membuat user menunggu email yang tak datang.
+- `VerifyEmail` idempoten: akun yang sudah verified → sukses, jadi double click atau scanner email yang sudah memakai token tidak jadi error membingungkan. Cek "sudah verified" dilakukan **sebelum** cek expiry/used, karena setelah akun verified link sudah selesai tugasnya. Satu error `ErrInvalidToken` untuk token tak dikenal / kedaluwarsa / sudah dipakai (token tak tertebak, jadi membedakan ketiganya tidak memberi apa pun).
+- `ResendVerification` menghapus token pending dulu, jadi hanya link terbaru yang hidup — resend tidak bisa dipakai memperpanjang umur link lama.
+- `internal/http/middleware/session.go`: `RequireVerified()` → `403 email_not_verified` kalau sesi valid tapi email belum terbukti. **Gate lunak**, hanya di endpoint yang berbiaya/menerbitkan konten: `POST /businesses/:id/publish` dan `POST /ai/draft-profile`. Register, login, edit draft, bookmark, dan upload media tetap jalan tanpa verifikasi — alur daftar tidak memaksa mampir ke inbox.
+- **Link menunjuk ke frontend, bukan API**: `FRONTEND_BASE_URL/verify-email?token=...`; halaman frontend yang mem-POST token ke API. Disengaja: scanner email men-prefetch URL GET, jadi verifikasi **tidak boleh** terjadi di GET.
+- `internal/config/config.go`: `EMAIL_PROVIDER` (allowlist `EmailProviders`, default `stub`; nilai asing ditolak saat start via `ErrUnknownEmailProvider` — sama alasannya dengan `AI_PROVIDER`, typo tidak boleh diam-diam jatuh ke stub) dan `FRONTEND_BASE_URL` (default `http://localhost:3000`), plus tiga limit baru. `cmd/api` memperingatkan saat boot kalau `EMAIL_PROVIDER=stub && APP_ENV=production` — mail hanya masuk log, user tidak akan pernah menerima.
+- Rate limit (mesin fase 7/8 dipakai ulang, tanpa duplikasi): `verify-email` cuma **valve global** — kuncinya token, dan token valid berhasil di percobaan pertama, jadi bucket per-token tidak menambah apa pun yang tak bisa dilewati dengan mengubah tebakan; valve inilah yang benar-benar membatasi tebakan. `resend` **per akun + valve global**, karena tiap panggilan mengirim satu email ke alamat nyata. Middleware baru `UserKey` (kunci = user ID) untuk endpoint ber-sesi yang pesan `429`-nya bukan pesan draft.
+
+**Endpoint aktif:**
+
+| Method | Path | Respons |
+|---|---|---|
+| POST | `/api/v1/auth/verify-email` | 200 `{"status":"ok"}`; token tak valid/kedaluwarsa/sudah dipakai → 400 `invalid_token`; body rusak → 400 `invalid_body`; `429 rate_limited` kalau valve global habis |
+| POST | `/api/v1/auth/resend-verification` | 200 `{"status":"ok"}`; sudah verified → 409 `email_already_verified`; tanpa sesi → 401; `429 rate_limited` kalau kuota akun/global habis |
+
+`verify-email` **tanpa sesi** (link dibuka dari klien email, yang tak punya sesi) — token di body itulah kredensialnya. `resend-verification` wajib sesi: belum ada alamat untuk dijadikan kunci sebelum terautentikasi. Urutan limiter `resend` = global dulu, baru per-akun, dengan alasan memori yang sama seperti fase 7/8 (bucket hanya dialokasikan untuk request yang lolos valve).
+
+**Config (`internal/config/config.go`):**
+
+| Variabel | Default | Jendela (hardcode `cmd/api`) |
+|---|---|---|
+| `EMAIL_PROVIDER` | `stub` | — |
+| `FRONTEND_BASE_URL` | `http://localhost:3000` | — |
+| `AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR` | 300 | 1 jam |
+| `AUTH_RESEND_LIMIT_PER_HOUR` | 3 | 1 jam |
+| `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR` | 100 | 1 jam |
+
+Respons `User` kini punya field `emailVerified` (boolean, bukan timestamp — frontend cuma butuh ya/tidak), dinamai begitu supaya tidak tertukar dengan badge `verified` milik business.
+
+**Verifikasi:** 2 test auth (token 32 byte & unik, `HashToken` deterministik + tidak pernah mengembalikan token mentah) + 3 test email stub (link + penerima masuk log, `ctx` yang sudah dibatalkan tidak melaporkan sukses, `NewStub` siap pakai) + 5 test config (default & override `EMAIL_PROVIDER`, penolakan nilai asing, default & override `FRONTEND_BASE_URL`) + 12 kasus baru di `TestLoadRejectsInvalidAuthLimits` (penolakan `abc`/`0`/`-5`/`1.5` untuk 3 variabel verifikasi) + 6 test middleware (gate `RequireVerified` tolak unverified / lolos verified / 401 tanpa sesi, gate jalan **sebelum** limiter AI sehingga request unverified tidak membakar kuota, `UserKey` mengembalikan ID akun / tanpa user) + 6 test handler (200, 400 `invalid_token`, 400 body rusak, 401, 409 `email_already_verified`, 200) + 11 test service (register mengirim link, register tetap sukses saat kirim gagal, verify menandai verified, idempoten, token tak dikenal / kedaluwarsa / sudah dipakai, resend mengganti token pending, resend tolak akun verified, user tak dikenal, resend mengembalikan error kirim) + 1 integration test ke Postgres asli (lookup by hash, consume, `UPDATE` ter-guard, resend mematikan token lama, idempoten). Semua test fase 1–8 tetap hijau.
+
+**Catatan:** `EMAIL_PROVIDER` baru punya `stub` — mengirim email sungguhan = implement `service.VerificationSender` lalu tambah satu nilai di `config.EmailProviders` + satu `case` di `cmd/api/main.go`; handler, service, dan test tidak perlu berubah. Sampai provider asli dipasang, verifikasi email di production **tidak berfungsi** (link cuma masuk log) — itulah alasan peringatan saat boot.
+
+---
+
 ## Pekerjaan di luar fase (backlog / known gaps)
 
 | Item | Status |
@@ -243,7 +288,7 @@ Konvensi tetap seperti fase 7: **jumlahnya** dari env, **jendelanya** hardcode d
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
-| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi pendaftaran massal tetap mungkin: katup global register (30/jam) dan anggaran AI global (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, 200/jam) **membatasi biaya**-nya tapi tidak menutup spam profil maupun multi-akun. Butuh kolom status di `users` + tabel token + pengiriman email |
+| Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), `EMAIL_PROVIDER=stub` (link ke log), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global). **Sisa:** provider email asli — selama masih `stub`, email tidak benar-benar terkirim |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |

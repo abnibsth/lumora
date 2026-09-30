@@ -12,7 +12,7 @@ import (
 )
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, password_hash, role, created_at
+SELECT id, name, email, password_hash, role, created_at, email_verified_at
 FROM users
 WHERE email = $1
 `
@@ -31,12 +31,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) 
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, password_hash, role, created_at
+SELECT id, name, email, password_hash, role, created_at, email_verified_at
 FROM users
 WHERE id = $1
 `
@@ -55,6 +56,7 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -62,7 +64,7 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (name, email, password_hash, role)
 VALUES ($1, $2, $3, $4)
-RETURNING id, name, email, password_hash, role, created_at
+RETURNING id, name, email, password_hash, role, created_at, email_verified_at
 `
 
 type InsertUserParams struct {
@@ -89,6 +91,7 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (User, e
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }

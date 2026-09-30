@@ -19,6 +19,12 @@ var ErrMissingDatabaseURL = errors.New("DATABASE_URL wajib diisi saat APP_ENV=pr
 // fake drafts and look like it is working.
 var ErrUnknownAIProvider = errors.New("AI_PROVIDER tidak dikenal")
 
+// ErrUnknownEmailProvider is returned for an EMAIL_PROVIDER outside
+// EmailProviders. Same reasoning as ErrUnknownAIProvider: a typo must not
+// silently fall back to the stub and leave real users waiting for a
+// verification mail that was only ever printed to the log.
+var ErrUnknownEmailProvider = errors.New("EMAIL_PROVIDER tidak dikenal")
+
 // ErrMissingGeminiAPIKey is returned when the API starts with the Gemini
 // provider selected but no key. Starting anyway would leave every draft request
 // answering 503 while the process looks healthy, which is harder to notice than
@@ -60,6 +66,25 @@ const (
 	DefaultAuthRegisterGlobalLimit = 30
 )
 
+// Defaults for the verification endpoints. Verifying is keyed by the token, so
+// its only limit is a global valve: it bounds guessing a token, which is the
+// one thing a flood of distinct keys could attempt, and a per-token bucket
+// would be pointless since a valid token succeeds on its first use.
+//
+// Resend is the endpoint worth metering per account: each call sends mail to a
+// real address, so it is both an outbound-mail cost and a way to spam a user
+// who left the tab open. The global valve bounds the total mail a flood of
+// accounts can trigger.
+const (
+	DefaultAuthVerifyGlobalLimit = 300
+	DefaultAuthResendLimit       = 3
+	DefaultAuthResendGlobalLimit = 100
+)
+
+// FrontendBaseURLDefault is where emailed links point when FRONTEND_BASE_URL is
+// unset. Local development matches the Vite dev server.
+const FrontendBaseURLDefault = "http://localhost:3000"
+
 // AIProviderGemini is the default: the real generator. AIProviderStub is the
 // offline generator kept for tests and keyless runs.
 const (
@@ -70,6 +95,15 @@ const (
 // AIProviders lists the draft generators that can actually be wired up. Add a
 // value here together with its implementation in cmd/api/main.go.
 var AIProviders = []string{AIProviderStub, AIProviderGemini}
+
+// EmailProviderStub is the only sender so far: it prints the verification link
+// to the log instead of mailing it. A real provider (SMTP, Resend, ...) is
+// added by implementing service.VerificationSender and listing it here.
+const EmailProviderStub = "stub"
+
+// EmailProviders lists the verification senders that can be wired up. Add a
+// value here together with its implementation in cmd/api/main.go.
+var EmailProviders = []string{EmailProviderStub}
 
 // Config holds everything read from the environment. Outside production,
 // values fall back to local-development defaults so `go run ./cmd/api` works
@@ -91,12 +125,22 @@ type Config struct {
 	// Also a count only; its window is a constant in cmd/api.
 	AIDraftGlobalLimitPerHour int
 
+	// EmailProvider selects the verification sender, like AIProvider does for
+	// drafts. FrontendBaseURL is where the emailed link points.
+	EmailProvider   string
+	FrontendBaseURL string
+
 	// Auth rate limits: per-email counts plus a per-endpoint global valve.
 	// Windows live in cmd/api for the same reason as above.
 	AuthLoginLimit          int
 	AuthRegisterLimit       int
 	AuthLoginGlobalLimit    int
 	AuthRegisterGlobalLimit int
+	// Verification endpoints: a global valve for verify, a per-account limit
+	// plus a global valve for resend.
+	AuthVerifyGlobalLimit int
+	AuthResendLimit       int
+	AuthResendGlobalLimit int
 }
 
 func Load() (Config, error) {
@@ -138,6 +182,19 @@ func Load() (Config, error) {
 
 	geminiAPIKey := strings.TrimSpace(os.Getenv("GEMINI_API_KEY"))
 
+	emailProvider := os.Getenv("EMAIL_PROVIDER")
+	if emailProvider == "" {
+		emailProvider = EmailProviderStub
+	}
+	if !knownEmailProvider(emailProvider) {
+		return Config{}, fmt.Errorf("%w: %q", ErrUnknownEmailProvider, emailProvider)
+	}
+
+	frontendBaseURL := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL"))
+	if frontendBaseURL == "" {
+		frontendBaseURL = FrontendBaseURLDefault
+	}
+
 	aiDraftLimit, err := positiveIntFromEnv("AI_DRAFT_LIMIT_PER_HOUR", DefaultAIDraftLimitPerHour, ErrInvalidAIDraftLimit)
 	if err != nil {
 		return Config{}, err
@@ -163,6 +220,18 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	authVerifyGlobalLimit, err := positiveIntFromEnv("AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR", DefaultAuthVerifyGlobalLimit, ErrInvalidAuthLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authResendLimit, err := positiveIntFromEnv("AUTH_RESEND_LIMIT_PER_HOUR", DefaultAuthResendLimit, ErrInvalidAuthLimit)
+	if err != nil {
+		return Config{}, err
+	}
+	authResendGlobalLimit, err := positiveIntFromEnv("AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR", DefaultAuthResendGlobalLimit, ErrInvalidAuthLimit)
+	if err != nil {
+		return Config{}, err
+	}
 
 	return Config{
 		Port:                      port,
@@ -174,10 +243,15 @@ func Load() (Config, error) {
 		GeminiModel:               strings.TrimSpace(os.Getenv("GEMINI_MODEL")),
 		AIDraftLimitPerHour:       aiDraftLimit,
 		AIDraftGlobalLimitPerHour: aiDraftGlobalLimit,
+		EmailProvider:             emailProvider,
+		FrontendBaseURL:           frontendBaseURL,
 		AuthLoginLimit:            authLoginLimit,
 		AuthRegisterLimit:         authRegisterLimit,
 		AuthLoginGlobalLimit:      authLoginGlobalLimit,
 		AuthRegisterGlobalLimit:   authRegisterGlobalLimit,
+		AuthVerifyGlobalLimit:     authVerifyGlobalLimit,
+		AuthResendLimit:           authResendLimit,
+		AuthResendGlobalLimit:     authResendGlobalLimit,
 	}, nil
 }
 
@@ -210,6 +284,15 @@ func (c Config) RequireGeminiKey() error {
 
 func knownAIProvider(provider string) bool {
 	for _, known := range AIProviders {
+		if provider == known {
+			return true
+		}
+	}
+	return false
+}
+
+func knownEmailProvider(provider string) bool {
+	for _, known := range EmailProviders {
 		if provider == known {
 			return true
 		}

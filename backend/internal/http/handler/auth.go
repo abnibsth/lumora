@@ -19,6 +19,8 @@ type AuthService interface {
 	Login(ctx context.Context, params domain.LoginParams) (domain.User, domain.Session, error)
 	Logout(ctx context.Context, token string) error
 	UserByToken(ctx context.Context, token string) (domain.User, error)
+	VerifyEmail(ctx context.Context, token string) error
+	ResendVerification(ctx context.Context, userID string) error
 }
 
 type AuthHandler struct {
@@ -102,6 +104,51 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, user)
+}
+
+// VerifyEmail handles POST /api/v1/auth/verify-email. The emailed link points
+// at the frontend page, which POSTs the token here — mail scanners prefetch GET
+// URLs, so verification must not happen on a GET.
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		writeError(c, http.StatusBadRequest, "invalid_body", "Format permintaan tidak valid.")
+		return
+	}
+
+	err := h.svc.VerifyEmail(c.Request.Context(), body.Token)
+	switch {
+	case errors.Is(err, domain.ErrInvalidToken):
+		writeError(c, http.StatusBadRequest, "invalid_token", "Tautan verifikasi tidak valid atau kedaluwarsa.")
+	case err != nil:
+		log.Printf("verify email: %v", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	}
+}
+
+// ResendVerification handles POST /api/v1/auth/resend-verification. Route is
+// behind middleware.RequireSession, so the user is always present here.
+func (h *AuthHandler) ResendVerification(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	err := h.svc.ResendVerification(c.Request.Context(), user.ID)
+	switch {
+	case errors.Is(err, domain.ErrEmailAlreadyVerified):
+		writeError(c, http.StatusConflict, "email_already_verified", "Email sudah terverifikasi.")
+	case err != nil:
+		log.Printf("resend verification: %v", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	}
 }
 
 func (h *AuthHandler) setSessionCookie(c *gin.Context, session domain.Session) {

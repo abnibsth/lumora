@@ -77,3 +77,48 @@ func TestNewSessionToken(t *testing.T) {
 		t.Errorf("token %q is not URL-safe", first)
 	}
 }
+
+func TestNewVerificationToken(t *testing.T) {
+	first, err := NewVerificationToken()
+	if err != nil {
+		t.Fatalf("NewVerificationToken: %v", err)
+	}
+	second, err := NewVerificationToken()
+	if err != nil {
+		t.Fatalf("NewVerificationToken: %v", err)
+	}
+	if first == second {
+		t.Error("two verification tokens are identical")
+	}
+	// 32 raw bytes -> 43 base64url chars without padding.
+	if len(first) != 43 {
+		t.Errorf("token length = %d, want 43", len(first))
+	}
+	// URL-safe, because the token travels in a query string.
+	if strings.ContainsAny(first, "+/=") {
+		t.Errorf("token %q is not URL-safe", first)
+	}
+}
+
+func TestHashTokenIsDeterministicAndIrreversible(t *testing.T) {
+	token, err := NewVerificationToken()
+	if err != nil {
+		t.Fatalf("NewVerificationToken: %v", err)
+	}
+
+	hash := HashToken(token)
+	// A stored hash can only ever match if hashing is stable.
+	if hash != HashToken(token) {
+		t.Error("HashToken is not deterministic")
+	}
+	if strings.Contains(hash, token) {
+		t.Error("the hash contains the token in the clear")
+	}
+	// Hex SHA-256 is 64 lowercase hex characters.
+	if len(hash) != 64 {
+		t.Errorf("hash length = %d, want 64", len(hash))
+	}
+	if hash == HashToken(token+"x") {
+		t.Error("a one-character change did not change the hash")
+	}
+}

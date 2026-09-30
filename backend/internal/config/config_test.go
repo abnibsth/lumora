@@ -303,14 +303,18 @@ func TestLoadRejectsInvalidAIDraftGlobalLimit(t *testing.T) {
 	}
 }
 
-// authLimitEnvNames is every variable the auth limiter reads, so each test can
-// neutralise the ones it is not exercising. Load also reads backend/.env through
-// godotenv, and a stray value there would otherwise leak into these assertions.
+// authLimitEnvNames is every variable the auth and verification limiters read,
+// so each test can neutralise the ones it is not exercising. Load also reads
+// backend/.env through godotenv, and a stray value there would otherwise leak
+// into these assertions.
 var authLimitEnvNames = []string{
 	"AUTH_LOGIN_LIMIT_PER_15_MIN",
 	"AUTH_REGISTER_LIMIT_PER_HOUR",
 	"AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR",
 	"AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR",
+	"AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR",
+	"AUTH_RESEND_LIMIT_PER_HOUR",
+	"AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR",
 }
 
 func TestLoadDefaultsAuthLimits(t *testing.T) {
@@ -333,6 +337,9 @@ func TestLoadDefaultsAuthLimits(t *testing.T) {
 		{"AUTH_REGISTER_LIMIT_PER_HOUR", cfg.AuthRegisterLimit, DefaultAuthRegisterLimit},
 		{"AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR", cfg.AuthLoginGlobalLimit, DefaultAuthLoginGlobalLimit},
 		{"AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR", cfg.AuthRegisterGlobalLimit, DefaultAuthRegisterGlobalLimit},
+		{"AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR", cfg.AuthVerifyGlobalLimit, DefaultAuthVerifyGlobalLimit},
+		{"AUTH_RESEND_LIMIT_PER_HOUR", cfg.AuthResendLimit, DefaultAuthResendLimit},
+		{"AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR", cfg.AuthResendGlobalLimit, DefaultAuthResendGlobalLimit},
 	}
 
 	for _, tc := range cases {
@@ -352,6 +359,9 @@ func TestLoadReadsAuthLimits(t *testing.T) {
 	t.Setenv("AUTH_REGISTER_LIMIT_PER_HOUR", "8")
 	t.Setenv("AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR", "9")
 	t.Setenv("AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR", "10")
+	t.Setenv("AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR", " 11 ")
+	t.Setenv("AUTH_RESEND_LIMIT_PER_HOUR", "12")
+	t.Setenv("AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR", "13")
 
 	cfg, err := Load()
 	if err != nil {
@@ -369,6 +379,15 @@ func TestLoadReadsAuthLimits(t *testing.T) {
 	}
 	if cfg.AuthRegisterGlobalLimit != 10 {
 		t.Errorf("AuthRegisterGlobalLimit = %d, want 10", cfg.AuthRegisterGlobalLimit)
+	}
+	if cfg.AuthVerifyGlobalLimit != 11 {
+		t.Errorf("AuthVerifyGlobalLimit = %d, want 11", cfg.AuthVerifyGlobalLimit)
+	}
+	if cfg.AuthResendLimit != 12 {
+		t.Errorf("AuthResendLimit = %d, want 12", cfg.AuthResendLimit)
+	}
+	if cfg.AuthResendGlobalLimit != 13 {
+		t.Errorf("AuthResendGlobalLimit = %d, want 13", cfg.AuthResendGlobalLimit)
 	}
 }
 
@@ -401,5 +420,71 @@ func TestLoadRejectsInvalidAuthLimits(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestLoadDefaultsEmailProviderToStub(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EmailProvider != EmailProviderStub {
+		t.Fatalf("got %q, want %q", cfg.EmailProvider, EmailProviderStub)
+	}
+}
+
+func TestLoadAcceptsKnownEmailProvider(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", EmailProviderStub)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EmailProvider != EmailProviderStub {
+		t.Fatalf("got %q, want %q", cfg.EmailProvider, EmailProviderStub)
+	}
+}
+
+func TestLoadRejectsUnknownEmailProvider(t *testing.T) {
+	// A typo must fail loudly rather than quietly logging links nobody will
+	// ever receive while production looks healthy.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("EMAIL_PROVIDER", "smtp")
+
+	_, err := Load()
+	if !errors.Is(err, ErrUnknownEmailProvider) {
+		t.Fatalf("got %v, want ErrUnknownEmailProvider", err)
+	}
+}
+
+func TestLoadDefaultsFrontendBaseURL(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("FRONTEND_BASE_URL", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.FrontendBaseURL != FrontendBaseURLDefault {
+		t.Fatalf("got %q, want %q", cfg.FrontendBaseURL, FrontendBaseURLDefault)
+	}
+}
+
+func TestLoadReadsFrontendBaseURL(t *testing.T) {
+	// Surrounding whitespace is trimmed here; any trailing slash is left for
+	// the service, which joins paths onto this value.
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("FRONTEND_BASE_URL", "  https://lumora.example  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.FrontendBaseURL != "https://lumora.example" {
+		t.Fatalf("got %q, want the trimmed value", cfg.FrontendBaseURL)
 	}
 }

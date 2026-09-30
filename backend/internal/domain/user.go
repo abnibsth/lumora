@@ -11,6 +11,13 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrEmailTaken         = errors.New("email taken")
 	ErrUnauthenticated    = errors.New("unauthenticated")
+	// ErrInvalidToken covers an unknown, expired, or already-spent verification
+	// token. One error for all three because the token is unguessable, so
+	// telling a caller which case it hit buys nothing.
+	ErrInvalidToken = errors.New("invalid or expired verification token")
+	// ErrEmailAlreadyVerified is returned when a resend is asked for an address
+	// that is already verified.
+	ErrEmailAlreadyVerified = errors.New("email already verified")
 )
 
 // Roles mirrors the CHECK constraint on users.role.
@@ -40,6 +47,11 @@ type User struct {
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
+	// EmailVerified gates the endpoints listed in docs/api.md. It is exposed as
+	// a boolean rather than the underlying timestamp: the frontend only needs
+	// yes/no to decide what to show. Named "emailVerified" so it does not read
+	// as the "verified" badge that businesses carry.
+	EmailVerified bool `json:"emailVerified"`
 }
 
 // SessionCookieName is the httpOnly cookie carrying Session.Token. Shared by

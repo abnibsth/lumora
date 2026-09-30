@@ -1,6 +1,6 @@
 # LUMORA API — Kontrak Backend (Go)
 
-Status spek ini: **Phase 1–8 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
+Status spek ini: **Phase 1–9 aktif** (endpoints baca + seed, auth sesi, endpoint tulis profil, bookmark, upload media, AI draft profil, rate limiting AI per akun, rate limiting login/register, verifikasi email saat register). Endpoint sisanya tercantum sebagai *planned* supaya frontend bisa menyiapkan UI lebih dulu.
 
 - Base URL development: `http://localhost:8080`
 - Prefix semua endpoint: `/api/v1`
@@ -74,12 +74,15 @@ Kode yang dipakai:
 | `invalid_parameter` | 400 | Parameter query/URL tidak valid (bukan angka, `page < 1`, id bukan uuid) |
 | `invalid_category` | 400 | `category` di luar enum |
 | `validation_failed` | 400 | Isi body tidak lolos validasi (`message` berisi pesan per field, Bahasa Indonesia) |
+| `invalid_token` | 400 | Token verifikasi email tidak dikenal, kedaluwarsa, atau sudah dipakai (satu kode untuk ketiganya) |
 | `unauthenticated` | 401 | Tanpa cookie / sesi kedaluwarsa |
 | `invalid_credentials` | 401 | Email atau password salah (satu error untuk keduanya) |
 | `forbidden` | 403 | Login, tapi resource bukan milikmu |
+| `email_not_verified` | 403 | Email belum diverifikasi, padahal endpoint-nya butuh (lihat "Verifikasi email") |
 | `not_found` | 404 | Resource tidak ada (atau draft yang tidak kamu miliki) |
 | `email_taken` | 409 | Register dengan email sudah terdaftar |
-| `rate_limited` | 429 | Limit habis: kuota draf AI (per akun atau anggaran global), atau percobaan login/register per email maupun valve global — lihat header `Retry-After` |
+| `email_already_verified` | 409 | Minta kirim ulang link padahal email sudah terverifikasi |
+| `rate_limited` | 429 | Limit habis: kuota draf AI (per akun atau anggaran global), percobaan login/register per email maupun valve global, atau endpoint verifikasi (verify/resend) — lihat header `Retry-After` |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
@@ -211,14 +214,16 @@ Field asing diabaikan — **`businessName` tidak dipakai di endpoint ini**. Prof
 `201` respons + `Set-Cookie`:
 
 ```json
-{ "id": "…", "name": "Budi Santoso", "email": "budi@example.com", "role": "umkm", "createdAt": "…" }
+{ "id": "…", "name": "Budi Santoso", "email": "budi@example.com", "role": "umkm", "createdAt": "…", "emailVerified": false }
 ```
+
+Register sekaligus mengirim email verifikasi ke alamat itu (lihat "Verifikasi email"). Akun tetap langsung bisa dipakai login dan mengedit draft; yang butuh verifikasi hanya `publish` dan draf AI.
 
 Error: `400 validation_failed` (pesan per kasus, contoh "Format email tidak valid."), `409 email_taken` (case-insensitive), `400 invalid_body` (JSON rusak), `429 rate_limited` (lihat "Rate limiting login/register").
 
 ### `POST /api/v1/auth/login`
 
-Body `{ "email": "...", "password": "..." }` → `200` + user + `Set-Cookie`.
+Body `{ "email": "...", "password": "..." }` → `200` + user + `Set-Cookie`. Bentuk user sama dengan register (termasuk `emailVerified`).
 
 Error: `401 invalid_credentials` — **satu error yang sama** untuk email tidak terdaftar dan password salah, `400 validation_failed`, `429 rate_limited`.
 
@@ -233,10 +238,12 @@ Tanpa body → `200 { "status": "ok" }`, cookie dihapus. Aman dipanggil walaupun
 Butuh cookie valid.
 
 ```json
-{ "id": "…", "name": "Budi Santoso", "email": "budi@example.com", "role": "umkm", "createdAt": "…" }
+{ "id": "…", "name": "Budi Santoso", "email": "budi@example.com", "role": "umkm", "createdAt": "…", "emailVerified": false }
 ```
 
-Tanpa cookie / cookie kedaluwarsa → `401 unauthenticated`. Pakai endpoint ini saat hydration untuk mengisi state navbar (tombol Masuk/Buat Profil ↔ nama user).
+Tanpa cookie / cookie kedaluwarsa → `401 unauthenticated`. Pakai endpoint ini saat hydration untuk mengisi state navbar (tombol Masuk/Buat Profil ↔ nama user), sekaligus untuk tahu apakah perlu menampilkan ajakan "verifikasi email" (`emailVerified: false`).
+
+> `emailVerified` adalah **boolean**, bukan timestamp — frontend cuma butuh ya/tidak. Namanya sengaja beda dari `verified` milik `Business` (badge pada profil), supaya tidak tertukar.
 
 ### Rate limiting login/register (phase 8 — aktif)
 
@@ -254,6 +261,69 @@ Dua baris terakhir adalah **valve global**: satu kuota bersama untuk semua orang
 Saat kena: `429 rate_limited` + `Retry-After` (detik, dibulatkan ke atas, minimal 1). Kode dan pesannya **sama** untuk kedua bucket dan kedua endpoint, jadi klien tidak bisa membedakan limit mana yang kena. Batas juga **reset saat restart**, seperti kuota AI.
 
 Request yang emailnya tidak bisa dibaca dari body (JSON rusak, `email` kosong) **tidak** dimeter — langsung ditolak handler dengan `400`. Jadi mengirim JSON rusak tidak bisa dipakai mengunci pengguna lain.
+
+### Verifikasi email (phase 9 — aktif)
+
+Saat register, backend membuat token sekali-pakai dan mengirim link ke alamat email akun. Tujuannya menutup pendaftaran massal/multi-akun tanpa mengunci alur daftar: akun baru **langsung bisa** login, mengedit draft, bookmark, dan upload media — yang ditahan hanya `publish` dan draf AI (endpoint yang menerbitkan konten atau berbiaya).
+
+**Alur:**
+
+1. Register → email berisi link `FRONTEND_BASE_URL/verify-email?token=…`.
+2. Frontend membuka halaman itu, mengambil `token` dari query, lalu **POST ke API** (bukan GET).
+3. API menandai akun terverifikasi → user bisa `publish` dan pakai draf AI.
+
+> Link sengaja menunjuk ke **frontend**, bukan ke API, dan verifikasinya lewat **POST**. Banyak klien email/security scanner men-prefetch URL GET di dalam pesan; kalau verifikasi terjadi di GET, token bisa habis terpakai sebelum user sempat klik.
+
+Token disimpan di DB **hanya sebagai hash SHA-256** — kalau DB bocor, isinya tidak bisa dipakai memanggil API. Masa berlaku **24 jam**. Token yang valid sekali pakai, tapi verifikasi bersifat **idempoten**: akun yang sudah terverifikasi akan tetap dapat `200` walau link diklik dua kali.
+
+#### `POST /api/v1/auth/verify-email`
+
+Tidak butuh login — token di body itulah kredensialnya (link dibuka dari klien email yang tidak punya sesi).
+
+```json
+{ "token": "…" }
+```
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses (termasuk klik ulang pada akun yang sudah terverifikasi) | 200 | `{ "status": "ok" }` |
+| Token tidak dikenal / kedaluwarsa / sudah dipakai | 400 | `invalid_token` |
+| Body bukan JSON / rusak | 400 | `invalid_body` |
+| Valve global habis | 429 | `rate_limited` + `Retry-After` |
+
+Satu kode `invalid_token` untuk ketiga kasus gagal — token tidak bisa ditebak, jadi membedakan penyebabnya tidak memberi klien apa pun.
+
+#### `POST /api/v1/auth/resend-verification`
+
+Butuh login. Mengirim ulang link ke akun yang sedang masuk. Tanpa body.
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `{ "status": "ok" }` |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Email sudah terverifikasi | 409 | `email_already_verified` |
+| Kuota per akun / valve global habis | 429 | `rate_limited` + `Retry-After` |
+
+Mengirim ulang **membatalkan link lama**: hanya link terbaru yang berlaku. Jadi kalau user klik link lama setelah minta link baru, hasilnya `400 invalid_token` — itu memang disengaja.
+
+**Rate limit endpoint verifikasi:**
+
+| Variabel | Default | Kunci | Jendela |
+|---|---|---|---|
+| `AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR` | 300 | semua pemanggil `verify-email` | 1 jam |
+| `AUTH_RESEND_LIMIT_PER_HOUR` | 3 | akun yang minta kirim ulang | 1 jam |
+| `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR` | 100 | semua pemanggil `resend-verification` | 1 jam |
+
+`verify-email` hanya punya valve global: kuncinya token, dan token yang valid berhasil di percobaan pertama — jadi kuota per-token tidak menambah apa pun yang tidak bisa dilewati dengan mengubah tebakan; valve inilah yang membatasi tebakan. `resend` dibatasi per akun karena tiap panggilan mengirim satu email nyata, plus valve global sebagai plafon total email.
+
+**Konfigurasi pengiriman:**
+
+| Variabel | Default | Catatan |
+|---|---|---|
+| `EMAIL_PROVIDER` | `stub` | Satu-satunya pilihan saat ini: link hanya **ditulis ke log API**, tidak dikirim. Nilai di luar daftar ditolak saat start |
+| `FRONTEND_BASE_URL` | `http://localhost:3000` | Basis URL link di email. Harus menunjuk ke **frontend** |
+
+> **Belum ada provider email sungguhan.** Selama `EMAIL_PROVIDER=stub`, pengguna **tidak akan menerima email** — link-nya cuma muncul di log (`docker compose logs api`). API menulis peringatan saat boot kalau `EMAIL_PROVIDER=stub` di `APP_ENV=production`.
 
 ---
 
@@ -316,7 +386,8 @@ Body berisi field yang mau diubah saja; sisanya tidak disentuh:
 - Mengecek kelengkapan data tersimpan (nama, kategori, lokasi, deskripsi, cerita, tahun berdiri, data pemilik). Belum lengkap → `400 validation_failed` dengan pesan field-nya.
 - `200` → profil dengan `status: "published"`; sekarang muncul di `GET /businesses` dan bisa dibuka per `slug`.
 - Sudah published → tetap `200` (idempoten).
-- Error: `403 forbidden`, `404 not_found`, `401 unauthenticated`.
+- **Wajib email terverifikasi.** Akun yang `emailVerified: false` → `403 email_not_verified` (lihat "Verifikasi email"). Draft tetap bisa diedit seperti biasa; yang ditahan cuma menerbitkan.
+- Error: `403 forbidden`, `403 email_not_verified`, `404 not_found`, `401 unauthenticated`.
 
 Catatan: profil hasil **seed** tidak punya pemilik (`owner_user_id` NULL), jadi tidak bisa diedit/di-publish lewat API — hanya profil yang dibuat lewat `POST` yang bisa dikelola.
 
@@ -407,7 +478,7 @@ Respons `200`:
 
 ### `POST /api/v1/ai/draft-profile`
 
-Body JSON, wajib login. Narasi bebas soal UMKM masuk, draf profil terstruktur keluar dalam **satu respons (non-streaming)**.
+Body JSON, wajib login **dan email terverifikasi**. Narasi bebas soal UMKM masuk, draf profil terstruktur keluar dalam **satu respons (non-streaming)**.
 
 ```json
 { "narrative": "Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor." }
@@ -456,7 +527,7 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 - **Dibatasi dua lapis: `AI_DRAFT_LIMIT_PER_HOUR` draf per jam per akun (default 20), plus anggaran global `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` (default 200) untuk semua akun digabung.** Setiap draf memanggil provider berbayar, jadi kuotanya dijaga di server. Kuota per akun dihitung **per akun** (bukan per IP — di belakang proxy Railway semua request datang dari IP yang sama). Anggaran global adalah plafon total biaya: tanpa itu, N akun (register masih gratis) bisa membelanjakan N× kuota per akun. Satu token dipakai **saat request masuk**, bukan saat sukses: body yang ditolak validasi pun tetap memakai kuota, supaya percobaan berulang tidak gratis.
 - Kalau kuota (per akun **atau** global) habis: `429 rate_limited` + header `Retry-After` berisi detik (dibulatkan ke atas, minimal 1). Pesannya sama untuk kedua lapis, jadi klien tidak bisa membedakan mana yang kena. `429` artinya klien harus menunggu (salah klien); `503 ai_unavailable` artinya provider yang gagal (salah server) — beda arti, beda penanganan di frontend.
 - Kuota **reset saat proses restart** (mis. redeploy). Ini karena penghiitungnya ada di memori proses, dan API sengaja dijalankan satu instance. Kalau nanti perlu lebih dari satu replica, penghitung ini harus pindah ke Redis.
-- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `429 rate_limited` (kuota per akun atau anggaran global habis), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
+- Error: `401`, `403 email_not_verified` (akun belum verifikasi email — lihat "Verifikasi email"), `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `429 rate_limited` (kuota per akun atau anggaran global habis), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
 
 ### Provider AI
 
@@ -476,7 +547,7 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 
 ## Endpoint planned (belum ada — jangan dipanggil dulu)
 
-Tidak ada. Fase 1–7 sudah aktif semua.
+Tidak ada. Fase 1–9 sudah aktif semua.
 
 ---
 
@@ -486,6 +557,8 @@ Tidak ada. Fase 1–7 sudah aktif semua.
 - [ ] Buat `frontend/lib/api.ts`: fetch wrapper dengan `credentials: "include"` dan base path `/api/v1`.
 - [ ] Form `/register` → `POST /auth/register`; form `/login` → `POST /auth/login`. Ambil error dari `error.code` (`validation_failed` tampilkan `error.message`, `email_taken`, `invalid_credentials`).
 - [ ] Setelah login/register sukses → redirect; panggil `GET /auth/me` saat hydration buat state navbar (ganti tombol Masuk/Buat Profil jadi nama user + Keluar → `POST /auth/logout`).
+- [ ] Buat halaman `/verify-email`: baca `token` dari query, `POST /auth/verify-email` (bukan GET), tampilkan sukses atau tawarkan kirim ulang saat `400 invalid_token`. Tautan di email mengarah ke halaman ini.
+- [ ] Pakai `emailVerified` dari `/auth/me` untuk menampilkan ajakan verifikasi + tombol `POST /auth/resend-verification` (`409 email_already_verified` = sudah beres, `429` = tunggu). Tangani `403 email_not_verified` saat publish / draf AI dengan arahan ke halaman verifikasi.
 - [ ] `businessName` di form register diabaikan backend — profil dibuat lewat `POST /businesses` (butuh login), jadi simpan dulu di state sampai form profil ada.
 - [ ] Kalau ada form buat/edit profil → `POST /businesses` (buat), `PATCH /businesses/:id` (edit), `POST /businesses/:id/publish` (tayang); semua wajib login, baca `status` dari respons, tampilkan `error.message` untuk `validation_failed`.
 - [ ] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`.
@@ -528,7 +601,7 @@ curl "http://localhost:8080/api/v1/businesses?q=kopi"
 curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 ```
 
-Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`.
+Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, `EMAIL_PROVIDER`, `FRONTEND_BASE_URL`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`, `AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR`, `AUTH_RESEND_LIMIT_PER_HOUR`, `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR`.
 
 Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`.
 
@@ -538,4 +611,4 @@ Provider mana yang dipakai `docker compose` **tergantung ada tidaknya `backend/.
 docker compose config | grep -E "AI_PROVIDER|AI_DRAFT_LIMIT_PER_HOUR"
 ```
 
-Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR` per akun + `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` anggaran global) dan batas percobaan login/register (`AUTH_*`, lihat "Rate limiting login/register").
+Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR` per akun + `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` anggaran global), batas percobaan login/register (`AUTH_*`), dan batas endpoint verifikasi (`AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR`, `AUTH_RESEND_LIMIT_PER_HOUR`, `AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR`) — lihat "Rate limiting login/register" dan "Verifikasi email".

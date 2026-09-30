@@ -1,11 +1,14 @@
 // Package auth holds credential primitives: argon2id password hashing and
-// session token generation. No I/O lives here.
+// opaque token generation (session cookies, email verification). No I/O lives
+// here.
 package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -26,6 +29,10 @@ const (
 	// SessionTokenLength is the raw byte count behind a session cookie; 32
 	// bytes = 256 bits of entropy.
 	SessionTokenLength = 32
+
+	// VerificationTokenLength is the same 256 bits for an email verification
+	// token, so a link cannot be guessed.
+	VerificationTokenLength = 32
 )
 
 // HashPassword returns an encoded PHC-style string:
@@ -95,4 +102,24 @@ func NewSessionToken() (string, error) {
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+// NewVerificationToken returns a URL-safe opaque token for an email
+// verification link. Random like NewSessionToken, never derived from the user.
+func NewVerificationToken() (string, error) {
+	raw := make([]byte, VerificationTokenLength)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate verification token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw), nil
+}
+
+// HashToken returns the hex SHA-256 of a token, which is what the database
+// stores. Only the hash is persisted, so a leaked database cannot be replayed
+// against the API; the raw token travels solely in the email. Unlike a password
+// this needs no salt or stretching — the input is already 256 random bits, so
+// there is nothing to brute-force.
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

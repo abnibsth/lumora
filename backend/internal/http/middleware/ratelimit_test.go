@@ -54,6 +54,9 @@ const (
 var (
 	userA = domain.User{ID: "user-a", Name: "Ayu", Email: "a@example.com"}
 	userB = domain.User{ID: "user-b", Name: "Budi", Email: "b@example.com"}
+	// verifiedUserA is userA with a proven address, for the RequireVerified
+	// cases. Kept separate so the default user stays unverified.
+	verifiedUserA = domain.User{ID: "user-a", Name: "Ayu", Email: "a@example.com", EmailVerified: true}
 )
 
 // newRateLimitTestRouter mirrors the route wiring in cmd/api/main.go, including
@@ -941,5 +944,126 @@ func TestAIGlobalValveReturns429EnvelopeAndRetryAfter(t *testing.T) {
 	}
 	if payload.Error.Message != DefaultDraftLimitMessage {
 		t.Errorf("message = %q, want %q", payload.Error.Message, DefaultDraftLimitMessage)
+	}
+}
+
+// --- RequireVerified: the soft gate on AI draft and publish ---
+
+// newAIVerifiedGateTestRouter mirrors /ai/draft-profile in cmd/api/main.go:
+// RequireSession, then RequireVerified, then the global valve, then the
+// per-account limiter. The gate sits ahead of the limiters on purpose, so an
+// unverified account cannot consume budget or allocate a bucket.
+func newAIVerifiedGateTestRouter(global, perAccount *RateLimiter, resolver UserResolver) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	v1 := r.Group("/api/v1", AttachSession(resolver))
+	v1.POST("/ai/draft-profile",
+		RequireSession(),
+		RequireVerified(),
+		global.MiddlewareFor(GlobalKey, "rate_limited", DefaultDraftLimitMessage),
+		perAccount.Middleware(),
+		func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+	return r
+}
+
+func TestRequireVerifiedRejectsUnverifiedAccount(t *testing.T) {
+	router := newAIVerifiedGateTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA},
+	)
+
+	recorder := serve(router, tokenA)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (body: %s)", recorder.Code, recorder.Body)
+	}
+
+	var body struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode body: %v (body: %s)", err, recorder.Body)
+	}
+	if body.Error.Code != "email_not_verified" {
+		t.Errorf("code = %q, want email_not_verified", body.Error.Code)
+	}
+	if body.Error.Message == "" {
+		t.Error("message is empty, want a human-readable Indonesian message")
+	}
+}
+
+func TestRequireVerifiedAllowsVerifiedAccount(t *testing.T) {
+	router := newAIVerifiedGateTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		stubResolver{tokenA: verifiedUserA},
+	)
+
+	if recorder := serve(router, tokenA); recorder.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 (body: %s)", recorder.Code, recorder.Body)
+	}
+}
+
+func TestRequireVerifiedWithoutSessionIs401(t *testing.T) {
+	// A missing session is the 401 contract, not 403: the gate must not answer
+	// "verify your email" to someone who is not signed in at all.
+	router := newAIVerifiedGateTestRouter(
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		NewRateLimiter(100, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA},
+	)
+
+	if recorder := serve(router, ""); recorder.Code != http.StatusUnauthorized {
+		t.Errorf("status = %d, want 401", recorder.Code)
+	}
+}
+
+func TestAIVerifiedGateRunsBeforeTheLimiters(t *testing.T) {
+	// Both limiters hold one token. Many requests from an unverified account
+	// must be refused by the gate without spending either, so a verified
+	// account still gets through.
+	router := newAIVerifiedGateTestRouter(
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA, tokenB: verifiedUserA},
+	)
+
+	for i := 0; i < 5; i++ {
+		if recorder := serve(router, tokenA); recorder.Code != http.StatusForbidden {
+			t.Fatalf("unverified request %d: status = %d, want 403", i+1, recorder.Code)
+		}
+	}
+	if recorder := serve(router, tokenB); recorder.Code != http.StatusOK {
+		t.Errorf("verified request: status = %d, want 200 — the gate let unverified traffic spend the budget", recorder.Code)
+	}
+}
+
+func TestUserKeyReturnsTheAccountID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set(string(userContextKey), verifiedUserA)
+
+	key, ok := UserKey(c)
+	if !ok {
+		t.Fatal("UserKey reported no key for an authenticated request")
+	}
+	if key != verifiedUserA.ID {
+		t.Errorf("key = %q, want %q", key, verifiedUserA.ID)
+	}
+}
+
+func TestUserKeyWithoutAUser(t *testing.T) {
+	// The second return is what keeps "no user" distinct from an empty-string
+	// key, which MiddlewareFor would otherwise meter under one shared bucket.
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	if key, ok := UserKey(c); ok {
+		t.Errorf("UserKey reported key %q, want no key", key)
 	}
 }

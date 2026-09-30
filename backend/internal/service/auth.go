@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +23,11 @@ import (
 // expiry comes with the dashboard phase.
 const SessionTTL = 30 * 24 * time.Hour
 
+// VerificationTTL is how long an emailed verification link stays usable. Long
+// enough that someone who reads their mail the next morning is not locked out,
+// short enough that a leaked link expires on its own.
+const VerificationTTL = 24 * time.Hour
+
 // UserStore is the slice of the sqlc store AuthService needs for accounts.
 type UserStore interface {
 	InsertUser(ctx context.Context, arg store.InsertUserParams) (store.User, error)
@@ -35,15 +43,36 @@ type SessionStore interface {
 	DeleteExpiredSessions(ctx context.Context) error
 }
 
+// VerificationTokenStore is the slice of the sqlc store AuthService needs for
+// email verification.
+type VerificationTokenStore interface {
+	InsertEmailVerificationToken(ctx context.Context, arg store.InsertEmailVerificationTokenParams) error
+	GetEmailVerificationToken(ctx context.Context, arg store.GetEmailVerificationTokenParams) (store.EmailVerificationToken, error)
+	ConsumeEmailVerificationToken(ctx context.Context, arg store.ConsumeEmailVerificationTokenParams) error
+	DeleteEmailVerificationTokensByUser(ctx context.Context, arg store.DeleteEmailVerificationTokensByUserParams) error
+	DeleteExpiredEmailVerificationTokens(ctx context.Context) error
+	SetUserEmailVerified(ctx context.Context, arg store.SetUserEmailVerifiedParams) error
+}
+
 type AuthService struct {
-	users    UserStore
-	sessions SessionStore
+	users         UserStore
+	sessions      SessionStore
+	verifications VerificationTokenStore
+	sender        VerificationSender
+	// frontendBaseURL is where the emailed link points. It is the frontend, not
+	// this API: the page collects the token and POSTs it, so a mail scanner's
+	// bare GET cannot consume the token before the user clicks.
+	frontendBaseURL string
 
 	// Indirections so tests can drive time and avoid real argon2 work.
 	now      func() time.Time
 	hash     func(password string) (string, error)
 	verify   func(encoded, password string) (bool, error)
 	newToken func() (string, error)
+	// Kept separate from newToken so the verification flow can be driven
+	// deterministically in tests without touching session behaviour.
+	newVerificationToken func() (string, error)
+	hashToken            func(token string) string
 
 	// dummyOnce guards building dummyHash, which Login verifies against when
 	// the email is unknown so that both paths cost the same argon2 work. Built
@@ -54,14 +83,19 @@ type AuthService struct {
 	dummyHash string
 }
 
-func NewAuthService(users UserStore, sessions SessionStore) *AuthService {
+func NewAuthService(users UserStore, sessions SessionStore, verifications VerificationTokenStore, sender VerificationSender, frontendBaseURL string) *AuthService {
 	return &AuthService{
-		users:    users,
-		sessions: sessions,
-		now:      time.Now,
-		hash:     auth.HashPassword,
-		verify:   auth.VerifyPassword,
-		newToken: auth.NewSessionToken,
+		users:                users,
+		sessions:             sessions,
+		verifications:        verifications,
+		sender:               sender,
+		frontendBaseURL:      strings.TrimRight(frontendBaseURL, "/"),
+		now:                  time.Now,
+		hash:                 auth.HashPassword,
+		verify:               auth.VerifyPassword,
+		newToken:             auth.NewSessionToken,
+		newVerificationToken: auth.NewVerificationToken,
+		hashToken:            auth.HashToken,
 	}
 }
 
@@ -95,6 +129,15 @@ func (s *AuthService) Register(ctx context.Context, params domain.RegisterParams
 	if err != nil {
 		return domain.User{}, domain.Session{}, err
 	}
+
+	// Best effort. The account and session are already committed, so failing the
+	// request here would tell the client registration failed while the account
+	// exists — and a retry would then answer email_taken. The user can ask for
+	// another link instead, so the failure is logged rather than returned.
+	if err := s.issueVerification(ctx, row); err != nil {
+		log.Printf("register: kirim verifikasi email gagal user=%s: %v", user.ID, err)
+	}
+
 	return user, session, nil
 }
 
@@ -203,6 +246,115 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	return nil
 }
 
+// issueVerification mints a verification token for the account, stores its hash,
+// and hands the raw token to the sender inside a link. Shared by Register and
+// ResendVerification so both produce the same kind of token and link.
+//
+// Only the hash is stored; the raw token exists solely in the email, so a leaked
+// database cannot be replayed against the API.
+func (s *AuthService) issueVerification(ctx context.Context, user store.User) error {
+	raw, err := s.newVerificationToken()
+	if err != nil {
+		return err
+	}
+
+	if err := s.verifications.InsertEmailVerificationToken(ctx, store.InsertEmailVerificationTokenParams{
+		TokenHash: s.hashToken(raw),
+		UserID:    user.ID,
+		ExpiresAt: pgtype.Timestamptz{Time: s.now().Add(VerificationTTL), Valid: true},
+	}); err != nil {
+		return fmt.Errorf("insert verification token: %w", err)
+	}
+
+	link := fmt.Sprintf("%s/verify-email?token=%s", s.frontendBaseURL, url.QueryEscape(raw))
+	if err := s.sender.SendVerification(ctx, user.Email, link); err != nil {
+		return fmt.Errorf("send verification email: %w", err)
+	}
+	return nil
+}
+
+// VerifyEmail marks the account behind token as verified.
+//
+// It is idempotent: a second call for an already-verified account succeeds.
+// That is what makes a double click — or a mail scanner that consumed the token
+// first — harmless rather than a confusing "already used" error.
+func (s *AuthService) VerifyEmail(ctx context.Context, token string) error {
+	if token == "" {
+		return domain.ErrInvalidToken
+	}
+
+	row, err := s.verifications.GetEmailVerificationToken(ctx, store.GetEmailVerificationTokenParams{
+		TokenHash: s.hashToken(token),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrInvalidToken
+	}
+	if err != nil {
+		return fmt.Errorf("load verification token: %w", err)
+	}
+
+	user, err := s.users.GetUserByID(ctx, store.GetUserByIDParams{ID: row.UserID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrInvalidToken
+	}
+	if err != nil {
+		return fmt.Errorf("load user for verification: %w", err)
+	}
+	// Checked before expiry/used on purpose: once the account is verified the
+	// link has done its job, so a later click still succeeds.
+	if user.EmailVerifiedAt.Valid {
+		return nil
+	}
+
+	if row.UsedAt.Valid || !s.now().Before(row.ExpiresAt.Time) {
+		return domain.ErrInvalidToken
+	}
+
+	if err := s.verifications.ConsumeEmailVerificationToken(ctx, store.ConsumeEmailVerificationTokenParams{
+		TokenHash: row.TokenHash,
+	}); err != nil {
+		return fmt.Errorf("consume verification token: %w", err)
+	}
+	if err := s.verifications.SetUserEmailVerified(ctx, store.SetUserEmailVerifiedParams{
+		ID: row.UserID,
+	}); err != nil {
+		return fmt.Errorf("mark user verified: %w", err)
+	}
+
+	// Housekeeping, like DeleteExpiredSessions in Login: a failure only means
+	// stale rows stay behind.
+	_ = s.verifications.DeleteExpiredEmailVerificationTokens(ctx)
+
+	return nil
+}
+
+// ResendVerification issues a fresh link for the signed-in account, replacing
+// any pending one.
+//
+// Unlike Register it returns the send error: nothing irreversible happened, and
+// staying silent would leave the user waiting for mail that is never coming.
+func (s *AuthService) ResendVerification(ctx context.Context, userID string) error {
+	row, err := s.users.GetUserByID(ctx, store.GetUserByIDParams{ID: parseID(userID)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrUnauthenticated
+	}
+	if err != nil {
+		return fmt.Errorf("load user: %w", err)
+	}
+	if row.EmailVerifiedAt.Valid {
+		return domain.ErrEmailAlreadyVerified
+	}
+
+	// Drop pending tokens first: only the newest link should work, so a resend
+	// cannot be used to keep an old link alive.
+	if err := s.verifications.DeleteEmailVerificationTokensByUser(ctx, store.DeleteEmailVerificationTokensByUserParams{
+		UserID: row.ID,
+	}); err != nil {
+		return fmt.Errorf("clear verification tokens: %w", err)
+	}
+	return s.issueVerification(ctx, row)
+}
+
 func (s *AuthService) startSession(ctx context.Context, userID string) (domain.Session, error) {
 	token, err := s.newToken()
 	if err != nil {
@@ -224,11 +376,12 @@ func (s *AuthService) startSession(ctx context.Context, userID string) (domain.S
 
 func toDomainUser(row store.User) domain.User {
 	return domain.User{
-		ID:        keyOf(row.ID),
-		Name:      row.Name,
-		Email:     row.Email,
-		Role:      row.Role,
-		CreatedAt: row.CreatedAt.Time,
+		ID:            keyOf(row.ID),
+		Name:          row.Name,
+		Email:         row.Email,
+		Role:          row.Role,
+		CreatedAt:     row.CreatedAt.Time,
+		EmailVerified: row.EmailVerifiedAt.Valid,
 	}
 }
 

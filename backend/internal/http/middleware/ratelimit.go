@@ -196,6 +196,18 @@ func EmailKey(c *gin.Context) (string, bool) {
 // allocated. See the ordering note in cmd/api/main.go.
 func GlobalKey(*gin.Context) (string, bool) { return "global", true }
 
+// UserKey is the KeyFunc for metering an authenticated request per account. It
+// reads the user AttachSession put in the context, so it must be mounted after
+// AttachSession. It exists alongside Middleware for routes whose 429 message is
+// not the draft one — resend-verification is not a draft.
+func UserKey(c *gin.Context) (string, bool) {
+	user, ok := CurrentUser(c)
+	if !ok {
+		return "", false
+	}
+	return user.ID, true
+}
+
 // allow consumes one token for key, reporting whether the request may proceed
 // and, when it may not, how long until a token is available again.
 //

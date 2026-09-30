@@ -15,6 +15,7 @@ import (
 
 	"github.com/alfian/lumora/backend/internal/ai"
 	"github.com/alfian/lumora/backend/internal/config"
+	"github.com/alfian/lumora/backend/internal/email"
 	"github.com/alfian/lumora/backend/internal/http/handler"
 	"github.com/alfian/lumora/backend/internal/http/middleware"
 	"github.com/alfian/lumora/backend/internal/service"
@@ -30,6 +31,10 @@ const (
 	// The AI endpoint's per-account budget and its global ceiling share one
 	// window. Split this into two constants if they ever need to differ.
 	aiWindow = time.Hour
+	// Verification endpoints: the verify valve and both resend limiters share
+	// one window, matching the env var names' _PER_HOUR suffix.
+	authVerifyWindow = time.Hour
+	authResendWindow = time.Hour
 )
 
 // authRateLimitMessage is shared by every auth limiter so a client cannot tell
@@ -69,7 +74,24 @@ func main() {
 	businessService := service.NewBusinessService(queries, service.NewPoolTxRunner(pool))
 	businessHandler := handler.NewBusinessHandler(businessService)
 
-	authService := service.NewAuthService(queries, queries)
+	// EMAIL_PROVIDER selects the verification sender. Only "stub" exists so
+	// far; it logs the link instead of mailing it, which is fine locally and
+	// silently useless in production, so a production boot on the stub warns
+	// loudly rather than pretending users will receive mail. config.Load
+	// rejects every value outside EmailProviders, and the default below
+	// catches a provider added to the allowlist without an implementation here.
+	var sender service.VerificationSender
+	switch cfg.EmailProvider {
+	case config.EmailProviderStub:
+		sender = email.NewStub()
+	default:
+		log.Fatalf("email: provider %q belum punya implementasi", cfg.EmailProvider)
+	}
+	if cfg.IsProduction() && cfg.EmailProvider == config.EmailProviderStub {
+		log.Printf("peringatan: EMAIL_PROVIDER=stub di production — tautan verifikasi hanya masuk log, tidak dikirim ke pengguna")
+	}
+
+	authService := service.NewAuthService(queries, queries, queries, sender, cfg.FrontendBaseURL)
 	authHandler := handler.NewAuthHandler(authService, cfg.IsProduction())
 
 	bookmarkService := service.NewBookmarkService(queries, queries)
@@ -116,6 +138,18 @@ func main() {
 	registerEmailLimiter := middleware.NewRateLimiter(cfg.AuthRegisterLimit, authRegisterWindow, time.Now)
 	registerGlobalLimiter := middleware.NewRateLimiter(cfg.AuthRegisterGlobalLimit, authGlobalWindow, time.Now)
 
+	// The verification endpoints. verify-email needs only the global valve:
+	// its key would be the token, and a valid token succeeds on first use, so
+	// a per-token bucket would add nothing a flood could not just skip past by
+	// varying the guess. The valve is what actually bounds guessing.
+	//
+	// resend is keyed by account, because that is what it costs: one mail per
+	// call to a real address. Its valve bounds the total mail a flood of
+	// distinct accounts can trigger.
+	verifyGlobalLimiter := middleware.NewRateLimiter(cfg.AuthVerifyGlobalLimit, authVerifyWindow, time.Now)
+	resendAccountLimiter := middleware.NewRateLimiter(cfg.AuthResendLimit, authResendWindow, time.Now)
+	resendGlobalLimiter := middleware.NewRateLimiter(cfg.AuthResendGlobalLimit, authResendWindow, time.Now)
+
 	r := gin.New()
 	// Trust no proxy: gin's default (trust everyone) lets a client spoof its
 	// own address through X-Forwarded-For. Nothing here makes an auth decision
@@ -142,7 +176,10 @@ func main() {
 	v1.GET("/businesses/:slug", businessHandler.Detail)
 	v1.POST("/businesses", middleware.RequireSession(), businessHandler.Create)
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), businessHandler.Update)
-	v1.POST("/businesses/:id/publish", middleware.RequireSession(), businessHandler.Publish)
+	// Publish is a soft gate: an account may register, sign in and edit
+	// freely, but putting a listing in front of the public needs a verified
+	// address. Drafts stay editable, so the gate never strands unfinished work.
+	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireVerified(), businessHandler.Publish)
 
 	// The global valve is mounted FIRST, and that order is load-bearing rather
 	// than stylistic. The limiter allocates a bucket per new key and only sweeps
@@ -161,15 +198,33 @@ func main() {
 	v1.POST("/auth/logout", authHandler.Logout)
 	v1.GET("/auth/me", middleware.RequireSession(), authHandler.Me)
 
+	// verify-email is unauthenticated by design: the link is followed from a
+	// mail client, which has no session. The token in the body is the
+	// credential, so the only limiter is the global valve — see its comment
+	// above for why a per-token bucket would not help.
+	v1.POST("/auth/verify-email",
+		verifyGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", authRateLimitMessage),
+		authHandler.VerifyEmail)
+	// resend needs a session — it mails the signed-in account, so there is no
+	// address to key on before authenticating. The valve runs before the
+	// per-account limiter for the same memory reason as the routes above:
+	// buckets are only allocated for requests the valve admits.
+	v1.POST("/auth/resend-verification",
+		middleware.RequireSession(),
+		resendGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", authRateLimitMessage),
+		resendAccountLimiter.MiddlewareFor(middleware.UserKey, "rate_limited", authRateLimitMessage),
+		authHandler.ResendVerification)
+
 	v1.GET("/bookmarks", middleware.RequireSession(), bookmarkHandler.List)
 	v1.POST("/bookmarks/:slug", middleware.RequireSession(), bookmarkHandler.Add)
 	v1.DELETE("/bookmarks/:slug", middleware.RequireSession(), bookmarkHandler.Remove)
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
 
-	// Three layers, in this order. RequireSession runs first so unauthenticated
-	// traffic is rejected before it can consume budget or create a bucket. Then
-	// the global valve, then the per-account limiter.
+	// Layers, in this order. RequireSession and RequireVerified run first so
+	// unauthenticated or unverified traffic is rejected before it can consume
+	// budget or create a bucket. Then the global valve, then the per-account
+	// limiter.
 	//
 	// The valve is the ceiling on the total bill: the per-account budget alone
 	// lets N cheap accounts spend N× it, which is exactly what account creation
@@ -182,6 +237,7 @@ func main() {
 	// caller's own budget.
 	v1.POST("/ai/draft-profile",
 		middleware.RequireSession(),
+		middleware.RequireVerified(),
 		aiGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", middleware.DefaultDraftLimitMessage),
 		aiLimiter.Middleware(),
 		aiHandler.Draft)
