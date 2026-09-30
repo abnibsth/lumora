@@ -251,6 +251,58 @@ func TestLoadRejectsInvalidAIDraftLimit(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsAIDraftGlobalLimit(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("AI_DRAFT_GLOBAL_LIMIT_PER_HOUR", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AIDraftGlobalLimitPerHour != DefaultAIDraftGlobalLimitPerHour {
+		t.Fatalf("got %d, want %d", cfg.AIDraftGlobalLimitPerHour, DefaultAIDraftGlobalLimitPerHour)
+	}
+}
+
+func TestLoadReadsAIDraftGlobalLimit(t *testing.T) {
+	t.Setenv("AI_PROVIDER", AIProviderStub)
+	t.Setenv("AI_DRAFT_GLOBAL_LIMIT_PER_HOUR", " 350 ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AIDraftGlobalLimitPerHour != 350 {
+		t.Fatalf("got %d, want 350", cfg.AIDraftGlobalLimitPerHour)
+	}
+}
+
+func TestLoadRejectsInvalidAIDraftGlobalLimit(t *testing.T) {
+	// Same guard as the per-account budget: a bad value must not be read as
+	// "unlimited" and silently lift the ceiling on a billing endpoint.
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{"not a number", "abc"},
+		{"zero", "0"},
+		{"negative", "-5"},
+		{"float", "1.5"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AI_PROVIDER", AIProviderStub)
+			t.Setenv("AI_DRAFT_GLOBAL_LIMIT_PER_HOUR", tc.raw)
+
+			_, err := Load()
+			if !errors.Is(err, ErrInvalidAIDraftLimit) {
+				t.Fatalf("got %v, want ErrInvalidAIDraftLimit", err)
+			}
+		})
+	}
+}
+
 // authLimitEnvNames is every variable the auth limiter reads, so each test can
 // neutralise the ones it is not exercising. Load also reads backend/.env through
 // godotenv, and a stray value there would otherwise leak into these assertions.

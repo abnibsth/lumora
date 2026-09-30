@@ -21,6 +21,12 @@ import (
 // every account that ever called the endpoint.
 const sweepEvery = 256
 
+// DefaultDraftLimitMessage is the 429 message Middleware writes. Exported so
+// cmd/api can give the global valve mounted in front of it the same text: both
+// limits guard one endpoint, and a client should not be able to tell which one
+// it exhausted.
+const DefaultDraftLimitMessage = "Terlalu banyak permintaan draf. Coba lagi nanti."
+
 // RateLimiter is a per-key token bucket held in process memory.
 //
 // It is deliberately not shared across processes. The API runs as a single
@@ -87,7 +93,7 @@ func (l *RateLimiter) Middleware() gin.HandlerFunc {
 
 		allowed, wait := l.allow(user.ID)
 		if !allowed {
-			writeRateLimited(c, wait, "rate_limited", "Terlalu banyak permintaan draf. Coba lagi nanti.")
+			writeRateLimited(c, wait, "rate_limited", DefaultDraftLimitMessage)
 			return
 		}
 

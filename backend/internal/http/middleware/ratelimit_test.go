@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -824,5 +825,121 @@ func TestAuthGlobalValveBoundsPerEmailBucketGrowth(t *testing.T) {
 
 	if got := len(perEmail.buckets); got != 1 {
 		t.Errorf("per-email buckets = %d, want 1 — the flood reached the per-email limiter", got)
+	}
+}
+
+// newAIGlobalRateLimitTestRouter mirrors the /ai/draft-profile wiring in
+// cmd/api/main.go: RequireSession, then the global valve, then the per-account
+// limiter, in that order.
+func newAIGlobalRateLimitTestRouter(global, perAccount *RateLimiter, resolver UserResolver) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	v1 := r.Group("/api/v1", AttachSession(resolver))
+	v1.POST("/ai/draft-profile",
+		RequireSession(),
+		global.MiddlewareFor(GlobalKey, "rate_limited", DefaultDraftLimitMessage),
+		perAccount.Middleware(),
+		func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+	return r
+}
+
+func TestAIGlobalValveIsSharedAcrossAccounts(t *testing.T) {
+	// The valve holds one token while each account has ten. A second request
+	// from a *different* account must still be refused: only the valve can
+	// produce that, so it proves the valve is shared and mounted.
+	router := newAIGlobalRateLimitTestRouter(
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA, tokenB: userB},
+	)
+
+	if recorder := serve(router, tokenA); recorder.Code != http.StatusOK {
+		t.Fatalf("first request: status = %d, want 200", recorder.Code)
+	}
+	if recorder := serve(router, tokenB); recorder.Code != http.StatusTooManyRequests {
+		t.Errorf("second request from a fresh account: status = %d, want 429 from the valve", recorder.Code)
+	}
+}
+
+func TestAIGlobalValveBoundsPerAccountBucketGrowth(t *testing.T) {
+	// This is why the valve is mounted first. allow() allocates a bucket per
+	// new key and only sweeps buckets idle for a full window, so a per-account
+	// limiter running first would let a flood of distinct accounts grow its map
+	// without bound. With the valve ahead of it, the map stays bounded by it.
+	global := NewRateLimiter(1, time.Hour, newTestClock().now)
+	perAccount := NewRateLimiter(10, time.Hour, newTestClock().now)
+
+	resolver := stubResolver{tokenA: userA}
+	for i := 0; i < 50; i++ {
+		resolver[fmt.Sprintf("flood-token-%d", i)] = domain.User{
+			ID:    fmt.Sprintf("flood-user-%d", i),
+			Name:  "Flood",
+			Email: fmt.Sprintf("flood-%d@example.com", i),
+		}
+	}
+	router := newAIGlobalRateLimitTestRouter(global, perAccount, resolver)
+
+	serve(router, tokenA) // admitted: allocates one bucket
+	for i := 0; i < 50; i++ {
+		serve(router, fmt.Sprintf("flood-token-%d", i))
+	}
+
+	if got := len(perAccount.buckets); got != 1 {
+		t.Errorf("per-account buckets = %d, want 1 — the flood reached the per-account limiter", got)
+	}
+}
+
+func TestAIGlobalValveRunsAfterRequireSession(t *testing.T) {
+	// The valve holds one token. An unauthenticated request must be rejected by
+	// RequireSession without consuming it, so the next authenticated request
+	// still passes.
+	router := newAIGlobalRateLimitTestRouter(
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA},
+	)
+
+	if recorder := serve(router, ""); recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated request: status = %d, want 401", recorder.Code)
+	}
+	if recorder := serve(router, tokenA); recorder.Code != http.StatusOK {
+		t.Errorf("authenticated request after a 401: status = %d, want 200 — the 401 consumed the valve", recorder.Code)
+	}
+}
+
+func TestAIGlobalValveReturns429EnvelopeAndRetryAfter(t *testing.T) {
+	router := newAIGlobalRateLimitTestRouter(
+		NewRateLimiter(1, time.Hour, newTestClock().now),
+		NewRateLimiter(10, time.Hour, newTestClock().now),
+		stubResolver{tokenA: userA, tokenB: userB},
+	)
+
+	serve(router, tokenA) // exhausts the valve
+	recorder := serve(router, tokenB)
+
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", recorder.Code)
+	}
+	retryAfter := recorder.Header().Get("Retry-After")
+	if seconds, err := strconv.Atoi(retryAfter); err != nil || seconds < 1 {
+		t.Errorf("Retry-After = %q, want a positive whole number of seconds", retryAfter)
+	}
+
+	var payload struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if payload.Error.Code != "rate_limited" {
+		t.Errorf("code = %q, want rate_limited", payload.Error.Code)
+	}
+	if payload.Error.Message != DefaultDraftLimitMessage {
+		t.Errorf("message = %q, want %q", payload.Error.Message, DefaultDraftLimitMessage)
 	}
 }

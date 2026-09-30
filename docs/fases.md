@@ -15,10 +15,10 @@ Status: **fase 1–8 selesai**.
 | 4 | Bookmark per akun | ✅ **Selesai** |
 | 5 | Upload media (`coverImage` / `logo`) | ✅ **Selesai** |
 | 6 | AI draft profil | ✅ **Selesai** |
-| 7 | Rate limiting endpoint AI (per akun) | ✅ **Selesai** |
+| 7 | Rate limiting endpoint AI (per akun + anggaran global) | ✅ **Selesai** |
 | 8 | Rate limiting login/register (per email) | ✅ **Selesai** |
 
-Total tes saat ini: **168 tes utama / 264 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
+Total tes saat ini: **175 tes utama / 275 kasus** (termasuk subtest), semua PASS — `gofmt` bersih, `go vet` bersih, `go test -race` bersih (dijalankan di container `golang:1.27` karena host tidak punya gcc). Migrasi DB: **version 3**.
 Ditambah **8 integration test** yang memukul Postgres asli (build tag `integration`, lihat di bawah).
 
 ---
@@ -162,7 +162,7 @@ Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lal
 
 ---
 
-## Fase 7 — Rate limiting endpoint AI (per akun) ✅
+## Fase 7 — Rate limiting endpoint AI (per akun + anggaran global) ✅
 
 **Isi:**
 - `internal/http/middleware/ratelimit.go`: **token bucket** per akun, murni di memori proses, tanpa dependensi baru dan tanpa goroutine background. Refill dihitung *lazy* saat request datang (`elapsed × rate`, dibatasi `capacity`), jadi tidak butuh ticker. Satu `sync.Mutex` menjaga map + seluruh bucket; refill-dan-consume terjadi dalam **satu critical section**, karena baca di luar lock lalu tulis di dalam lock adalah data race yang `-race` memang menangkap.
@@ -170,19 +170,20 @@ Wajib login. Tidak menyimpan apa pun ke DB — hasilnya dipakai prefill form lal
 - **Kuota dipakai saat request masuk, bukan saat sukses.** Body yang ditolak validasi dan request yang timeout ke provider sama-sama memakai satu token. Disengaja: provider mungkin sudah menagih walau kita timeout, dan tidak ada refund supaya percobaan berulang tidak gratis.
 - Bucket baru **mulai penuh** — kalau mulai kosong, request pertama setiap akun langsung `429`. Eviction dijalankan di jalur insert tiap 256 kunci baru (map hanya tumbuh saat kunci baru datang, jadi sweep di situ cukup dan tidak perlu goroutine). **TTL eviction = satu jendela penuh**: kalau lebih pendek, bucket yang masih terisi sebagian akan dihapus lalu dibuat ulang **penuh** — itu celah reset gratis, jadi ini parameter kebenaran, bukan knob memori.
 - `internal/config/config.go`: `AI_DRAFT_LIMIT_PER_HOUR` (default **20**). Nilai tidak valid / nol / negatif **ditolak saat start** (`ErrInvalidAIDraftLimit`) — dibaca sebagai "tanpa batas" akan menghapus satu-satunya penjaga di endpoint berbayar.
+- **Anggaran global** `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` (default **200**): satu bucket bersama untuk semua akun, dipasang **di depan** limiter per-akun. Kuota per-akun saja membiarkan N akun membelanjakan N× kuota, dan register masih gratis — anggaran global inilah plafon total biayanya. Nilai tidak valid ditolak saat start dengan sentinel yang sama (`ErrInvalidAIDraftLimit`; pesannya kini generik karena menaungi dua variabel).
 - `abortWithError` di `internal/http/middleware/session.go`: envelope error yang sama dengan `handler.writeError`, dipakai `RequireSession` dan limiter. Tidak bisa memakai `writeError` langsung karena `handler` meng-import `middleware` (kalau dibalik jadi import cycle).
 
 **Endpoint aktif:**
 
 | Method | Path | Respons |
 |---|---|---|
-| POST | `/api/v1/ai/draft-profile` | 200 draf profil; `429 rate_limited` + header `Retry-After` (detik, dibulatkan ke atas) kalau kuota akun habis |
+| POST | `/api/v1/ai/draft-profile` | 200 draf profil; `429 rate_limited` + header `Retry-After` (detik, dibulatkan ke atas) kalau kuota akun **atau** anggaran global habis |
 
-Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, supaya request tanpa sesi ditolak `401` tanpa ikut memakai kuota. Kalau limiter sampai dipasang tanpa sesi, ia **fail closed** (`500`), bukan menghitung semua pemanggil sebagai satu kunci kosong.
+Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, supaya request tanpa sesi ditolak `401` tanpa ikut memakai kuota. Kalau limiter sampai dipasang tanpa sesi, ia **fail closed** (`500`), bukan menghitung semua pemanggil sebagai satu kunci kosong. Valve global dipasang **setelah** `RequireSession` tetapi **sebelum** limiter per-akun, dengan dua alasan: (1) keamanan memori — `allow()` mengalokasikan bucket per kunci baru dan hanya menyapu bucket yang idle satu jendela penuh, jadi per-akun-dulu akan membiarkan banjir akun (hasil pendaftaran massal) menumbuhkan map-nya tanpa batas; (2) keadilan kuota — request yang ditolak karena server sedang penuh **tidak** ikut membakar jatah pribadi pemanggil.
 
 `429 rate_limited` (klien harus menunggu) sengaja dibedakan dari `503 ai_unavailable` (provider yang gagal) — beda arti, beda penanganan di frontend.
 
-**Verifikasi:** 19 test middleware / 23 kasus — kapasitas, bucket baru mulai penuh, refill sesuai rate, refill berhenti di kapasitas, `Retry-After` (memakai jendela 2048 detik supaya rate-nya pangkat dua eksak dan nilai yang diharapkan bukan artefak floating point), antar-kunci saling lepas, **jam mundur tidak menguras bucket**, entri idle ter-evict, entri dalam TTL dipertahankan, 200 goroutine pada satu kunci → **tepat** `capacity` yang lolos, 200 kunci berbeda tanpa concurrent map write, plus test HTTP untuk 200/429/envelope/`Retry-After`/per-akun/urutan terhadap 401/fail-closed dan test regresi envelope `401` setelah refactor `abortWithError`. Ditambah 3 test config / 7 kasus (default, nilai valid, dan penolakan `abc`/`0`/`-5`/`1.5`).
+**Verifikasi:** 23 test middleware / 27 kasus — kapasitas, bucket baru mulai penuh, refill sesuai rate, refill berhenti di kapasitas, `Retry-After` (memakai jendela 2048 detik supaya rate-nya pangkat dua eksak dan nilai yang diharapkan bukan artefak floating point), antar-kunci saling lepas, **jam mundur tidak menguras bucket**, entri idle ter-evict, entri dalam TTL dipertahankan, 200 goroutine pada satu kunci → **tepat** `capacity` yang lolos, 200 kunci berbeda tanpa concurrent map write, plus test HTTP untuk 200/429/envelope/`Retry-After`/per-akun/urutan terhadap 401/fail-closed, test regresi envelope `401` setelah refactor `abortWithError`, dan 4 test anggaran global (valve dibagi antar-akun, valve membatasi pertumbuhan bucket per-akun, valve jalan setelah `RequireSession` sehingga `401` tidak memakai anggaran, dan envelope `429` + `Retry-After`). Ditambah 6 test config / 14 kasus (default, nilai valid, dan penolakan `abc`/`0`/`-5`/`1.5` untuk `AI_DRAFT_LIMIT_PER_HOUR` dan `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`).
 
 **Catatan:** ini **sengaja** state in-memory, bukan Redis. API dijalankan satu instance (volume Railway memblokir replica), jadi state per-proses sudah benar di sini. Dua konsekuensi yang harus diingat: kuota **reset tiap restart/redeploy**, dan begitu butuh lebih dari satu replica, penghitung ini **harus** pindah ke Redis — bukan ditambah lock.
 
@@ -242,7 +243,7 @@ Konvensi tetap seperti fase 7: **jumlahnya** dari env, **jendelanya** hardcode d
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
-| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi kuota AI per akun (`AI_DRAFT_LIMIT_PER_HOUR`) bisa dilewati dengan mendaftar banyak akun. Katup global register (30/jam) **mempersempit** celah ini tapi tidak menutupnya. Butuh kolom status di `users` + tabel token + pengiriman email. Ini juga celah pendaftaran massal untuk spam profil |
+| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi pendaftaran massal tetap mungkin: katup global register (30/jam) dan anggaran AI global (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, 200/jam) **membatasi biaya**-nya tapi tidak menutup spam profil maupun multi-akun. Butuh kolom status di `users` + tabel token + pengiriman email |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |

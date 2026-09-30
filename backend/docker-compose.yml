@@ -56,6 +56,9 @@ services:
       # Per-account draft quota. Bump it while developing so the local stack
       # does not answer 429.
       AI_DRAFT_LIMIT_PER_HOUR: ${AI_DRAFT_LIMIT_PER_HOUR:-20}
+      # Global ceiling across all accounts. Lower it (e.g. 3) to exercise the
+      # global 429 locally without spending 200 requests.
+      AI_DRAFT_GLOBAL_LIMIT_PER_HOUR: ${AI_DRAFT_GLOBAL_LIMIT_PER_HOUR:-200}
       # Auth limits, keyed by the email in the body rather than by IP. Bump them
       # while developing so repeated login/register attempts do not answer 429.
       AUTH_LOGIN_LIMIT_PER_15_MIN: ${AUTH_LOGIN_LIMIT_PER_15_MIN:-10}

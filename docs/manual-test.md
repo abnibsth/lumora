@@ -232,6 +232,8 @@ Set-Content "$bodyDir\narasi-pendek.json" '{"narrative":"kopi"}' -Encoding ascii
 
 > Tidak ada yang ditulis ke DB. Tempel hasilnya ke form lalu kirim ke `POST /businesses`; field `suggestions` diabaikan backend, jadi seluruh respons aman dikirim balik.
 
+> **Kuota dua lapis.** Selain kuota per akun (`AI_DRAFT_LIMIT_PER_HOUR`, default 20), ada anggaran **global** `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` (default 200) untuk semua akun digabung. Karena 200 terlalu besar untuk dihabiskan manual, uji anggaran global dengan **menurunkannya**: set `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR=3` (mis. di `backend/.env`), lalu `docker compose up -d api`. Tiga draf — boleh dari akun berbeda — lolos, request ke-4 dari akun mana pun → `429 rate_limited` + `Retry-After`. Narasi sub-minimum (langkah 4) cukup untuk menghabiskan kuota **tanpa biaya** karena ditolak sebelum provider dipanggil.
+
 ---
 
 ## 8. Lewat frontend (proxy)
@@ -377,7 +379,7 @@ curl.exe -i -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json"
 
 → `HTTP/1.1 429` + `Retry-After: <detik>`.
 
-> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Karena register masih gratis & instan, pembatas ini belum menahan penyalahgunaan serius — itu sebabnya verifikasi email ada di backlog (`docs/fases.md`).
+> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Yang menahan penyalahgunaan adalah **anggaran global** (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, default 200/jam) — total semua akun. Register masih gratis & instan, jadi multi-akun tetap mungkin; anggaran global membatasi **biayanya**, bukan jumlah akun. Verifikasi email tetap di backlog (`docs/fases.md`) untuk menutup spam profil & multi-akun.
 
 ### 10.5 Bersih-bersih
 

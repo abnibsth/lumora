@@ -27,6 +27,9 @@ const (
 	authLoginWindow    = 15 * time.Minute
 	authRegisterWindow = time.Hour
 	authGlobalWindow   = time.Hour
+	// The AI endpoint's per-account budget and its global ceiling share one
+	// window. Split this into two constants if they ever need to differ.
+	aiWindow = time.Hour
 )
 
 // authRateLimitMessage is shared by every auth limiter so a client cannot tell
@@ -90,10 +93,12 @@ func main() {
 	aiService := service.NewAIDraftService(drafter, service.DefaultAITimeout)
 	aiHandler := handler.NewAIHandler(aiService)
 
-	// Every draft bills the provider, so the endpoint is metered per account.
-	// config.Load rejects a non-positive limit, so the constructor cannot see
-	// one. The window lives here; config only carries the count.
-	aiLimiter := middleware.NewRateLimiter(cfg.AIDraftLimitPerHour, time.Hour, time.Now)
+	// Every draft bills the provider, so the endpoint is metered twice: per
+	// account, and in total across all accounts. config.Load rejects a
+	// non-positive limit, so neither constructor can see one. The window lives
+	// here; config only carries the counts.
+	aiLimiter := middleware.NewRateLimiter(cfg.AIDraftLimitPerHour, aiWindow, time.Now)
+	aiGlobalLimiter := middleware.NewRateLimiter(cfg.AIDraftGlobalLimitPerHour, aiWindow, time.Now)
 
 	// The auth endpoints are reachable without a session, so they are metered by
 	// the email in the request body — not by account (there is none yet) and not
@@ -162,9 +167,24 @@ func main() {
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
 
-	// RequireSession runs first so unauthenticated traffic is rejected before it
-	// can consume budget or create a bucket.
-	v1.POST("/ai/draft-profile", middleware.RequireSession(), aiLimiter.Middleware(), aiHandler.Draft)
+	// Three layers, in this order. RequireSession runs first so unauthenticated
+	// traffic is rejected before it can consume budget or create a bucket. Then
+	// the global valve, then the per-account limiter.
+	//
+	// The valve is the ceiling on the total bill: the per-account budget alone
+	// lets N cheap accounts spend N× it, which is exactly what account creation
+	// does not prevent. It sits ahead of the per-account limiter for the same
+	// memory reason as the auth routes above — allow() allocates a bucket per
+	// new key and only sweeps buckets idle for a full window, so a flood of
+	// distinct accounts would grow the per-account map without bound if that
+	// limiter ran first. Running the valve first also keeps quota fair: a
+	// request refused because the server is globally full does not burn the
+	// caller's own budget.
+	v1.POST("/ai/draft-profile",
+		middleware.RequireSession(),
+		aiGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", middleware.DefaultDraftLimitMessage),
+		aiLimiter.Middleware(),
+		aiHandler.Draft)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

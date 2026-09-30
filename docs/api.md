@@ -79,7 +79,7 @@ Kode yang dipakai:
 | `forbidden` | 403 | Login, tapi resource bukan milikmu |
 | `not_found` | 404 | Resource tidak ada (atau draft yang tidak kamu miliki) |
 | `email_taken` | 409 | Register dengan email sudah terdaftar |
-| `rate_limited` | 429 | Limit habis: kuota draf AI per akun, atau percobaan login/register per email maupun valve global — lihat header `Retry-After` |
+| `rate_limited` | 429 | Limit habis: kuota draf AI (per akun atau anggaran global), atau percobaan login/register per email maupun valve global — lihat header `Retry-After` |
 | `internal_error` | 500 | Kegagalan tak terduga di server |
 | `ai_unavailable` | 503 | Generator draf AI gagal / timeout — aman untuk dicoba ulang |
 
@@ -453,10 +453,10 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 - Field gambar (`coverImage`, `coverPosition`, `logo`) **tidak ada** di draf — gambar diunggah lewat `POST /api/v1/media` lalu URL-nya diisi manual.
 - Semua field slice selalu array (`[]`), tidak pernah `null`.
 - Body maksimal 64 KB.
-- **Dibatasi per akun: `AI_DRAFT_LIMIT_PER_HOUR` draf per jam (default 20).** Setiap draf memanggil provider berbayar, jadi kuotanya dijaga di server. Kuota dihitung **per akun** (bukan per IP — di belakang proxy Railway semua request datang dari IP yang sama). Satu token dipakai **saat request masuk**, bukan saat sukses: body yang ditolak validasi pun tetap memakai kuota, supaya percobaan berulang tidak gratis.
-- Kalau kuota habis: `429 rate_limited` + header `Retry-After` berisi detik (dibulatkan ke atas, minimal 1). `429` artinya klien harus menunggu (salah klien); `503 ai_unavailable` artinya provider yang gagal (salah server) — beda arti, beda penanganan di frontend.
+- **Dibatasi dua lapis: `AI_DRAFT_LIMIT_PER_HOUR` draf per jam per akun (default 20), plus anggaran global `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` (default 200) untuk semua akun digabung.** Setiap draf memanggil provider berbayar, jadi kuotanya dijaga di server. Kuota per akun dihitung **per akun** (bukan per IP — di belakang proxy Railway semua request datang dari IP yang sama). Anggaran global adalah plafon total biaya: tanpa itu, N akun (register masih gratis) bisa membelanjakan N× kuota per akun. Satu token dipakai **saat request masuk**, bukan saat sukses: body yang ditolak validasi pun tetap memakai kuota, supaya percobaan berulang tidak gratis.
+- Kalau kuota (per akun **atau** global) habis: `429 rate_limited` + header `Retry-After` berisi detik (dibulatkan ke atas, minimal 1). Pesannya sama untuk kedua lapis, jadi klien tidak bisa membedakan mana yang kena. `429` artinya klien harus menunggu (salah klien); `503 ai_unavailable` artinya provider yang gagal (salah server) — beda arti, beda penanganan di frontend.
 - Kuota **reset saat proses restart** (mis. redeploy). Ini karena penghiitungnya ada di memori proses, dan API sengaja dijalankan satu instance. Kalau nanti perlu lebih dari satu replica, penghitung ini harus pindah ke Redis.
-- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `429 rate_limited` (kuota per akun habis), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
+- Error: `401`, `400 invalid_body` (JSON rusak atau body kebesaran), `400 validation_failed` (narasi kosong atau di luar 20–5000 karakter), `429 rate_limited` (kuota per akun atau anggaran global habis), `503 ai_unavailable` (generator gagal / timeout — aman dicoba ulang), `500 internal_error`.
 
 ### Provider AI
 
@@ -528,7 +528,7 @@ curl "http://localhost:8080/api/v1/businesses?q=kopi"
 curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 ```
 
-Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`.
+Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`, `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, `AUTH_LOGIN_LIMIT_PER_15_MIN`, `AUTH_REGISTER_LIMIT_PER_HOUR`, `AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR`, `AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR`.
 
 Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`.
 
@@ -538,4 +538,4 @@ Provider mana yang dipakai `docker compose` **tergantung ada tidaknya `backend/.
 docker compose config | grep -E "AI_PROVIDER|AI_DRAFT_LIMIT_PER_HOUR"
 ```
 
-Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR`, default 20) dan batas percobaan login/register (`AUTH_*`, lihat "Rate limiting login/register").
+Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR` per akun + `AI_DRAFT_GLOBAL_LIMIT_PER_HOUR` anggaran global) dan batas percobaan login/register (`AUTH_*`, lihat "Rate limiting login/register").
