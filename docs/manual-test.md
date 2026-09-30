@@ -3,7 +3,7 @@
 Runbook cek semua endpoint API lewat terminal — dari read publik sampai upload media.
 Cocok dipakai untuk cross-check hasil `go test` atau sebelum serah-terima ke frontend.
 
-Semua perintah dijalankan di **PowerShell** (Windows), pakai `curl.exe`. Bagian 1–9 untuk stack lokal; versi production (Railway) ada di **Bagian 10** — bedanya cukup banyak (DB kosong, cookie `Secure`, AI berbayar), jadi jangan campur.
+Semua perintah dijalankan di **PowerShell** (Windows), pakai `curl.exe`. Bagian 1–9 untuk stack lokal; versi production (Railway) ada di **Bagian 10** — bedanya cukup banyak (cookie `Secure`, AI berbayar, DB production sudah ter-seed 9 profil), jadi jangan campur.
 
 Endpoint otomatis (unit + integration test):
 
@@ -349,11 +349,11 @@ Bagian 1–9 mengasumsikan stack lokal. Bagian ini mengulang alur inti terhadap 
 |---|---|---|
 | Base URL | `http://localhost:8080` | `https://lumora-backend-production-ed55.up.railway.app` |
 | Skema | `http` | **`https`** — wajib, lihat catatan cookie |
-| Isi DB | seed: 9 bisnis | **kosong**: 0 user, 0 bisnis |
+| Isi DB | seed: 9 bisnis | **9 bisnis** — di-seed manual 2026-09-30 (entrypoint tidak pernah menjalankan `seed`), 0 user |
 | Cookie `lumora_session` | tanpa `Secure` | **`Secure`** (karena `APP_ENV=production`) |
 | Provider AI | `stub` (default compose) | **`gemini` sungguhan — berbayar** |
 | State kuota AI | in-memory, reset saat restart | in-memory, **reset tiap redeploy** |
-| Hapus data uji | `docker exec ... psql` | lewat tunnel Railway (10.5) |
+| Hapus data uji | `docker exec ... psql` | `DELETE /auth/me` per akun uji; sisa baris lewat `railway ssh` (10.5) |
 | Hapus akun | `DELETE /auth/me` (wajib sandi di body) | sama, tapi lihat catatan biaya/isi DB di bawah |
 
 > **Cookie `Secure`.** Di production cookie ditandai `Secure`, jadi curl **hanya** mengirimnya ke `https://`. Kalau `$root` salah tulis `http://`, semua request ber-cookie balas `401` dan terlihat seperti "login gagal" padahal sesinya sehat. Selalu pakai `https://`.
@@ -403,15 +403,15 @@ $bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisni
 
 | # | Perintah | Ekspektasi |
 |---|---|---|
-| 1 | `curl.exe "$api/businesses"` | 200, **`total`=0** — DB produksi kosong. Kalau >0, ada sisa uji sebelumnya |
-| 2 | `curl.exe "$api/businesses/kopi-ruang-senja"` | **404** — seed hanya ada di lokal |
+| 1 | `curl.exe "$api/businesses"` | 200, **`total`=9** — 9 profil seed. Kalau >9, ada sisa uji sebelumnya |
+| 2 | `curl.exe "$api/businesses/kopi-ruang-senja"` | 200 — profil seed **ada** di production (di-seed manual 2026-09-30), bukan hanya di lokal |
 | 3 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\reg.json" "$api/auth/register"` | **201** + `Set-Cookie: lumora_session=...; HttpOnly; SameSite=Lax; Secure` — atau **409** `email_taken` kalau sudah pernah; keduanya lanjut ke langkah 4 |
 | 4 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\login.json" "$api/auth/login"` | 200 (**bukan** 401 `invalid_credentials`) |
 | 5 | `curl.exe -b $c "$api/auth/me"` | 200, email = `uji-prod@example.com` |
 | 6 | `curl.exe "$api/auth/me"` | 401 (tanpa cookie) |
 | 7 | create di atas (`$bizId`) | **201**, `status="draft"`, `slug="uji-prod"` |
 | 8 | `curl.exe "$api/businesses/uji-prod"` | **404** — draft tak pernah terbaca publik |
-| 9 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=1, langkah 8 kini 200 |
+| 9 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=10, langkah 8 kini 200 |
 
 > **Rate limit login juga aktif di production** (kode sama seperti lokal). Kalau mau memastikan: pakai email khusus (mis. `brute-prod@example.com`), lalu ulangi login gagal 10× → yang ke-11 `429 rate_limited` + `Retry-After`. **Jangan** pakai `uji-prod@example.com` — kalau kena limit, langkah 4 di atas ikut terkunci 15 menit. Tidak ada biaya (tidak memanggil AI), tapi ingat katup global login 300/jam.
 
@@ -448,33 +448,44 @@ curl.exe -i -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json"
 
 → `HTTP/1.1 429` + `Retry-After: <detik>`.
 
-> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Yang menahan penyalahgunaan adalah **anggaran global** (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, default 200/jam) — total semua akun. Register masih gratis & instan, jadi multi-akun tetap mungkin; anggaran global membatasi **biayanya**, bukan jumlah akun. Verifikasi email tetap di backlog (`docs/fases.md`) untuk menutup spam profil & multi-akun.
+> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Yang menahan penyalahgunaan adalah **anggaran global** (`AI_DRAFT_GLOBAL_LIMIT_PER_HOUR`, default 200/jam) — total semua akun. Register masih gratis & instan, jadi multi-akun tetap mungkin; anggaran global membatasi **biayanya**, bukan jumlah akun. Verifikasi email sudah aktif sejak fase 9 (gate lunak di `publish` & `ai/draft-profile`), tapi pengirimnya masih `stub` sehingga email tidak benar-benar terkirim — lihat `docs/fases.md`.
 
 ### 10.5 Bersih-bersih
 
-`DELETE /auth/me` bisa dipakai untuk membuang akun uji, tapi **tidak cukup untuk membersihkan semuanya**: profil yang diarsipkan (status `archived`) dan baris seed tetap tinggal, dan akun uji yang lupa dihapus juga masih ada. Untuk reset penuh, DB production tidak reachable dari internet — pakai tunnel Railway.
+Cara utama: **`DELETE /auth/me`** untuk setiap akun uji. Sejak fase 10 kolom `businesses.owner_user_id` memakai `ON DELETE CASCADE`, jadi satu perintah ini menghapus seluruh jejak akun:
 
 ```powershell
-# Jendela 1 — buka tunnel, biarkan terbuka
-railway connect Postgres --ssh --tunnel-only -P 5433
-
-# Jendela 2 — hapus data uji
-docker run --rm -i -e PGPASSWORD=x postgres:16-alpine `
-  psql "host=host.docker.internal port=5433 user=postgres dbname=railway" `
-  -c "DELETE FROM businesses WHERE slug LIKE 'uji-%'; DELETE FROM users WHERE email LIKE 'uji-prod%';"
-
-Remove-Item $bodyDir -Recurse -Force -ErrorAction SilentlyContinue   # sekaligus cookie di dalamnya
-
-curl.exe "$api/businesses"     # kembali total=0
+curl.exe -b $c -H "Content-Type: application/json" -d '{"password":"rahasia123"}' -X DELETE "$api/auth/me"   # 200
 ```
 
-> `PGPASSWORD=x` cukup: lewat tunnel koneksi datang dari `127.0.0.1`, yang cocok dengan baris `trust` di `pg_hba.conf` **sebelum** aturan `scram-sha-256` — jadi password apa pun diterima. Ini **bukan** bukti password benar; untuk itu uji jalur `postgres.railway.internal`.
+Yang ikut terhapus: **semua profil miliknya** — draft, terbit, **maupun yang sudah diarsipkan** — beserta milestone dan blok BMC-nya; lalu sesi, token verifikasi email, bookmark yang dia buat, dan bookmark user lain pada profil-profil itu.
+
+> Sampai fase 9 FK-nya `SET NULL`, sehingga profil yang diarsipkan jadi yatim dan **tetap tinggal** setelah akunnya dihapus. Itu **sudah tidak berlaku** sejak fase 10. Jangan lagi berasumsi ada sisa baris `archived` setelah hapus akun.
+
+Yang **tidak** ikut terhapus adalah baris seed — owner-nya `NULL`, bukan milik akun uji mana pun. Jadi setelah bersih-bersih, daftar publik kembali ke **`total`=9, bukan 0**:
+
+```powershell
+Remove-Item $bodyDir -Recurse -Force -ErrorAction SilentlyContinue   # sekaligus cookie di dalamnya
+curl.exe "$api/businesses"     # kembali total=9
+```
+
+Untuk memeriksa DB production langsung — atau membuang sisa akun uji yang lupa dihapus — pakai `railway ssh`, dijalankan dari `backend/`:
+
+```powershell
+cd backend
+
+railway ssh --service Postgres -- psql -h 127.0.0.1 -U postgres -d railway -t -A -c "SELECT count(*) FROM businesses;"
+
+railway ssh --service Postgres -- psql -h 127.0.0.1 -U postgres -d railway -t -A -c "DELETE FROM users WHERE email LIKE 'uji-%';"
+```
+
+> **`-h 127.0.0.1` wajib.** Lewat loopback koneksi cocok dengan baris `trust` di `pg_hba.conf` **sebelum** aturan `scram-sha-256`, jadi tidak perlu password. Tanpa `-h`, psql menyambung ke `postgres.railway.internal` dan gagal `password authentication failed for user "postgres"` — walaupun `PGPASSWORD` terisi di container. Ini juga sebabnya password apa pun "berhasil" di jalur ini; itu **bukan** bukti kredensial benar.
 >
-> Sesi & bookmark ikut terhapus lewat `ON DELETE CASCADE`.
+> **Tulis dalam satu baris.** PowerShell tidak memakai `\` sebagai lanjutan baris; kalau dipaksa, `\` ikut terkirim sebagai argumen ke shell remote (`bash: line 3: \: command not found`) dan sisa barisnya dieksekusi PowerShell lokal (`psql is not recognized`). Untuk multi-baris, karakter lanjutannya backtick `` ` ``.
+>
+> **Jalankan dari `backend/`** — di situ link project Railway berada. Dari folder lain CLI membalas `No linked project found`.
 
-> **Tutup tunnel-nya setelah selesai.** Menutup jendela 1 saja **tidak** cukup: `railway connect` meninggalkan proses `ssh.exe` (yang memegang port 5433) *dan* `railway.exe` induknya. Cek `netstat -ano | findstr :5433`, lalu matikan kedua PID-nya dengan `Stop-Process -Id <pid> -Force`. Di Git Bash, `taskkill //PID <pid> //F` **tidak** jalan — taskkill membaca `//PID` sebagai opsi tak dikenal; pakai PowerShell.
-
-Kalau tunnel terasa ribet, langkah ini bisa saya jalankan — prosedurnya sudah ada.
+Kalau butuh SQL yang lebih rumit daripada satu baris, tunnel lama masih tersedia: `railway connect Postgres --ssh --tunnel-only -P 5433`, lalu klien dari Docker ke `host.docker.internal:5433` (`PGPASSWORD=x` cukup, alasan loopback di atas). Tutup tunnel-nya butuh **dua** kill — `ssh.exe` pemegang port 5433 *dan* `railway.exe` induknya; cek `netstat -ano | findstr :5433` lalu `Stop-Process -Id <pid> -Force`. Di Git Bash, `taskkill //PID <pid> //F` **tidak** jalan — taskkill membaca `//PID` sebagai opsi tak dikenal.
 
 ---
 
