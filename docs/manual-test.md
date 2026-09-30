@@ -3,6 +3,8 @@
 Runbook cek semua endpoint API lewat terminal — dari read publik sampai upload media.
 Cocok dipakai untuk cross-check hasil `go test` atau sebelum serah-terima ke frontend.
 
+Semua perintah dijalankan di **PowerShell** (Windows), pakai `curl.exe`. Bagian 1–9 untuk stack lokal; versi production (Railway) ada di **Bagian 10** — bedanya cukup banyak (DB kosong, cookie `Secure`, AI berbayar), jadi jangan campur.
+
 Endpoint otomatis (unit + integration test):
 
 ```powershell
@@ -223,7 +225,7 @@ Cukup uji 1–2 endpoint + satu endpoint auth (cookie `HttpOnly` dilihat dari De
 
 ---
 
-## 9. Bersih-bersih
+## 9. Bersih-bersih (lokal)
 
 ```powershell
 docker exec lumora-postgres psql -U lumora -d lumora -c `
@@ -242,6 +244,143 @@ docker exec lumora-postgres psql -U lumora -d lumora -t -c `
 > **Kenapa dua perintah uploads?** `docker compose` memasang named volume di `/app/uploads`, jadi file uji **tidak** masuk ke `backend\uploads\` di host — menghapus folder host saja menyisakan file di volume (ketahuan saat runbook ini dijalankan: folder host 0 file, volume masih 1). `backend-api-1` adalah nama container dari `docker compose`; cek dengan `docker compose ps`.
 
 > User & sesi ikut terhapus via `ON DELETE CASCADE` (bookmarks, sessions). Kalau table masih kotor: `users`/`sessions` dihapus manual dengan `psql`.
+
+---
+
+## 10. Production (Railway)
+
+Bagian 1–9 mengasumsikan stack lokal. Bagian ini mengulang alur inti terhadap API yang sudah live, dan menandai hal-hal yang **beda** — terutama isi DB, cookie, dan biaya AI.
+
+### 10.1 Yang beda dari lokal
+
+| | Lokal (`docker compose`) | Production (Railway) |
+|---|---|---|
+| Base URL | `http://localhost:8080` | `https://lumora-backend-production-ed55.up.railway.app` |
+| Skema | `http` | **`https`** — wajib, lihat catatan cookie |
+| Isi DB | seed: 9 bisnis | **kosong**: 0 user, 0 bisnis |
+| Cookie `lumora_session` | tanpa `Secure` | **`Secure`** (karena `APP_ENV=production`) |
+| Provider AI | `stub` (default compose) | **`gemini` sungguhan — berbayar** |
+| State kuota AI | in-memory, reset saat restart | in-memory, **reset tiap redeploy** |
+| Hapus data uji | `docker exec ... psql` | lewat tunnel Railway (10.5) |
+| Hapus akun | tidak ada endpoint | tidak ada endpoint |
+
+> **Cookie `Secure`.** Di production cookie ditandai `Secure`, jadi curl **hanya** mengirimnya ke `https://`. Kalau `$root` salah tulis `http://`, semua request ber-cookie balas `401` dan terlihat seperti "login gagal" padahal sesinya sehat. Selalu pakai `https://`.
+
+### 10.2 Persiapan
+
+```powershell
+$root = "https://lumora-backend-production-ed55.up.railway.app"
+$api  = "$root/api/v1"
+$bodyDir = "$env:TEMP\lumora-prod"
+New-Item -ItemType Directory $bodyDir -Force | Out-Null
+$c = "$bodyDir\cookies.txt"
+
+curl.exe "$root/healthz"          # {"status":"ok"} = service hidup
+
+Set-Content "$bodyDir\reg.json" -Encoding ascii -Value '{"name":"Uji Prod","email":"uji-prod@example.com","password":"rahasia123"}'
+Set-Content "$bodyDir\login.json" -Encoding ascii -Value '{"email":"uji-prod@example.com","password":"rahasia123"}'
+```
+
+`bisnis.json` dibangun lewat hashtable, bukan satu string panjang — barisnya jadi pendek-pendek sehingga tidak ada yang bisa terpotong saat di-paste:
+
+```powershell
+$b = @{
+  name = "Uji Prod"
+  category = "F&B"
+  location = "Jakarta"
+  description = "Profil uji production."
+  story = "Cerita singkat uji production."
+  foundedYear = 2020
+  owner = @{ name = "Uji"; role = "Founder"; bio = "Pemilik uji." }
+}
+$b | ConvertTo-Json -Depth 9 | Set-Content "$bodyDir\bisnis.json" -Encoding ascii
+```
+
+> **Email tetap (`uji-prod@example.com`), sengaja bukan timestamp.** Versi timestamp sempat dipakai dan justru bikin bug: mengulang blok 10.2 mengganti email di `login.json` ke akun yang belum pernah didaftarkan → login balas `401 invalid_credentials`. Dengan email tetap, 10.2 boleh diulang kapan saja; kalau emailnya sudah terdaftar, register balas `409 email_taken` dan itu **normal** — lanjut ke langkah 4.
+
+> **Tiap baris `Set-Content` harus masuk sebagai satu baris utuh.** Kalau terpotong saat di-paste, PowerShell tetap menjalankan perintahnya (potongan tetap di dalam string), tapi **spasi/newline ikut masuk ke nilai string**. Terbukti saat runbook ini dipakai: `"Uji⏎  Prod"` tersimpan jadi `Uji  Prod` (spasi dobel). Untuk `name` cuma kosmetik; kalau yang kena `email` atau `password`, login langsung `401 invalid_credentials`. Jadi jangan andalkan "terpotong pun aman".
+>
+> Hindari here-string `@"..."@` di sini — kalau baris `"@` penutupnya ikut terpotong, PowerShell masuk mode lanjutan `>>` dan perintah-perintah setelahnya ikut gagal. Jangan pakai `-w` juga: kalau `-w` terpisah dari nilainya, curl membalas `option -w: requires parameter`.
+
+### 10.3 Alur inti
+
+```powershell
+# Jalankan setelah langkah 4 (login) berhasil — create + tangkap id-nya:
+$bizId = (curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\bisnis.json" "$api/businesses" | ConvertFrom-Json).id
+```
+
+| # | Perintah | Ekspektasi |
+|---|---|---|
+| 1 | `curl.exe "$api/businesses"` | 200, **`total`=0** — DB produksi kosong. Kalau >0, ada sisa uji sebelumnya |
+| 2 | `curl.exe "$api/businesses/kopi-ruang-senja"` | **404** — seed hanya ada di lokal |
+| 3 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\reg.json" "$api/auth/register"` | **201** + `Set-Cookie: lumora_session=...; HttpOnly; SameSite=Lax; Secure` — atau **409** `email_taken` kalau sudah pernah; keduanya lanjut ke langkah 4 |
+| 4 | `curl.exe -c $c -H "Content-Type: application/json" -d "@$bodyDir\login.json" "$api/auth/login"` | 200 (**bukan** 401 `invalid_credentials`) |
+| 5 | `curl.exe -b $c "$api/auth/me"` | 200, email = `uji-prod@example.com` |
+| 6 | `curl.exe "$api/auth/me"` | 401 (tanpa cookie) |
+| 7 | create di atas (`$bizId`) | **201**, `status="draft"`, `slug="uji-prod"` |
+| 8 | `curl.exe "$api/businesses/uji-prod"` | **404** — draft tak pernah terbaca publik |
+| 9 | `curl.exe -b $c -X POST "$api/businesses/$bizId/publish"` | 200 → list jadi `total`=1, langkah 8 kini 200 |
+
+### 10.4 AI (berbayar) & kuota
+
+> **Harus sudah login.** `$c` cuma *path* yang didefinisikan di 10.2 — isinya baru terisi setelah **10.3 langkah 3–4** (register/login). `401 unauthenticated` di sini hampir selalu berarti belum login, atau jendela PowerShell-nya baru sehingga `$api`/`$c` hilang. Jebakan diam-diamnya: kalau `$c` kosong, `-b $c` jadi `-b` telanjang dan curl menelan argumen berikutnya sebagai nilai cookie (`-b -H` → cookie literal `"-H"`) — perintahnya terlihat benar tapi tetap 401. Buktikan sesi dulu: `curl.exe -b $c "$api/auth/me"` harus 200.
+>
+> **`invalid_credentials` saat login ≠ masalah cookie.** Itu email/password-nya yang ditolak. Pastikan `reg.json` dan `login.json` memuat email yang sama (`uji-prod@example.com`), lalu jalankan register sekali lagi — kalau akunnya memang belum ada, register balas `201` dan login berikutnya `200`.
+
+```powershell
+Set-Content "$bodyDir\narasi.json" '{"narrative":"Kedai kopi kami di Bandung berdiri sejak 2015 dan sekarang mencari mitra distributor."}' -Encoding ascii
+Set-Content "$bodyDir\pendek.json" '{"narrative":"x"}' -Encoding ascii
+
+curl.exe -b $c -H "Content-Type: application/json" -d "@$bodyDir\narasi.json" -X POST "$api/ai/draft-profile"
+```
+
+Baris terakhir memanggil **Gemini berbayar** (~5 detik) dan memakai 1 dari 20 kuota. `category` harus `"F&B"`, `foundedYear` `2015`, dan respons **tidak boleh** memuat `revenueLabel`/`growthLabel`/`revenueSeries`.
+
+Sisa kuota bisa dihabiskan **tanpa biaya** — narasi di bawah 20 karakter ditolak validasi *sebelum* provider dipanggil, tapi tetap memakai token (charge-on-entry):
+
+```powershell
+1..21 | ForEach-Object {
+  $code = curl.exe -s -o NUL -w "%{http_code}" -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json" -X POST "$api/ai/draft-profile"
+  "{0,2} -> {1}" -f $_, $code
+}
+```
+
+Setelah 1 draf nyata di atas, sisa kuota 19 → keluaran **19× `400` lalu `429`**. Kalau baru redeploy, hitungannya mulai dari 20 lagi (state-nya in-memory, lihat `docs/fases.md`).
+
+```powershell
+curl.exe -i -b $c -H "Content-Type: application/json" -d "@$bodyDir\pendek.json" -X POST "$api/ai/draft-profile" |
+  Select-String -Pattern "HTTP/|Retry-After|rate_limited"
+```
+
+→ `HTTP/1.1 429` + `Retry-After: <detik>`.
+
+> Kuota dihitung **per akun**, jadi akun kedua dapat jatah 20 sendiri. Karena register masih gratis & instan, pembatas ini belum menahan penyalahgunaan serius — itu sebabnya verifikasi email ada di backlog (`docs/fases.md`).
+
+### 10.5 Bersih-bersih
+
+Tidak ada endpoint hapus akun, dan DB production tidak reachable dari internet, jadi data uji dihapus lewat tunnel Railway.
+
+```powershell
+# Jendela 1 — buka tunnel, biarkan terbuka
+railway connect Postgres --ssh --tunnel-only -P 5433
+
+# Jendela 2 — hapus data uji
+docker run --rm -i -e PGPASSWORD=x postgres:16-alpine `
+  psql "host=host.docker.internal port=5433 user=postgres dbname=railway" `
+  -c "DELETE FROM businesses WHERE slug LIKE 'uji-%'; DELETE FROM users WHERE email LIKE 'uji-prod%';"
+
+Remove-Item $bodyDir -Recurse -Force -ErrorAction SilentlyContinue   # sekaligus cookie di dalamnya
+
+curl.exe "$api/businesses"     # kembali total=0
+```
+
+> `PGPASSWORD=x` cukup: lewat tunnel koneksi datang dari `127.0.0.1`, yang cocok dengan baris `trust` di `pg_hba.conf` **sebelum** aturan `scram-sha-256` — jadi password apa pun diterima. Ini **bukan** bukti password benar; untuk itu uji jalur `postgres.railway.internal`.
+>
+> Sesi & bookmark ikut terhapus lewat `ON DELETE CASCADE`.
+
+> **Tutup tunnel-nya setelah selesai.** Menutup jendela 1 saja **tidak** cukup: `railway connect` meninggalkan proses `ssh.exe` (yang memegang port 5433) *dan* `railway.exe` induknya. Cek `netstat -ano | findstr :5433`, lalu matikan kedua PID-nya dengan `Stop-Process -Id <pid> -Force`. Di Git Bash, `taskkill //PID <pid> //F` **tidak** jalan — taskkill membaca `//PID` sebagai opsi tak dikenal; pakai PowerShell.
+
+Kalau tunnel terasa ribet, langkah ini bisa saya jalankan — prosedurnya sudah ada.
 
 ---
 

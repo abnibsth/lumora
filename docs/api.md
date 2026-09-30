@@ -511,4 +511,12 @@ curl "http://localhost:8080/api/v1/businesses/kopi-ruang-senja"
 
 Ubah koneksi lewat `.env` (salin dari `.env.example`): `PORT`, `APP_ENV`, `DATABASE_URL`, `UPLOAD_DIR`, `AI_PROVIDER`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `AI_DRAFT_LIMIT_PER_HOUR`.
 
-Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`. Stack `docker compose` di atas sudah otomatis `stub`; untuk memakai Gemini di situ, ekspor `AI_PROVIDER=gemini` dan `GEMINI_API_KEY` sebelum `docker compose up`.
+Untuk AI: isi `GEMINI_API_KEY` (ambil dari https://aistudio.google.com/apikey) lalu jalankan dengan `AI_PROVIDER=gemini` (default). Kalau mau jalan tanpa kredensial, pakai `AI_PROVIDER=stub`.
+
+Provider mana yang dipakai `docker compose` **tergantung ada tidaknya `backend/.env`**: `docker-compose.yml` memakai bentuk `${AI_PROVIDER:-stub}`, dan Compose otomatis membaca `.env` di folder yang sama untuk mengisi nilai itu. Jadi kalau `.env` Anda berisi `AI_PROVIDER=gemini`, stack ikut memakai Gemini; kalau `.env` tidak ada atau `AI_PROVIDER`-nya kosong, nilainya jatuh ke `stub`. Karena ini mudah menebak salah, cek hasil akhirnya:
+
+```bash
+docker compose config | grep -E "AI_PROVIDER|AI_DRAFT_LIMIT_PER_HOUR"
+```
+
+Variabel yang sama juga mengatur kuota draf (`AI_DRAFT_LIMIT_PER_HOUR`, default 20).
