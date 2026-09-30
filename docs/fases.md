@@ -196,6 +196,7 @@ Urutan middleware penting dan diuji: `RequireSession()` **sebelum** limiter, sup
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
 | Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
 | Rate limiting login/register | ❌ belum (brute-force masih mungkin) — **terhalang**: endpoint ini belum login, jadi butuh kunci per-IP, sedangkan `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang. Perlu percayai rentang proxy Railway + baca `X-Forwarded-For` dengan benar |
+| Verifikasi email saat register | ❌ belum — register gratis & instan, jadi kuota AI per akun (`AI_DRAFT_LIMIT_PER_HOUR`) bisa dilewati dengan mendaftar banyak akun. Butuh kolom status di `users` + tabel token + pengiriman email. Ini juga celah pendaftaran massal untuk spam profil |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
 | CI (lint + test otomatis) | ❌ belum ada |
