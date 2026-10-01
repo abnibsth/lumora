@@ -424,6 +424,10 @@ $c = "$bodyDir\cookies.txt"
 
 curl.exe "$root/healthz"          # {"status":"ok"} = service hidup
 
+# GANTI "uji-prod@example.com" di dua baris berikut dengan ALAMAT AKUN RESEND Anda.
+# Selama RESEND_FROM masih default (onboarding@resend.dev), Resend hanya mengirim
+# ke alamat pemilik akun Resend; alamat lain ditolak, email verifikasi tidak pernah
+# sampai, dan §10.3 langkah 9 jadi buntu. Ganti juga di login.json supaya cocok.
 Set-Content "$bodyDir\reg.json" -Encoding ascii -Value '{"name":"Uji Prod","email":"uji-prod@example.com","password":"rahasia123"}'
 Set-Content "$bodyDir\login.json" -Encoding ascii -Value '{"email":"uji-prod@example.com","password":"rahasia123"}'
 ```
@@ -443,7 +447,7 @@ $b = @{
 $b | ConvertTo-Json -Depth 9 | Set-Content "$bodyDir\bisnis.json" -Encoding ascii
 ```
 
-> **Email tetap (`uji-prod@example.com`), sengaja bukan timestamp.** Versi timestamp sempat dipakai dan justru bikin bug: mengulang blok 10.2 mengganti email di `login.json` ke akun yang belum pernah didaftarkan → login balas `401 invalid_credentials`. Dengan email tetap, 10.2 boleh diulang kapan saja; kalau emailnya sudah terdaftar, register balas `409 email_taken` dan itu **normal** — lanjut ke langkah 4.
+> **Email tetap, sengaja bukan timestamp — tapi harus alamat akun Resend Anda.** Versi timestamp sempat dipakai dan justru bikin bug: mengulang blok 10.2 mengganti email di `login.json` ke akun yang belum pernah didaftarkan → login balas `401 invalid_credentials`. Dengan email tetap, 10.2 boleh diulang kapan saja; kalau emailnya sudah terdaftar, register balas `409 email_taken` dan itu **normal** — lanjut ke langkah 4. Yang berubah sejak fase 11: nilai tetapnya bukan lagi `uji-prod@example.com` yang bebas, melainkan **alamat pemilik akun Resend** — lihat catatan di awal blok 10.2.
 
 > **Tiap baris `Set-Content` harus masuk sebagai satu baris utuh.** Kalau terpotong saat di-paste, PowerShell tetap menjalankan perintahnya (potongan tetap di dalam string), tapi **spasi/newline ikut masuk ke nilai string**. Terbukti saat runbook ini dipakai: `"Uji⏎  Prod"` tersimpan jadi `Uji  Prod` (spasi dobel). Untuk `name` cuma kosmetik; kalau yang kena `email` atau `password`, login langsung `401 invalid_credentials`. Jadi jangan andalkan "terpotong pun aman".
 >
