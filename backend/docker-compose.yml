@@ -53,6 +53,30 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-stub}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
+      # Per-account draft quota. Bump it while developing so the local stack
+      # does not answer 429.
+      AI_DRAFT_LIMIT_PER_HOUR: ${AI_DRAFT_LIMIT_PER_HOUR:-20}
+      # Global ceiling across all accounts. Lower it (e.g. 3) to exercise the
+      # global 429 locally without spending 200 requests.
+      AI_DRAFT_GLOBAL_LIMIT_PER_HOUR: ${AI_DRAFT_GLOBAL_LIMIT_PER_HOUR:-200}
+      # Auth limits, keyed by the email in the body rather than by IP. Bump them
+      # while developing so repeated login/register attempts do not answer 429.
+      AUTH_LOGIN_LIMIT_PER_15_MIN: ${AUTH_LOGIN_LIMIT_PER_15_MIN:-10}
+      AUTH_REGISTER_LIMIT_PER_HOUR: ${AUTH_REGISTER_LIMIT_PER_HOUR:-10}
+      AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR: ${AUTH_LOGIN_GLOBAL_LIMIT_PER_HOUR:-300}
+      AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR: ${AUTH_REGISTER_GLOBAL_LIMIT_PER_HOUR:-30}
+      # Verification mail. The stub only logs the link, so `docker compose logs
+      # api` is where you grab it during a local smoke test. Set
+      # EMAIL_PROVIDER=resend plus RESEND_API_KEY to send for real.
+      # FRONTEND_BASE_URL points at the frontend page that POSTs the token back
+      # to this API.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-stub}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR: ${AUTH_VERIFY_GLOBAL_LIMIT_PER_HOUR:-300}
+      AUTH_RESEND_LIMIT_PER_HOUR: ${AUTH_RESEND_LIMIT_PER_HOUR:-3}
+      AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR: ${AUTH_RESEND_GLOBAL_LIMIT_PER_HOUR:-100}
     ports:
       - "8080:8080"
     volumes:

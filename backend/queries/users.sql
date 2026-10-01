@@ -14,3 +14,22 @@ WHERE email = $1;
 SELECT *
 FROM users
 WHERE id = $1;
+
+-- name: UpdateUserName :one
+UPDATE users
+SET name = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET password_hash = $2
+WHERE id = $1;
+
+-- One statement, because everything a user owns hangs off a foreign key:
+-- sessions, email_verification_tokens, bookmarks, and businesses all cascade.
+-- businesses cascading also reaches business_milestones, bmc_entries, and the
+-- bookmarks other users made on those profiles.
+-- name: DeleteUser :exec
+DELETE FROM users
+WHERE id = $1;

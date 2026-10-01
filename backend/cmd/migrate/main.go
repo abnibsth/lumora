@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/alfian/lumora/backend/internal/config"
+	"github.com/alfian/lumora/backend/internal/logging"
 )
 
 // migrate brings the schema up to date. It wraps goose as a library so any
@@ -19,12 +20,13 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		logging.Fatal("config load failed", "err", err)
 	}
+	logging.Setup(cfg.AppEnv, cfg.LogLevel)
 
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("open db: %v", err)
+		logging.Fatal("open db failed", "err", err)
 	}
 	defer db.Close()
 
@@ -32,7 +34,7 @@ func main() {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		log.Fatalf("db ping: %v", err)
+		logging.Fatal("db ping failed", "err", err)
 	}
 
 	dir := os.Getenv("MIGRATIONS_DIR")
@@ -42,7 +44,7 @@ func main() {
 
 	goose.SetDialect("postgres")
 	if err := goose.UpContext(ctx, db, dir); err != nil {
-		log.Fatalf("migrate: %v", err)
+		logging.Fatal("migrate failed", "err", err)
 	}
-	log.Printf("migrasi selesai (%s)", dir)
+	slog.Info("migrasi selesai", "dir", dir)
 }

@@ -65,7 +65,7 @@ func uniqueName(prefix string) string {
 func createTestOwner(t *testing.T, pool *pgxpool.Pool, queries *store.Queries) string {
 	t.Helper()
 
-	user, _, err := NewAuthService(queries, queries).Register(context.Background(), domain.RegisterParams{
+	user, _, err := NewAuthService(queries, queries, queries, &fakeSender{}, "http://localhost:3000").Register(context.Background(), domain.RegisterParams{
 		Name:     "Uji Owner",
 		Email:    uniqueName("uji-owner") + "@example.com",
 		Password: "rahasia123",
@@ -166,7 +166,7 @@ func TestIntegrationAuthSessionLifecycle(t *testing.T) {
 	pool := openTestPool(t)
 	ctx := context.Background()
 	queries := store.New(pool)
-	svc := NewAuthService(queries, queries)
+	svc := NewAuthService(queries, queries, queries, &fakeSender{}, "http://localhost:3000")
 
 	email := uniqueName("uji-auth") + "@example.com"
 	t.Cleanup(func() {
@@ -201,6 +201,59 @@ func TestIntegrationAuthSessionLifecycle(t *testing.T) {
 	}
 	if _, err := svc.UserByToken(ctx, session.Token); !errors.Is(err, domain.ErrUnauthenticated) {
 		t.Errorf("UserByToken after logout err = %v, want ErrUnauthenticated", err)
+	}
+}
+
+// TestIntegrationEmailVerification is the only test that runs the verification
+// SQL against the real schema: the token lookup by hash, the consume update,
+// and the guarded UPDATE that stamps email_verified_at.
+func TestIntegrationEmailVerification(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	sender := &fakeSender{}
+	svc := NewAuthService(queries, queries, queries, sender, "http://localhost:3000")
+
+	email := uniqueName("uji-verify") + "@example.com"
+	user, _, err := svc.Register(ctx, domain.RegisterParams{
+		Name: "Uji Verifikasi", Email: email, Password: "rahasia123",
+	})
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE id = $1", user.ID)
+	})
+
+	firstToken := sender.tokenAt(t, 0)
+
+	// Resend drops the pending token, so the first link is dead and only the
+	// newest one works — against the real DELETE, not the fake.
+	if err := svc.ResendVerification(ctx, user.ID); err != nil {
+		t.Fatalf("ResendVerification: %v", err)
+	}
+	secondToken := sender.lastToken(t)
+	if err := svc.VerifyEmail(ctx, firstToken); !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("superseded token err = %v, want ErrInvalidToken", err)
+	}
+
+	if err := svc.VerifyEmail(ctx, secondToken); err != nil {
+		t.Fatalf("VerifyEmail: %v", err)
+	}
+	row, err := queries.GetUserByID(ctx, store.GetUserByIDParams{ID: parseID(user.ID)})
+	if err != nil {
+		t.Fatalf("GetUserByID: %v", err)
+	}
+	if !row.EmailVerifiedAt.Valid {
+		t.Error("email_verified_at is still NULL after verification")
+	}
+
+	// Idempotent against the real schema too.
+	if err := svc.VerifyEmail(ctx, secondToken); err != nil {
+		t.Errorf("second VerifyEmail: %v", err)
+	}
+	if err := svc.ResendVerification(ctx, user.ID); !errors.Is(err, domain.ErrEmailAlreadyVerified) {
+		t.Errorf("ResendVerification err = %v, want ErrEmailAlreadyVerified", err)
 	}
 }
 
@@ -400,4 +453,132 @@ func publishedTotal(t *testing.T, ctx context.Context, svc *BusinessService) int
 		t.Fatalf("List: %v", err)
 	}
 	return list.Total
+}
+
+// countRows runs a single count query against the real database.
+func countRows(t *testing.T, pool *pgxpool.Pool, query, arg string) int64 {
+	t.Helper()
+
+	var total int64
+	if err := pool.QueryRow(context.Background(), query, arg).Scan(&total); err != nil {
+		t.Fatalf("count (%s): %v", query, err)
+	}
+	return total
+}
+
+func TestIntegrationArchiveHidesProfileEverywhere(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	svc := NewBusinessService(queries, NewPoolTxRunner(pool))
+	owner := createTestOwner(t, pool, queries)
+
+	before := publishedTotal(t, ctx, svc)
+
+	input := validCreateInput()
+	input.Name = uniqueName("Uji Arsip")
+	created, err := svc.Create(ctx, owner, input)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM businesses WHERE id = $1", created.ID)
+	})
+
+	published, err := svc.Publish(ctx, owner, created.ID)
+	if err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if got := publishedTotal(t, ctx, svc); got != before+1 {
+		t.Fatalf("published total = %d, want %d", got, before+1)
+	}
+
+	if err := svc.Archive(ctx, owner, created.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	// The row is still there — that is the whole point of archiving.
+	if got := countRows(t, pool, "SELECT count(*) FROM businesses WHERE id = $1::uuid", created.ID); got != 1 {
+		t.Errorf("business rows = %d, want 1 (archived, not deleted)", got)
+	}
+	if got := publishedTotal(t, ctx, svc); got != before {
+		t.Errorf("archived profile is still publicly listed: total %d, want %d", got, before)
+	}
+	if _, err := svc.BySlug(ctx, published.Slug); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("BySlug on archived err = %v, want ErrNotFound", err)
+	}
+
+	mine, err := svc.ListMine(ctx, owner, 1, MaxLimit)
+	if err != nil {
+		t.Fatalf("ListMine: %v", err)
+	}
+	if mine.Total != 0 {
+		t.Errorf("archived profile still on the dashboard: total %d, want 0", mine.Total)
+	}
+
+	if _, err := svc.Publish(ctx, owner, created.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("Publish on archived err = %v, want ErrNotFound (there is no way back)", err)
+	}
+}
+
+func TestIntegrationDeleteAccountCascadesOwnedRows(t *testing.T) {
+	pool := openTestPool(t)
+	ctx := context.Background()
+	queries := store.New(pool)
+	businesses := NewBusinessService(queries, NewPoolTxRunner(pool))
+	bookmarks := NewBookmarkService(queries, queries)
+	auth := NewAuthService(queries, queries, queries, &fakeSender{}, "http://localhost:3000")
+
+	email := uniqueName("uji-hapus") + "@example.com"
+	user, _, err := auth.Register(ctx, domain.RegisterParams{
+		Name: "Uji Hapus", Email: email, Password: "rahasia123",
+	})
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	// Belt and braces: if an assertion fails the account still goes away.
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE email = $1", email)
+	})
+
+	input := validCreateInput()
+	input.Name = uniqueName("Uji Hapus Bisnis")
+	created, err := businesses.Create(ctx, user.ID, input)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := businesses.Publish(ctx, user.ID, created.ID); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	// A bookmark on a seeded profile, so the user also owns a bookmarks row.
+	if err := bookmarks.Add(ctx, user.ID, "kopi-ruang-senja"); err != nil {
+		t.Fatalf("Add bookmark: %v", err)
+	}
+
+	if err := auth.DeleteAccount(ctx, user.ID, domain.DeleteAccountParams{Password: "rahasia123"}); err != nil {
+		t.Fatalf("DeleteAccount: %v", err)
+	}
+
+	// One DELETE FROM users has to clear the whole footprint through the
+	// foreign keys: the account, its session, its bookmark, its profile, and
+	// that profile's children.
+	cases := []struct {
+		name  string
+		query string
+		arg   string
+	}{
+		{"user", "SELECT count(*) FROM users WHERE id = $1::uuid", user.ID},
+		{"sessions", "SELECT count(*) FROM sessions WHERE user_id = $1::uuid", user.ID},
+		{"bookmarks", "SELECT count(*) FROM bookmarks WHERE user_id = $1::uuid", user.ID},
+		{"businesses", "SELECT count(*) FROM businesses WHERE owner_user_id = $1::uuid", user.ID},
+		{"milestones", "SELECT count(*) FROM business_milestones WHERE business_id = $1::uuid", created.ID},
+		{"bmc", "SELECT count(*) FROM bmc_entries WHERE business_id = $1::uuid", created.ID},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := countRows(t, pool, tc.query, tc.arg); got != 0 {
+				t.Errorf("%s rows = %d, want 0 after the account was deleted", tc.name, got)
+			}
+		})
+	}
 }

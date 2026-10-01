@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -47,7 +47,7 @@ func (h *BookmarkHandler) List(c *gin.Context) {
 	result, err := h.svc.List(c.Request.Context(), userID)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("list bookmarks: %v", err)
+			slog.Error("list bookmarks failed", "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -65,7 +65,7 @@ func (h *BookmarkHandler) Add(c *gin.Context) {
 
 	if err := h.svc.Add(c.Request.Context(), userID, c.Param("slug")); err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("add bookmark %q: %v", c.Param("slug"), err)
+			slog.Error("add bookmark failed", "slug", c.Param("slug"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -83,7 +83,7 @@ func (h *BookmarkHandler) Remove(c *gin.Context) {
 
 	if err := h.svc.Remove(c.Request.Context(), userID, c.Param("slug")); err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("remove bookmark %q: %v", c.Param("slug"), err)
+			slog.Error("remove bookmark failed", "slug", c.Param("slug"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return

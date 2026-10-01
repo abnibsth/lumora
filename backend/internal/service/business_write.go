@@ -216,6 +216,27 @@ func (s *BusinessService) Publish(ctx context.Context, userID, id string) (domai
 	return result, nil
 }
 
+// Archive is what DELETE /businesses/:id does: the profile stops being visible
+// and stops being manageable, but the row survives, so nothing is destroyed.
+//
+// Visibility needs no extra work — every public read already filters
+// status = 'published', so an archived profile leaves the list, the detail
+// page, and bookmarks on its own.
+func (s *BusinessService) Archive(ctx context.Context, userID, id string) error {
+	return s.tx.RunInTx(ctx, func(repo BusinessRepository) error {
+		row, err := ownedRow(ctx, repo, userID, id)
+		if err != nil {
+			return err
+		}
+
+		row.Status = domain.StatusArchived
+		if _, err := repo.UpdateBusiness(ctx, updateParams(row)); err != nil {
+			return fmt.Errorf("archive business: %w", err)
+		}
+		return nil
+	})
+}
+
 // ownedRow loads a profile and checks the caller owns it. Missing and
 // foreign profiles are told apart so a UUID guess can't confirm a draft exists
 // to a stranger while the owner still gets a clear 403.
@@ -233,6 +254,14 @@ func ownedRow(ctx context.Context, repo BusinessRepository, userID, id string) (
 	}
 	if err != nil {
 		return store.Business{}, fmt.Errorf("load business by id: %w", err)
+	}
+	// Checked before ownership on purpose. Were it the other way round, a
+	// stranger guessing the UUID of an archived profile would get 403 while an
+	// unknown UUID gives 404 — and that difference confirms the row exists.
+	// This also makes Update and Publish on an archived profile a 404, so
+	// archiving cannot be undone by republishing.
+	if row.Status == domain.StatusArchived {
+		return store.Business{}, domain.ErrNotFound
 	}
 	if !row.OwnerUserID.Valid || keyOf(row.OwnerUserID) != userID {
 		return store.Business{}, domain.ErrForbidden

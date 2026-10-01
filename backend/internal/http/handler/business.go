@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +24,7 @@ type BusinessService interface {
 	Create(ctx context.Context, userID string, input domain.CreateBusinessInput) (domain.OwnedBusiness, error)
 	Update(ctx context.Context, userID, id string, input domain.UpdateBusinessInput) (domain.OwnedBusiness, error)
 	Publish(ctx context.Context, userID, id string) (domain.OwnedBusiness, error)
+	Archive(ctx context.Context, userID, id string) error
 	ListMine(ctx context.Context, userID string, page, limit int) (domain.OwnedBusinessList, error)
 }
 
@@ -56,7 +57,7 @@ func (h *BusinessHandler) List(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidParameter):
 		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
 	case err != nil:
-		log.Printf("list businesses: %v", err)
+		slog.Error("list businesses failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, result)
@@ -72,7 +73,7 @@ func (h *BusinessHandler) Detail(c *gin.Context) {
 	case errors.Is(err, domain.ErrInvalidParameter):
 		writeError(c, http.StatusBadRequest, "invalid_parameter", err.Error())
 	case err != nil:
-		log.Printf("business detail %q: %v", c.Param("slug"), err)
+		slog.Error("business detail failed", "slug", c.Param("slug"), "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 	default:
 		c.JSON(http.StatusOK, business)
@@ -96,7 +97,7 @@ func (h *BusinessHandler) ListMine(c *gin.Context) {
 	result, err := h.svc.ListMine(c.Request.Context(), user.ID, page, limit)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("list own businesses: %v", err)
+			slog.Error("list own businesses failed", "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -155,7 +156,7 @@ func (h *BusinessHandler) Create(c *gin.Context) {
 	business, err := h.svc.Create(c.Request.Context(), user.ID, input)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("create business: %v", err)
+			slog.Error("create business failed", "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -180,7 +181,7 @@ func (h *BusinessHandler) Update(c *gin.Context) {
 	business, err := h.svc.Update(c.Request.Context(), user.ID, c.Param("id"), input)
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("update business %q: %v", c.Param("id"), err)
+			slog.Error("update business failed", "business_id", c.Param("id"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
@@ -199,12 +200,34 @@ func (h *BusinessHandler) Publish(c *gin.Context) {
 	business, err := h.svc.Publish(c.Request.Context(), user.ID, c.Param("id"))
 	if err != nil {
 		if !writeDomainError(c, err) {
-			log.Printf("publish business %q: %v", c.Param("id"), err)
+			slog.Error("publish business failed", "business_id", c.Param("id"), "err", err)
 			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		}
 		return
 	}
 	c.JSON(http.StatusOK, business)
+}
+
+// Archive handles DELETE /api/v1/businesses/:id. The profile is archived, not
+// erased: it disappears from every read path but the row survives. The 200 +
+// {"status":"ok"} shape matches the bookmark delete, the only other DELETE in
+// the API.
+func (h *BusinessHandler) Archive(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	err := h.svc.Archive(c.Request.Context(), user.ID, c.Param("id"))
+	if err != nil {
+		if !writeDomainError(c, err) {
+			slog.Error("archive business failed", "business_id", c.Param("id"), "err", err)
+			writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // paginationParams reads and validates the optional page/limit query pair,

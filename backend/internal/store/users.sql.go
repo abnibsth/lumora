@@ -11,8 +11,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users
+WHERE id = $1
+`
+
+type DeleteUserParams struct {
+	ID pgtype.UUID
+}
+
+// One statement, because everything a user owns hangs off a foreign key:
+// sessions, email_verification_tokens, bookmarks, and businesses all cascade.
+// businesses cascading also reaches business_milestones, bmc_entries, and the
+// bookmarks other users made on those profiles.
+func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) error {
+	_, err := q.db.Exec(ctx, deleteUser, arg.ID)
+	return err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, name, email, password_hash, role, created_at
+SELECT id, name, email, password_hash, role, created_at, email_verified_at
 FROM users
 WHERE email = $1
 `
@@ -31,12 +49,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) 
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, name, email, password_hash, role, created_at
+SELECT id, name, email, password_hash, role, created_at, email_verified_at
 FROM users
 WHERE id = $1
 `
@@ -55,6 +74,7 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
 }
@@ -62,7 +82,7 @@ func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User,
 const insertUser = `-- name: InsertUser :one
 INSERT INTO users (name, email, password_hash, role)
 VALUES ($1, $2, $3, $4)
-RETURNING id, name, email, password_hash, role, created_at
+RETURNING id, name, email, password_hash, role, created_at, email_verified_at
 `
 
 type InsertUserParams struct {
@@ -89,6 +109,50 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) (User, e
 		&i.PasswordHash,
 		&i.Role,
 		&i.CreatedAt,
+		&i.EmailVerifiedAt,
 	)
 	return i, err
+}
+
+const updateUserName = `-- name: UpdateUserName :one
+UPDATE users
+SET name = $2
+WHERE id = $1
+RETURNING id, name, email, password_hash, role, created_at, email_verified_at
+`
+
+type UpdateUserNameParams struct {
+	ID   pgtype.UUID
+	Name string
+}
+
+func (q *Queries) UpdateUserName(ctx context.Context, arg UpdateUserNameParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserName, arg.ID, arg.Name)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.CreatedAt,
+		&i.EmailVerifiedAt,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users
+SET password_hash = $2
+WHERE id = $1
+`
+
+type UpdateUserPasswordParams struct {
+	ID           pgtype.UUID
+	PasswordHash string
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.Exec(ctx, updateUserPassword, arg.ID, arg.PasswordHash)
+	return err
 }

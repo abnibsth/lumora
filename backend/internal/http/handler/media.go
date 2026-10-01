@@ -2,7 +2,7 @@ package handler
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -64,14 +64,14 @@ func (h *MediaHandler) Upload(c *gin.Context) {
 	}
 
 	if err := os.MkdirAll(h.uploadDir, 0o755); err != nil {
-		log.Printf("media mkdir %q: %v", h.uploadDir, err)
+		slog.Error("media mkdir failed", "dir", h.uploadDir, "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		return
 	}
 
 	name := uuid.New().String() + extension
 	if err := c.SaveUploadedFile(fileHeader, filepath.Join(h.uploadDir, name)); err != nil {
-		log.Printf("media save: %v", err)
+		slog.Error("media save failed", "err", err)
 		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
 		return
 	}

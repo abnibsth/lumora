@@ -58,6 +58,14 @@ type BusinessMilestone struct {
 	Position    int32
 }
 
+type EmailVerificationToken struct {
+	TokenHash string
+	UserID    pgtype.UUID
+	CreatedAt pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	UsedAt    pgtype.Timestamptz
+}
+
 type Session struct {
 	Token     string
 	UserID    pgtype.UUID
@@ -66,10 +74,11 @@ type Session struct {
 }
 
 type User struct {
-	ID           pgtype.UUID
-	Name         string
-	Email        string
-	PasswordHash string
-	Role         string
-	CreatedAt    pgtype.Timestamptz
+	ID              pgtype.UUID
+	Name            string
+	Email           string
+	PasswordHash    string
+	Role            string
+	CreatedAt       pgtype.Timestamptz
+	EmailVerifiedAt pgtype.Timestamptz
 }

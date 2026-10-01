@@ -281,6 +281,72 @@ func TestPublishRequiresCompleteProfile(t *testing.T) {
 	}
 }
 
+func TestArchiveHidesProfileFromEveryWritePath(t *testing.T) {
+	repo := newEmptyRepo()
+	svc := newService(repo)
+	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.Archive(context.Background(), ownerID, created.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	row, err := repo.GetBusinessByID(context.Background(), store.GetBusinessByIDParams{ID: parseID(created.ID)})
+	if err != nil {
+		t.Fatalf("GetBusinessByID: %v", err)
+	}
+	if row.Status != domain.StatusArchived {
+		t.Errorf("stored status = %q, want archived", row.Status)
+	}
+
+	// The row survives, but every write path treats it as gone. Republishing
+	// must not be a way back.
+	name := "Nama Baru"
+	if _, err := svc.Update(context.Background(), ownerID, created.ID, domain.UpdateBusinessInput{Name: &name}); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("Update err = %v, want ErrNotFound", err)
+	}
+	if _, err := svc.Publish(context.Background(), ownerID, created.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("Publish err = %v, want ErrNotFound", err)
+	}
+	if err := svc.Archive(context.Background(), ownerID, created.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("second Archive err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestArchiveRequiresOwnership(t *testing.T) {
+	repo := newEmptyRepo()
+	svc := newService(repo)
+	created, err := svc.Create(context.Background(), ownerID, validCreateInput())
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if err := svc.Archive(context.Background(), otherID, created.ID); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("other user err = %v, want ErrForbidden", err)
+	}
+	if err := svc.Archive(context.Background(), ownerID, "bukan-uuid"); !errors.Is(err, domain.ErrInvalidParameter) {
+		t.Errorf("bad id err = %v, want ErrInvalidParameter", err)
+	}
+	if err := svc.Archive(context.Background(), ownerID, otherID); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("missing id err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestArchiveRefusesOwnerlessProfile(t *testing.T) {
+	repo := newFixture()
+	svc := newService(repo)
+
+	// A seeded demo row has a NULL owner, so no account may archive it.
+	row := newBusiness(uuid.New(), "profil-seed")
+	repo.byID[keyOf(row.ID)] = row
+
+	if err := svc.Archive(context.Background(), ownerID, keyOf(row.ID)); !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("err = %v, want ErrForbidden", err)
+	}
+}
+
 func TestSlugify(t *testing.T) {
 	cases := map[string]string{
 		"Kopi Ruang Senja":       "kopi-ruang-senja",

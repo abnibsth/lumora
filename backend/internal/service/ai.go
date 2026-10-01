@@ -3,7 +3,8 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alfian/lumora/backend/internal/domain"
@@ -50,9 +51,9 @@ func (s *AIDraftService) Draft(ctx context.Context, in domain.DraftProfileInput)
 		// and a provider error may embed the prompt. Log the shape of the
 		// failure and how long it took, never the payload.
 		if errors.Is(err, context.DeadlineExceeded) {
-			log.Printf("ai draft: provider timed out after %s", s.timeout)
+			slog.Error("ai draft provider timed out", "timeout", s.timeout)
 		} else {
-			log.Printf("ai draft: provider failed (%T)", err)
+			slog.Error("ai draft provider failed", "err_type", fmt.Sprintf("%T", err))
 		}
 		return domain.DraftProfile{}, domain.ErrAIUnavailable
 	}

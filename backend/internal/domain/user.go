@@ -11,6 +11,18 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrEmailTaken         = errors.New("email taken")
 	ErrUnauthenticated    = errors.New("unauthenticated")
+	// ErrInvalidToken covers an unknown, expired, or already-spent verification
+	// token. One error for all three because the token is unguessable, so
+	// telling a caller which case it hit buys nothing.
+	ErrInvalidToken = errors.New("invalid or expired verification token")
+	// ErrEmailAlreadyVerified is returned when a resend is asked for an address
+	// that is already verified.
+	ErrEmailAlreadyVerified = errors.New("email already verified")
+	// ErrEmailUnavailable means the email sender could not be reached: the
+	// provider is down, its quota is exhausted, or its response could not be
+	// trusted. Deliberately coarse so the HTTP layer maps one retryable code,
+	// the same way AI failures collapse into ErrAIUnavailable.
+	ErrEmailUnavailable = errors.New("email unavailable")
 )
 
 // Roles mirrors the CHECK constraint on users.role.
@@ -40,6 +52,11 @@ type User struct {
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
+	// EmailVerified gates the endpoints listed in docs/api.md. It is exposed as
+	// a boolean rather than the underlying timestamp: the frontend only needs
+	// yes/no to decide what to show. Named "emailVerified" so it does not read
+	// as the "verified" badge that businesses carry.
+	EmailVerified bool `json:"emailVerified"`
 }
 
 // SessionCookieName is the httpOnly cookie carrying Session.Token. Shared by
@@ -64,6 +81,59 @@ type RegisterParams struct {
 type LoginParams struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// UpdateProfileParams is the validated PATCH /auth/me body. Only the display
+// name is editable: email is the login identity and a UNIQUE column, and role
+// is a trust field the account must not raise for itself.
+type UpdateProfileParams struct {
+	Name string `json:"name"`
+}
+
+// ChangePasswordParams is the validated POST /auth/change-password body.
+type ChangePasswordParams struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
+// DeleteAccountParams is the validated DELETE /auth/me body. The password is
+// required because deleting an account is irreversible: without it, a stolen
+// session alone would be enough to destroy the account.
+type DeleteAccountParams struct {
+	Password string `json:"password"`
+}
+
+// Validate normalizes and checks the profile patch payload.
+func (p *UpdateProfileParams) Validate() error {
+	p.Name = strings.TrimSpace(p.Name)
+	if p.Name == "" {
+		return invalid("Nama wajib diisi.")
+	}
+	if len(p.Name) > MaxNameLength {
+		return invalid("Nama maksimal 100 karakter.")
+	}
+	return nil
+}
+
+// Validate normalizes and checks the password change payload. The current
+// password is only checked for presence here; whether it is correct is the
+// service's job, since that needs the stored hash.
+func (p *ChangePasswordParams) Validate() error {
+	if p.CurrentPassword == "" {
+		return invalid("Kata sandi saat ini wajib diisi.")
+	}
+	if err := validatePasswordLength(p.NewPassword); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate checks the account deletion payload.
+func (p *DeleteAccountParams) Validate() error {
+	if p.Password == "" {
+		return invalid("Kata sandi wajib diisi.")
+	}
+	return nil
 }
 
 const (
