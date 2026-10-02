@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { fetchBusinessBySlug } from "@/lib/api";
 import { businesses } from "@/data/businesses";
 import { Container } from "@/components/ui/container";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +17,13 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const business = businesses.find((item) => item.slug === slug);
+  const business = await fetchBusinessBySlug(slug);
   return { title: business ? business.name : "Profil bisnis", description: business?.description };
 }
 
 export default async function BusinessProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const business = businesses.find((item) => item.slug === slug);
+  const business = await fetchBusinessBySlug(slug);
   if (!business) notFound();
 
   return (

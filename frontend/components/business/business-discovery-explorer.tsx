@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BusinessCard } from "@/components/business/business-card";
-import { businesses } from "@/data/businesses";
-import { BUSINESS_CATEGORIES, type BusinessCategory } from "@/types/business";
+import { businesses as defaultBusinesses } from "@/data/businesses";
+import { fetchBusinesses } from "@/lib/api";
+import { BUSINESS_CATEGORIES, type BusinessCategory, type Business } from "@/types/business";
 import {
   getSavedSlugsServerSnapshot,
   getSavedSlugsSnapshot,
@@ -16,6 +17,7 @@ type Filter = "Semua" | BusinessCategory;
 const filters: Filter[] = ["Semua", ...BUSINESS_CATEGORIES];
 
 export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) {
+  const [data, setData] = useState<Business[]>(defaultBusinesses);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Semua");
   const savedSlugs = useSyncExternalStore(
@@ -24,9 +26,23 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
     getSavedSlugsServerSnapshot,
   );
 
+  useEffect(() => {
+    let active = true;
+    fetchBusinesses({ limit: 50 })
+      .then((res) => {
+        if (active && res.items && res.items.length > 0) {
+          setData(res.items);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleBusinesses = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("id");
-    return businesses.filter((business) => {
+    return data.filter((business) => {
       const matchesCategory = filter === "Semua" || business.category === filter;
       const matchesQuery =
         !full ||
@@ -37,7 +53,7 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
           .includes(term);
       return matchesCategory && matchesQuery;
     }).slice(0, full ? undefined : 6);
-  }, [filter, full, query]);
+  }, [data, filter, full, query]);
 
   function toggleSaved(slug: string) {
     writeSavedSlugs(
