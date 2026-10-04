@@ -1,7 +1,8 @@
 "use client";
 
+import { motion, useInView, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Reveal, StaggerContainer, StaggerItem } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
@@ -33,27 +34,48 @@ function TypingIndicator() {
   );
 }
 
-function ProfileConversation({ onCreateDraft, onEdit }: { onCreateDraft: () => void; onEdit: () => void }) {
+function ProfileConversation({ onCreateDraft, onEdit, played, onPlayed }: { onCreateDraft: () => void; onEdit: () => void; played: boolean; onPlayed: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const visible = useInView(ref, { once: true, amount: 0.15 });
+  const reduced = useReducedMotion();
+  const [stage, setStage] = useState(played ? 4 : 0);
+  const finished = stage === 4;
+  useEffect(() => {
+    if (!visible || reduced || finished) return;
+    const timers = [350, 850, 1750, 2150].map((delay, index) =>
+      setTimeout(() => setStage(index + 1), delay),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [visible, reduced, finished]);
+  useEffect(() => {
+    if (visible) onPlayed();
+  }, [visible, onPlayed]);
+  const reveal = (step: number) => ({
+    initial: false as const,
+    animate: { opacity: reduced || stage >= step ? 1 : 0, y: reduced || stage >= step ? 0 : 8 },
+    transition: { duration: reduced ? 0 : 0.35 },
+  });
   return (
-    <>
+    <div ref={ref} className="space-y-5" onPointerDownCapture={() => setStage(4)} onFocusCapture={() => setStage(4)}>
       <div className="flex items-end gap-2">
         <AiAvatar />
         <p className="max-w-[82%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
           Halo! Ceritakan sedikit tentang bisnismu. Tidak perlu menggunakan bahasa formal.
         </p>
       </div>
-      <div className="flex justify-end">
+      <motion.div {...reveal(1)} className="flex justify-end">
         <p className="max-w-[85%] rounded-[16px] rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-surface sm:max-w-[75%]">
           Saya punya kedai kopi di Bandung sejak 2023. Pelanggan kebanyakan warga sekitar dan pekerja remote. Sekarang saya sedang mencari mitra untuk membuka cabang kedua.
         </p>
-      </div>
-      <div className="flex items-start gap-2">
+      </motion.div>
+      {!reduced && stage === 2 ? <TypingIndicator /> : null}
+      <motion.div {...reveal(3)} className="flex items-start gap-2">
         <AiAvatar />
         <div className="max-w-[88%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
           <p>Oke, saya menangkap beberapa informasi dari ceritamu.</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {["F&B", "Bandung", "Sejak 2023", "Mencari Mitra"].map((item) => (
-              <span key={item} className="rounded-full border border-forest/15 bg-surface px-2.5 py-1 text-xs font-medium text-forest">{item}</span>
+              <motion.span initial={false} animate={{ opacity: reduced || stage >= 3 ? 1 : 0 }} transition={{ duration: reduced ? 0 : 0.25, delay: reduced ? 0 : ["F&B", "Bandung", "Sejak 2023", "Mencari Mitra"].indexOf(item) * 0.1 }} key={item} className="rounded-full border border-forest/15 bg-surface px-2.5 py-1 text-xs font-medium text-forest">{item}</motion.span>
             ))}
           </div>
           <dl className="mt-3 space-y-1 text-xs leading-5 text-muted">
@@ -61,15 +83,15 @@ function ProfileConversation({ onCreateDraft, onEdit }: { onCreateDraft: () => v
             <div><dt className="inline font-semibold text-ink">Kebutuhan: </dt><dd className="inline">mitra ekspansi</dd></div>
           </dl>
           <p className="mt-3">Saya bisa membantu menyusunnya menjadi profil bisnis.</p>
-          <div className="mt-4 flex flex-wrap items-center gap-4">
+          <motion.div {...reveal(4)} className="mt-4 flex flex-wrap items-center gap-4">
             <button id="ai-create-draft" type="button" onClick={onCreateDraft} className="min-h-10 rounded-xl bg-forest px-4 text-xs font-semibold text-white transition-colors hover:bg-forest-deep">
               Buat Draft Profil <span aria-hidden="true">→</span>
             </button>
             <button id="ai-edit-information" type="button" onClick={onEdit} className="min-h-10 text-xs font-semibold text-accent underline-offset-4 hover:underline">Edit informasi</button>
-          </div>
+          </motion.div>
         </div>
-      </div>
-    </>
+      </motion.div>
+    </div>
   );
 }
 
@@ -131,6 +153,8 @@ function DraftProfile({ onBack }: { onBack: () => void }) {
 }
 
 export function AiSection() {
+  const [demoPlayed, setDemoPlayed] = useState(false);
+  const markDemoPlayed = useCallback(() => setDemoPlayed(true), []);
   const [active, setActive] = useState<Prompt>(prompts[0]);
   const [typing, setTyping] = useState(false);
   const [view, setView] = useState<View>("chat");
@@ -187,7 +211,7 @@ export function AiSection() {
                 <>
                   <div className="lumora-chat-scroll h-[min(28rem,55dvh)] min-h-[22rem] space-y-5 overflow-y-auto px-4 py-5 sm:h-[28rem] sm:px-6 lg:h-[24rem]" aria-live="polite">
                     {customMessage ? <div className="flex justify-end"><p className="max-w-[85%] rounded-[16px] rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-surface sm:max-w-[75%]">{customMessage}</p></div> : null}
-                    {typing ? <TypingIndicator /> : customMessage ? <div className="ai-result-enter flex items-end gap-2"><AiAvatar /><p className="max-w-[82%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">Saya sudah menerima ceritamu. Pilih salah satu saran di bawah agar saya dapat membantu menyusunnya.</p></div> : active === "Ceritakan bisnis saya" ? <ProfileConversation onCreateDraft={() => setView("draft")} onEdit={() => setInput("Saya ingin memperbarui informasi bisnis saya.")} /> : active === "Buat Business Model Canvas" ? <CanvasConversation /> : <SearchConversation />}
+                    {typing ? <TypingIndicator /> : customMessage ? <div className="ai-result-enter flex items-end gap-2"><AiAvatar /><p className="max-w-[82%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">Saya sudah menerima ceritamu. Pilih salah satu saran di bawah agar saya dapat membantu menyusunnya.</p></div> : active === "Ceritakan bisnis saya" ? <ProfileConversation played={demoPlayed} onPlayed={markDemoPlayed} onCreateDraft={() => setView("draft")} onEdit={() => setInput("Saya ingin memperbarui informasi bisnis saya.")} /> : active === "Buat Business Model Canvas" ? <CanvasConversation /> : <SearchConversation />}
                   </div>
 
                   <div className="border-t border-line px-4 py-4 sm:px-6">

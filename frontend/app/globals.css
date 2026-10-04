@@ -38,8 +38,8 @@
   --color-line: var(--lumora-border);
   --color-line-strong: var(--lumora-border-strong);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-dm-serif), Georgia, serif;
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
   --text-hero: clamp(2.75rem, 1.7rem + 4.8vw, 5.5rem);
   --text-hero--line-height: 1;

@@ -1,3 +1,4 @@
+import { Reveal } from "@/components/ui/section";
 import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
@@ -24,7 +25,9 @@ export function ProfileShowcaseSection() {
             </Link>
           </div>
         </div>
-        <ProfileMockup business={business} className="mt-12 border-white/15 shadow-[0_28px_90px_rgba(0,0,0,0.24)]" />
+        <Reveal scale={0.97} distance={20}>
+          <ProfileMockup business={business} className="mt-12 border-white/15 shadow-[0_28px_90px_rgba(0,0,0,0.24)]" />
+        </Reveal>
         <p className="mt-4 text-xs text-white/60">{profileShowcase.note}</p>
       </Container>
     </section>

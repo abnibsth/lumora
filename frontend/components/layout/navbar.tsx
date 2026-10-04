@@ -1,5 +1,6 @@
 "use client";
 
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -16,6 +17,7 @@ import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
+  const reducedMotion = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const { open, setOpen, triggerRef, panelRef } = useMobileMenu();
@@ -29,7 +31,10 @@ export function Navbar() {
 
   return (
     <>
-      <header
+      <motion.header
+        initial={reducedMotion ? false : { opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reducedMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
         className={cn(
           "sticky top-0 z-50 bg-surface transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300",
           scrolled || open
@@ -91,7 +96,7 @@ export function Navbar() {
             />
           </div>
         </Container>
-      </header>
+      </motion.header>
 
       <MobileNavPanel
         open={open}

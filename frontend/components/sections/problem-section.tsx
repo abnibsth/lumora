@@ -8,7 +8,7 @@ export function ProblemSection() {
     <section id={SECTION_IDS.problem} className="bg-background py-20 sm:py-28 lg:py-36">
       <Container>
         <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-20">
-          <Reveal className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal direction="left" className="lg:sticky lg:top-28 lg:self-start">
             <p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">
               {problemSection.eyebrow}
             </p>

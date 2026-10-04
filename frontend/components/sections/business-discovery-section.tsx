@@ -83,7 +83,7 @@ export function BusinessDiscoverySection() {
               <StaggerItem key={business.slug} className={index === 0 && selected.length > 1 ? "sm:col-span-2 lg:row-span-2" : ""}>
                 <Link
                   href={ROUTES.business(business.slug)}
-                  className={`group relative isolate block aspect-[4/3] min-h-0 overflow-hidden rounded-2xl bg-forest text-white sm:aspect-[3/2] ${index === 0 && selected.length > 1 ? "lg:aspect-auto lg:min-h-[39rem]" : ""}`}
+                  className={`group relative isolate block aspect-[4/3] min-h-0 overflow-hidden rounded-2xl bg-forest text-white transition-[transform,box-shadow] duration-250 ease-out motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:motion-safe:hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(18,63,50,0.12)] sm:aspect-[3/2] ${index === 0 && selected.length > 1 ? "lg:aspect-auto lg:min-h-[39rem]" : ""}`}
                 >
                   <Image
                     src={business.coverImage ?? "/img/benner.png"}

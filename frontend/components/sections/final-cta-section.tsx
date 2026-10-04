@@ -10,7 +10,7 @@ export function FinalCtaSection() {
     <section className="bg-forest py-24 text-white sm:py-32 lg:py-40">
       <Container>
         <div className="mx-auto max-w-4xl text-center">
-          <Reveal distance={20}>
+          <Reveal distance={12} scale={0.98}>
             <h2 className="font-display text-[clamp(2.25rem,5vw,4.75rem)] leading-[1.08] font-medium tracking-[-0.035em] text-balance">
               {finalCta.heading}
             </h2>

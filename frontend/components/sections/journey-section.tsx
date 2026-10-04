@@ -1,4 +1,4 @@
-import { Reveal, StaggerContainer, StaggerItem } from "@/components/ui/section";
+import { Reveal, ScrollTimeline } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { businesses } from "@/data/businesses";
 import { journeySection } from "@/data/landing";
@@ -21,16 +21,16 @@ export function JourneySection() {
 
           <Reveal delay={0.08}>
             <p className="border-b border-line pb-5 text-sm font-semibold text-ink">Perjalanan {business.name}</p>
-            <StaggerContainer className="relative ml-3 border-l border-line-strong">
+            <ScrollTimeline className="relative ml-3 border-l border-transparent">
               {milestones.map((milestone, index) => (
-                <StaggerItem key={`${milestone.year}-${index}`} className="relative py-8 pl-8 sm:py-10 sm:pl-12">
+                <Reveal key={`${milestone.year}-${index}`} delay={0.08} distance={16} className="relative py-8 pl-8 sm:py-10 sm:pl-12">
                   <span className="absolute top-10 -left-[7px] h-3 w-3 rounded-full border-2 border-background bg-forest sm:top-12" />
                   <p className="font-display text-2xl text-accent sm:text-3xl">{milestone.year}</p>
                   <h3 className="mt-2 text-xl font-semibold text-ink sm:text-2xl">{milestone.title}</h3>
                   <p className="mt-3 max-w-lg leading-7 text-muted">{milestone.description}</p>
-                </StaggerItem>
+                </Reveal>
               ))}
-            </StaggerContainer>
+            </ScrollTimeline>
           </Reveal>
         </div>
       </Container>
