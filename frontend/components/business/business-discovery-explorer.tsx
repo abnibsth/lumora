@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Select } from "radix-ui";
+import { motion, useReducedMotion } from "motion/react";
 import { BusinessCard } from "@/components/business/business-card";
 import { businesses as defaultBusinesses } from "@/data/businesses";
 import { fetchBusinesses } from "@/lib/api";
@@ -17,6 +19,7 @@ type Filter = "Semua" | BusinessCategory;
 const filters: Filter[] = ["Semua", ...BUSINESS_CATEGORIES];
 
 export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) {
+  const reducedMotion = useReducedMotion();
   const [data, setData] = useState<Business[]>(defaultBusinesses);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Semua");
@@ -84,7 +87,26 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
       ) : null}
 
       <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div role="group" aria-label="Filter kategori" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+        {full ? (
+          <Select.Root value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+            <Select.Trigger id="business-category-select" aria-label="Filter kategori bisnis" className="inline-flex min-h-11 w-full items-center justify-between gap-4 rounded-xl border border-line-strong bg-surface px-4 text-sm font-medium text-forest focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-forest lg:w-64">
+              <Select.Value /><Select.Icon aria-hidden="true">⌄</Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Content position="popper" sideOffset={6} className="z-[60] max-h-[var(--radix-select-content-available-height)] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg">
+                <Select.ScrollUpButton className="text-center text-forest">⌃</Select.ScrollUpButton>
+                <Select.Viewport>
+                  {filters.map((option) => (
+                    <Select.Item key={option} value={option} className="flex min-h-11 cursor-pointer items-center justify-between gap-4 rounded-lg px-3 text-sm text-ink outline-none data-[highlighted]:bg-soft-green data-[state=checked]:font-semibold">
+                      <Select.ItemText>{option}</Select.ItemText><Select.ItemIndicator aria-hidden="true">✓</Select.ItemIndicator>
+                    </Select.Item>
+                  ))}
+                </Select.Viewport>
+                <Select.ScrollDownButton className="text-center text-forest">⌄</Select.ScrollDownButton>
+              </Select.Content>
+            </Select.Portal>
+          </Select.Root>
+        ) : <div role="group" aria-label="Filter kategori" className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
           {filters.map((option) => {
             const active = option === filter;
             return (
@@ -93,7 +115,7 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
               </button>
             );
           })}
-        </div>
+        </div>}
         <p role="status" className="text-sm text-muted">
           {full
             ? `${visibleBusinesses.length} bisnis ditemukan${savedSlugs.length ? ` · ${savedSlugs.length} disimpan` : ""}`
@@ -115,9 +137,9 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
                   </p>
                 </li>
               ) : null}
-              <li>
+              <motion.li initial={reducedMotion ? false : { opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0, transition: { duration: reducedMotion ? 0 : 0.45, delay: reducedMotion ? 0 : Math.min(index, 5) * 0.05 } }} viewport={{ once: true, amount: 0.1 }} whileHover={reducedMotion ? undefined : { y: -3 }} transition={{ duration: reducedMotion ? 0 : 0.3 }}>
                 <BusinessCard business={business} saved={savedSlugs.includes(business.slug)} onToggleSaved={() => toggleSaved(business.slug)} editorial={full} />
-              </li>
+              </motion.li>
             </Fragment>
           ))}
         </ul>

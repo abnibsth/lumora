@@ -29,6 +29,13 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const closeOnDesktop = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, [setOpen]);
+
   return (
     <>
       <motion.header
@@ -58,7 +65,7 @@ export function Navbar() {
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "inline-flex min-h-11 items-center rounded-lg px-3.5 text-sm font-medium text-forest transition-colors duration-200 hover:bg-forest/[0.055] hover:text-forest-deep",
+                      "inline-flex min-h-11 items-center rounded-lg px-3.5 text-sm font-medium text-forest transition-colors duration-300 hover:bg-forest/[0.055] hover:text-forest-deep focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest",
                       active && "bg-forest/[0.07] text-forest-deep",
                     )}
                   >

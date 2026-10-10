@@ -1,47 +1,48 @@
-import { cn } from "@/lib/utils";
-import type { ComponentProps } from "react";
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "cn"
+import { Slot } from "radix-ui"
 
-export type BadgeTone = "accent" | "mint" | "demo";
+const badgeVariants = cva(
+  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3!",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        secondary:
+          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+        destructive:
+          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
+        outline:
+          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
+        ghost:
+          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
 
-/**
- * A badge is a label, not decoration. It exists only for real state: a category,
- * a stated partnership need, or an explicit "this is demo data" marker.
- *
- * There is no "AI Powered", "Beta" or "New" tone on purpose. Those pills say
- * nothing about the product, and the combination of pill plus thin border plus
- * glow plus uppercase is the pattern R-09 forbids. The shape stays a soft
- * rectangle rather than a pill so badges do not read as the page's default form.
- *
- * There was a "neutral" tone that filled with --lumora-ivory. It rendered as
- * an invisible chip anywhere the surrounding background used the same token,
- * which is where it was used, so it was removed rather than left as a trap. The
- * hero's trust line is plain text now.
- */
-const tones: Record<BadgeTone, string> = {
-  accent: "bg-accent/10 text-accent",
-  mint: "bg-mint/25 text-forest",
-  demo: "border border-line-strong bg-surface text-muted",
-};
+function Badge({
+  className,
+  variant = "default",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"span"> &
+  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "span"
 
-export interface BadgeProps extends Omit<ComponentProps<"span">, "className"> {
-  /**
-   * Required, with no default. Every badge on the page exists to say something
-   * specific, so making the tone explicit keeps a badge from appearing with a
-   * tone nobody chose.
-   */
-  tone: BadgeTone;
-  className?: string;
-}
-
-export function Badge({ tone, className, ...props }: BadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium",
-        tones[tone],
-        className,
-      )}
+    <Comp
+      data-slot="badge"
+      data-variant={variant}
+      className={cn(badgeVariants({ variant }), className)}
       {...props}
     />
-  );
+  )
 }
+
+export { Badge, badgeVariants }

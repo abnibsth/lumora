@@ -1,110 +1,89 @@
-"use client";
+"use client"
 
-import { cn } from "@/lib/utils";
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "cn"
+import { Tabs as TabsPrimitive } from "radix-ui"
 
-/**
- * A segmented tab control, following the ARIA tabs pattern.
- *
- * Reason for a real tab implementation rather than two buttons plus conditional
- * rendering: a segmented control is a single control with one selection, and
- * assistive technology needs to hear it that way. Each tab is wired to its panel
- * with `aria-controls` and `aria-labelledby`, only the selected tab is in the tab
- * order, and the arrow keys move between tabs.
- *
- * Every panel stays in the document with `hidden` on the inactive one, so both
- * flows are present for search engines and neither is re-mounted on switch.
- *
- * Each tab clears the 44px minimum tap target.
- */
-export interface TabItem {
-  id: string;
-  label: string;
-  content: ReactNode;
-}
-
-export function Tabs({
-  items,
-  label,
+function Tabs({
   className,
-}: {
-  items: TabItem[];
-  /** Names the control itself, e.g. "Pilih alur". */
-  label: string;
-  className?: string;
-}) {
-  const [activeId, setActiveId] = useState(items[0]?.id ?? "");
-  const baseId = useId();
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  function moveTo(id: string) {
-    setActiveId(id);
-    tabRefs.current[id]?.focus();
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const last = items.length - 1;
-    let nextIndex: number | null = null;
-
-    if (event.key === "ArrowRight") nextIndex = index === last ? 0 : index + 1;
-    else if (event.key === "ArrowLeft") nextIndex = index === 0 ? last : index - 1;
-    else if (event.key === "Home") nextIndex = 0;
-    else if (event.key === "End") nextIndex = last;
-
-    if (nextIndex === null) return;
-    event.preventDefault();
-    moveTo(items[nextIndex].id);
-  }
-
+  orientation = "horizontal",
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Root>) {
   return (
-    <div className={className}>
-      <div
-        role="tablist"
-        aria-label={label}
-        className="flex w-full gap-1 rounded-xl border border-line bg-surface p-1"
-      >
-        {items.map((item, index) => {
-          const selected = item.id === activeId;
-          return (
-            <button
-              key={item.id}
-              ref={(element) => {
-                tabRefs.current[item.id] = element;
-              }}
-              type="button"
-              role="tab"
-              id={`${baseId}-tab-${item.id}`}
-              aria-selected={selected}
-              aria-controls={`${baseId}-panel-${item.id}`}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => setActiveId(item.id)}
-              onKeyDown={(event) => handleKeyDown(event, index)}
-              className={cn(
-                "min-h-11 flex-1 rounded-lg px-4 text-sm font-medium transition-colors duration-200 ease-out sm:flex-none",
-                selected ? "bg-forest text-white" : "text-muted hover:text-ink",
-              )}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {items.map((item) => (
-        <div
-          key={item.id}
-          role="tabpanel"
-          id={`${baseId}-panel-${item.id}`}
-          aria-labelledby={`${baseId}-tab-${item.id}`}
-          hidden={item.id !== activeId}
-          // The panels hold no focusable content, so the pattern puts the panel
-          // itself in the tab order. The global focus ring is left in place.
-          tabIndex={0}
-          className="mt-8"
-        >
-          {item.content}
-        </div>
-      ))}
-    </div>
-  );
+    <TabsPrimitive.Root
+      data-slot="tabs"
+      data-orientation={orientation}
+      className={cn(
+        "group/tabs flex gap-2 data-horizontal:flex-col",
+        className
+      )}
+      {...props}
+    />
+  )
 }
+
+const tabsListVariants = cva(
+  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-horizontal/tabs:h-8 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none",
+  {
+    variants: {
+      variant: {
+        default: "bg-muted",
+        line: "gap-1 bg-transparent",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+function TabsList({
+  className,
+  variant = "default",
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.List> &
+  VariantProps<typeof tabsListVariants>) {
+  return (
+    <TabsPrimitive.List
+      data-slot="tabs-list"
+      data-variant={variant}
+      className={cn(tabsListVariants({ variant }), className)}
+      {...props}
+    />
+  )
+}
+
+function TabsTrigger({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  return (
+    <TabsPrimitive.Trigger
+      data-slot="tabs-trigger"
+      className={cn(
+        "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
+        "data-active:bg-background data-active:text-foreground dark:data-active:border-input dark:data-active:bg-input/30 dark:data-active:text-foreground",
+        "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function TabsContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Content>) {
+  return (
+    <TabsPrimitive.Content
+      data-slot="tabs-content"
+      className={cn("flex-1 text-sm outline-none", className)}
+      {...props}
+    />
+  )
+}
+
+export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants }

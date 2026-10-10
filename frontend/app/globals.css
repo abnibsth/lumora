@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+.lumora-accordion-content[data-state="open"] { animation: lumora-accordion-open .35s ease-out; }
+.lumora-accordion-content[data-state="closed"] { animation: lumora-accordion-close .3s ease-out; }
+@keyframes lumora-accordion-open {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-accordion-content-height); opacity: 1; }
+}
+@keyframes lumora-accordion-close {
+  from { height: var(--radix-accordion-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumora-accordion-content { animation: none !important; }
+}
+
 /* Semantic LUMORA tokens exposed through Tailwind CSS 4.
    Compatibility aliases remain available while existing components migrate to
    the clearer ivory, lime, soft-green, soft-border, and deep-forest names. */
@@ -16,6 +30,22 @@
   --lumora-muted: #66736d;
   --lumora-accent-strong: #245f45;
   --lumora-focus: #123f32;
+}
+
+.lumora-marquee { overflow: hidden; background: var(--lumora-ivory); color: var(--lumora-forest); border-bottom: 1px solid var(--lumora-border); }
+.lumora-marquee-window { overflow: hidden; mask-image: linear-gradient(to right, transparent, black 7%, black 93%, transparent); }
+.lumora-marquee-track { display: flex; width: max-content; animation: lumora-ecosystem-scroll 30s linear infinite; }
+.lumora-marquee-group { display: flex; flex-shrink: 0; align-items: center; gap: 3.5rem; padding: 0 1.75rem; min-height: 100px; list-style: none; margin: 0; }
+.lumora-marquee-item { display: flex; align-items: center; gap: .75rem; white-space: nowrap; font-size: 1rem; font-weight: 500; letter-spacing: -.025em; }
+.lumora-marquee-item svg { width: 28px; height: 28px; }
+@keyframes lumora-ecosystem-scroll { to { transform: translateX(-50%); } }
+@media (hover: hover) { .lumora-marquee:hover .lumora-marquee-track { animation-play-state: paused; } }
+@media (max-width: 640px) { .lumora-marquee-group { gap: 2rem; min-height: 90px; padding-inline: 1rem; } }
+@media (prefers-reduced-motion: reduce) {
+  .lumora-marquee-window { mask-image: none; }
+  .lumora-marquee-track { animation: none; width: 100%; }
+  .lumora-marquee-group { flex-wrap: wrap; justify-content: center; width: 100%; gap: 1rem 2rem; padding: 1.5rem; }
+  .lumora-marquee-group[aria-hidden="true"] { display: none; }
 }
 
 @theme inline {

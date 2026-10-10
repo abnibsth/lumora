@@ -5,7 +5,7 @@ import { SECTION_IDS } from "@/lib/constants";
 
 export function ProblemSection() {
   return (
-    <section id={SECTION_IDS.problem} className="bg-background py-20 sm:py-28 lg:py-36">
+    <section id={SECTION_IDS.problem} className="bg-background pt-16 pb-20 sm:pt-20 sm:pb-28 lg:pt-28 lg:pb-36">
       <Container>
         <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-20">
           <Reveal direction="left" className="lg:sticky lg:top-28 lg:self-start">
