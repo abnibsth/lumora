@@ -30,16 +30,17 @@ function Badge({
   className,
   variant = "default",
   asChild = false,
+  tone,
   ...props
 }: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
+  VariantProps<typeof badgeVariants> & { asChild?: boolean; tone?: "demo" | "mint" }) {
   const Comp = asChild ? Slot.Root : "span"
 
   return (
     <Comp
       data-slot="badge"
       data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
+      className={cn(tone ? "inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-medium " + (tone === "mint" ? "border-forest/10 bg-soft-green text-forest" : "border-line bg-surface text-ink") : badgeVariants({ variant }), className)}
       {...props}
     />
   )

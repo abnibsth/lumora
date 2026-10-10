@@ -8,11 +8,27 @@ import { Tabs as TabsPrimitive } from "radix-ui"
 function Tabs({
   className,
   orientation = "horizontal",
+  items,
+  label,
   ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
+}: React.ComponentProps<typeof TabsPrimitive.Root> & {
+  label?: string;
+  items?: { id: string; label: string; content: React.ReactNode }[];
+}) {
+  if (items) {
+    return (
+      <TabsPrimitive.Root orientation={orientation} defaultValue={items[0]?.id} {...props} className={cn("flex flex-col gap-6", className)}>
+        <TabsPrimitive.List aria-label={label || "Pilihan konten"} className="flex flex-wrap gap-2 border-b border-line pb-4">
+          {items.map((item) => <TabsPrimitive.Trigger key={item.id} value={item.id} className="min-h-11 rounded-xl border border-line-strong bg-surface px-5 text-sm font-medium text-forest transition-colors hover:bg-soft-green data-[state=active]:border-forest data-[state=active]:bg-forest data-[state=active]:text-white">{item.label}</TabsPrimitive.Trigger>)}
+        </TabsPrimitive.List>
+        {items.map((item) => <TabsPrimitive.Content key={item.id} value={item.id} className="outline-none">{item.content}</TabsPrimitive.Content>)}
+      </TabsPrimitive.Root>
+    );
+  }
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
+      orientation={orientation}
       data-orientation={orientation}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",

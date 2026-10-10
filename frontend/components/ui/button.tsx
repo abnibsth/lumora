@@ -66,9 +66,10 @@ function Button({
 export { Button, buttonVariants }
 
 // Public pages retain their own button contract alongside shadcn's Button.
-export function buttonStyles({ variant = "primary", size = "default", className }: { variant?: "primary" | "secondary" | "ghost" | "onDark" | "onDarkOutline"; size?: "default" | "sm" | "lg"; className?: string } = {}) {
+export function buttonStyles({ variant = "primary", size = "default", className }: { variant?: "primary" | "accent" | "secondary" | "ghost" | "onDark" | "onDarkOutline"; size?: "default" | "sm" | "lg"; className?: string } = {}) {
   const variants = {
     primary: "border-transparent bg-forest text-white hover:bg-forest-deep",
+    accent: "border-transparent bg-lime text-forest hover:bg-lime/90",
     secondary: "border-line-strong bg-surface text-forest hover:bg-soft-green",
     ghost: "border-transparent bg-transparent text-forest hover:bg-soft-green",
     onDark: "border-transparent bg-lime text-forest hover:bg-lime/90",
