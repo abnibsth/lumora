@@ -85,3 +85,23 @@ func TestDeleteAccountParamsValidate(t *testing.T) {
 		t.Errorf("err = %v, want a ValidationError", err)
 	}
 }
+
+func TestAdminRoleIsInternalOnly(t *testing.T) {
+	if !ValidRole(RoleAdmin) {
+		t.Fatal("admin must be a valid persisted role")
+	}
+	if ValidRegistrationRole(RoleAdmin) {
+		t.Fatal("admin must not be a valid public registration role")
+	}
+	params := RegisterParams{
+		Name:     "Admin",
+		Email:    "admin@example.com",
+		Password: "rahasia123",
+		Role:     RoleAdmin,
+	}
+	err := params.Validate()
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("Validate error = %v, want ValidationError", err)
+	}
+}

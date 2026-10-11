@@ -75,6 +75,21 @@ func RequireVerified() gin.HandlerFunc {
 	}
 }
 
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentUser(c)
+		if !ok {
+			abortWithError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+			return
+		}
+		if user.Role != domain.RoleAdmin {
+			abortWithError(c, http.StatusForbidden, "forbidden", "Anda tidak punya akses ke area administrator.")
+			return
+		}
+		c.Next()
+	}
+}
+
 // abortWithError writes the API's single error envelope and stops the chain.
 //
 // It lives here rather than in the handler package because handler imports

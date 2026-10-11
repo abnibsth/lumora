@@ -42,7 +42,7 @@ export function RegisterForm({ asUmkm = true }: { asUmkm?: boolean }) {
 
     setSuccess(true);
     setTimeout(() => {
-      router.push(ROUTES.explore);
+      router.push(ROUTES.dashboard);
       router.refresh();
     }, 1200);
   }
@@ -57,7 +57,7 @@ export function RegisterForm({ asUmkm = true }: { asUmkm?: boolean }) {
 
       {success ? (
         <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          Akun berhasil dibuat! Mengalihkan ke halaman jelajahi...
+          Akun berhasil dibuat. Membuka dashboard...
         </div>
       ) : null}
 

@@ -32,7 +32,7 @@ Ditambah **11 integration test** (17 kasus) yang memukul Postgres asli (build ta
 - Stack: **Gin** + **Postgres 16** + **pgx/v5** + **sqlc** + **goose** (module `github.com/alfian/lumora/backend`).
 - Skema `migrations/0001_init.sql`: tabel `users`, `businesses`, `business_milestones`, `bmc_entries` (field 1:1 dengan `frontend/types/business.ts`, JSON camelCase).
 - `docs/api.md`: kontrak resmi buat frontend (envelope error, tipe `Business`, checklist integrasi).
-- Seed `cmd/seed` — 9 profil disalin dari `frontend/data/businesses.ts`, idempoten (aman diulang).
+- Seed `cmd/seed` mengisi 9 profil demo dari `backend/cmd/seed/data.go`, idempoten (aman diulang).
 
 **Endpoint aktif:**
 
@@ -364,19 +364,21 @@ Keempatnya wajib login. Tidak ada yang memakai gate `RequireVerified`: arsip jus
 
 | Item | Status |
 |---|---|
-| Git commit | ✔ **selesai** — `backend/` + `docs/` sudah di-commit dan di-push ke `origin/backend`. Sisa: edit `frontend/next.config.ts` (scope frontend) |
+| Git commit | ✔ `backend/` + `docs/` sudah di-commit dan di-push. Frontend saat ini terintegrasi penuh (lihat `farhan.md`) |
 | Provider AI asli | ✔ **selesai** — Google Gemini (`AI_PROVIDER=gemini`, default) dengan structured output; stub tetap ada untuk run tanpa kredensial |
 | Rate limiting endpoint AI | ✔ **selesai** — fase 7: token bucket per akun, `AI_DRAFT_LIMIT_PER_HOUR` (default 20) → `429 rate_limited` + `Retry-After` |
-| Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API |
+| Klaim/assign pemilik profil seed | ❌ belum — dibutuhkan supaya data demo bisa diedit via API. Butuh kebijakan bukti kepemilikan (operator/undangan/admin), bukan sekadar `owner_user_id IS NULL` |
 | Hapus profil bisnis | ✔ **selesai** — fase 10: `DELETE /businesses/:id` **mengarsipkan** (status `archived`), bukan menghapus baris. Query publik sudah memfilter `published`, jadi tidak ada perubahan SQL di sana; yang ditambah `AND status <> 'archived'` hanya dua query dashboard pemilik. Tidak ada endpoint pembatalan arsip |
+| Pulihkan profil arsip (unarchive) | ❌ belum — data masih tersimpan tapi tidak bisa dibaca/dipulihkan lewat API. Kontrak yang disarankan: daftar arsip untuk pemilik, pulihkan sebagai `draft`, wajib publish ulang |
 | Edit & hapus akun | ✔ **selesai** — fase 10: `PATCH /auth/me` (nama saja; `role`/`email` sengaja tidak bisa), `POST /auth/change-password` (verifikasi sandi lama, logout semua perangkat lain, rate limit per akun + valve), `DELETE /auth/me` (wajib sandi di body, cascade ke sesi/bookmark/profil miliknya) |
-| Lupa / reset kata sandi | ❌ **ditunda** — provider email asli sudah ada (fase 11), jadi penghalangnya sekarang alur reset itu sendiri (endpoint minta + endpoint setel ulang dengan token sekali-pakai) |
+| Lupa / reset kata sandi | ❌ **ditunda** — provider email asli sudah ada (fase 11), jadi penghalangnya sekarang alur reset itu sendiri (endpoint minta + endpoint setel ulang dengan token sekali-pakai, transaksi atomik, dan rate limit khusus) |
+| Role & otorisasi admin | ✔ **selesai (fase 12 di `farhan.md`)** — role `admin` di constraint DB (migration `0006`), registrasi publik tetap menolak `admin`, `RequireAdmin`, endpoint read-only `GET /api/v1/admin/overview`, provisioning lewat `cmd/provision-admin` (bukan HTTP) |
 | Rate limiting login/register | ✔ **selesai** — fase 8: kunci **email** (bukan IP), dua katup (global lalu per-email) per endpoint → `429 rate_limited` + `Retry-After`. Alasan tidak pakai IP: `SetTrustedProxies(nil)` membuat `ClientIP()` berisi IP edge Railway yang sama untuk semua orang, dan `X-Forwarded-For` Railway tidak bisa dipercaya (jawaban resmi saling bertentangan). Kunci email menutup brute-force per akun; katup global menutup banjir email acak. Ditambah perbaikan timing oracle login |
 | Verifikasi email saat register | ✔ **selesai** — fase 9: kolom `users.email_verified_at` + tabel token (hash SHA-256, TTL 24 jam), gate lunak `RequireVerified` hanya di `publish` & `ai/draft-profile` → `403 email_not_verified`, rate limit verify (valve global) & resend (per akun + global) |
 | Provider email asli | ✔ **selesai** — fase 11: `EMAIL_PROVIDER=resend` mengirim lewat API HTTPS Resend (`internal/email/resend.go`), kegagalan kirim → `503 email_unavailable`, `stub` + production menolak start. **Sisa:** verifikasi domain di Resend — selama `RESEND_FROM` masih `onboarding@resend.dev`, email hanya sampai ke pemilik akun Resend |
 | Rotasi/refresh token sesi | ❌ belum — sesi statis 30 hari |
 | Integrasi test ke DB asli | ✔ **selesai** — `internal/service/integration_test.go` (build tag `integration`): lifecycle tulis→publish, slug vs seed, register/login/sesi (23505 asli), bookmark, seed ter-baca, arsip hilang dari semua jalur baca, hapus akun meng-CASCADE enam tabel. Auto-skip kalau Postgres mati, auto-bersih tiap baris yang dibuat |
-| CI (lint + test otomatis) | ✔ **selesai** — `.github/workflows/backend.yml`: job `test` (gofmt gate, vet, build, unit test, race), `integration` (Postgres 16 + migrate + seed), `sqlc` (drift check, sqlc 1.31.1 dipin) |
+| CI (lint + test otomatis) | ✔ **selesai** — backend: `.github/workflows/backend.yml` (gofmt gate, vet, build, unit test, race, integration Postgres, sqlc drift). Frontend: `.github/workflows/frontend.yml` (lint, typecheck, Vitest, build) |
 | Struktur logging | ✔ **selesai** — `log/slog` terstruktur lewat `internal/logging` (JSON saat production, text selain itu), `LOG_LEVEL` divalidasi fail-fast, access log + `X-Request-ID` menggantikan `gin.Logger` |
 | CORS | ✔ **sengaja tidak ada** — frontend lewat proxy rewrite `next.config.ts`, jadi same-origin |
 

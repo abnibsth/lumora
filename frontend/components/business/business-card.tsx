@@ -6,14 +6,14 @@ import { businessAge } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
-export function BusinessCard({ business, saved, onToggleSaved, editorial = false }: { business: Business; saved: boolean; onToggleSaved: () => void; editorial?: boolean }) {
+export function BusinessCard({ business, saved, saving = false, onToggleSaved, editorial = false }: { business: Business; saved: boolean; saving?: boolean; onToggleSaved: () => void; editorial?: boolean }) {
   return (
     <article className={editorial ? "group flex h-full min-w-0 flex-col overflow-hidden border-b border-line bg-surface pb-6" : "group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-lift transition-transform duration-200 supports-[hover:hover]:hover:-translate-y-1"}>
       <div className="relative aspect-[4/3] overflow-hidden bg-mint">
         {business.coverImage ? (
           <Image
             src={business.coverImage}
-            alt={`Suasana contoh ${business.name}`}
+            alt={`Suasana ${business.name}`}
             fill
             sizes="(min-width: 1280px) 30vw, (min-width: 768px) 46vw, 100vw"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.025]"
@@ -22,7 +22,7 @@ export function BusinessCard({ business, saved, onToggleSaved, editorial = false
         ) : null}
         <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">
           <Badge tone="demo">{business.category}</Badge>
-          <BookmarkButton name={business.name} saved={saved} onToggle={onToggleSaved} />
+          <BookmarkButton name={business.name} saved={saved} saving={saving} onToggle={onToggleSaved} />
         </div>
       </div>
 

@@ -14,6 +14,8 @@ export const ROUTES = {
   login: "/login",
   register: "/register",
   registerUmkm: "/register?role=umkm",
+  dashboard: "/dashboard",
+  verifyEmail: "/verify-email",
   privacy: "/kebijakan-privasi",
   terms: "/syarat-ketentuan",
   business: (slug: string) => `/business/${slug}`,

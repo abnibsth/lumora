@@ -6,6 +6,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { primaryNav } from "@/data/navigation";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import type { User } from "@/types/user";
 
 /**
  * Mobile navigation is a disclosure, not a modal: the trigger carries
@@ -91,11 +92,17 @@ export function MobileNavPanel({
   onClose,
   panelRef,
   pathname,
+  user,
+  loggingOut,
+  onLogout,
 }: {
   open: boolean;
   onClose: () => void;
   panelRef: React.RefObject<HTMLDivElement | null>;
   pathname: string;
+  user: User | null;
+  loggingOut: boolean;
+  onLogout: () => void;
 }) {
   return (
     <div
@@ -129,24 +136,50 @@ export function MobileNavPanel({
         </ul>
 
         <div className="mt-6 flex flex-col gap-3 border-t border-forest/10 pt-6">
-          <Link
-            href={ROUTES.login}
-            onClick={onClose}
-            className={buttonStyles({ variant: "secondary", size: "lg" })}
-          >
-            Masuk
-          </Link>
-          <Link
-            href={ROUTES.registerUmkm}
-            onClick={onClose}
-            className={buttonStyles({
-              variant: "primary",
-              size: "lg",
-              className: "w-full shadow-[0_4px_12px_rgba(15,61,46,0.14)]",
-            })}
-          >
-            Buat Profil
-          </Link>
+          {user ? (
+            <>
+              <Link
+                href={ROUTES.dashboard}
+                onClick={onClose}
+                className={buttonStyles({ variant: "primary", size: "lg" })}
+              >
+                Dashboard {user.name}
+              </Link>
+              <button
+                type="button"
+                onClick={onLogout}
+                disabled={loggingOut}
+                className={buttonStyles({
+                  variant: "secondary",
+                  size: "lg",
+                  className: "disabled:cursor-wait disabled:opacity-60",
+                })}
+              >
+                {loggingOut ? "Keluar..." : "Keluar"}
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href={ROUTES.login}
+                onClick={onClose}
+                className={buttonStyles({ variant: "secondary", size: "lg" })}
+              >
+                Masuk
+              </Link>
+              <Link
+                href={ROUTES.registerUmkm}
+                onClick={onClose}
+                className={buttonStyles({
+                  variant: "primary",
+                  size: "lg",
+                  className: "w-full shadow-[0_4px_12px_rgba(15,61,46,0.14)]",
+                })}
+              >
+                Buat Profil
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </div>

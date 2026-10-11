@@ -4,7 +4,7 @@
 
 LUMORA membantu pemilik UMKM menyusun cerita, perjalanan, data sederhana, dan model bisnisnya menjadi profil digital yang mudah dipahami. Calon mitra dapat menemukan, mempelajari, menyimpan, lalu memulai percakapan dengan bisnis yang relevan.
 
-> **Status:** backend **fase 1–11 selesai** dan sudah berjalan di Railway. Frontend masih **prototype antarmuka** — seluruh profil dan metrik bisnisnya masih data contoh di `frontend/data/businesses.ts`, dan **belum memanggil backend** (baru ada rewrite proxy yang belum dipakai).
+> **Status:** backend **fase 1–11 selesai** dan berjalan di Railway. Frontend **sudah terintegrasi penuh** dengan backend untuk autentikasi, verifikasi email, dashboard pemilik, CRUD profil, upload media, AI draft, bookmark server-side, dan pengaturan akun. Seluruh data bisnis diambil langsung dari API backend.
 
 ---
 
@@ -109,10 +109,10 @@ flowchart TD
     F --> G[Publikasikan profil]
     G --> H[Masuk discovery hub]
     H --> I[Ditemukan calon mitra]
-    C -. UI frontend belum memanggil API .-> J[Prototype antarmuka]
+    C -. form tersambung ke API backend .-> J[POST /businesses]
 ```
 
-Endpoint di balik flow ini sudah tersedia di backend (register → `POST /businesses` → `PATCH` → `POST /publish`), tetapi form frontend belum tersambung ke sana.
+Endpoint di balik flow ini sudah tersedia di backend (register → `POST /businesses` → `PATCH` → `POST /publish`), dan form dashboard pemilik sudah tersambung ke sana.
 
 ### Flow Mitra
 
@@ -135,14 +135,14 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[businesses.ts] --> B[BusinessDiscoveryExplorer]
+    A[GET /businesses] --> B[BusinessDiscoveryExplorer]
     C[Input pencarian] --> B
     D[Filter kategori] --> B
     B --> E[Daftar hasil]
     E --> F[BusinessCard]
     F --> G[/business/slug]
     F --> H[Bookmark]
-    H --> I[localStorage]
+    H --> I[GET/POST/DELETE /bookmarks]
 ```
 
 ### Flow route editorial
@@ -338,13 +338,13 @@ Server Component dipakai secara default. Client Component hanya untuk navbar scr
 
 ### Backend
 
-Postgres, lima migrasi (`0001`–`0005`): `users`, `sessions`, `businesses`, `business_milestones`, `bmc_entries`, `bookmarks`, `email_verification_tokens`. Field bisnis 1:1 dengan `frontend/types/business.ts` (JSON camelCase). `cmd/seed` mengisi 9 profil demo; profil seed punya `owner_user_id` NULL sehingga **tidak bisa diedit atau di-publish lewat API** — hanya profil yang dibuat via `POST /businesses` yang bisa dikelola.
+Postgres, enam migrasi (`0001`–`0006`): `users`, `sessions`, `businesses`, `business_milestones`, `bmc_entries`, `bookmarks`, `email_verification_tokens`. Field bisnis 1:1 dengan `frontend/types/business.ts` (JSON camelCase). `cmd/seed` mengisi profil demo; profil seed punya `owner_user_id` NULL sehingga **tidak bisa diedit atau di-publish lewat API** — hanya profil yang dibuat via `POST /businesses` yang bisa dikelola. `cmd/provision-admin` membuat akun admin secara manual (role `admin` tidak bisa dibuat lewat registrasi publik).
 
 ### Frontend
 
-`frontend/types/business.ts` adalah kontrak tipe, `frontend/data/businesses.ts` berisi sembilan profil contoh yang dipakai di homepage, discovery, detail profil, chart, dan halaman editorial. Data ini bukan informasi bisnis terverifikasi.
+`frontend/types/business.ts` adalah kontrak tipe bersama. Seluruh data bisnis di homepage, discovery, detail profil, chart, dan halaman editorial diambil dari API backend (`GET /businesses`, `GET /businesses/:slug`). Tidak ada lagi sumber data contoh lokal.
 
-Bookmark tersimpan di `localStorage` dan disinkronkan ke React melalui `useSyncExternalStore` — belum tersinkron ke server, hilang kalau storage browser dihapus. Endpoint bookmark backend sudah tersedia untuk menggantikannya.
+Bookmark disimpan per akun di server melalui `GET/POST/DELETE /bookmarks`.
 
 ## Design System
 
@@ -420,21 +420,17 @@ Prinsip visual:
 
 **Frontend:**
 
-- Belum memanggil backend sama sekali — autentikasi, database, upload, dan AI produksi belum tersambung.
-- Dashboard pemilik belum ada.
-- Bookmark masih `localStorage`, belum tersinkron lintas perangkat.
 - `Hubungi Pemilik` masih memakai `mailto:`.
 - Dokumen kebijakan privasi masih placeholder.
+- E2E (Playwright) belum ada; baru ada unit test Vitest untuk helper API dan redirect.
+- CMS admin masih read-only (overview dari `GET /admin/overview`); belum ada aksi moderasi.
 
 ### Selanjutnya
 
-1. Tambah `frontend/lib/api.ts` (fetch wrapper, `credentials: "include"`) + rewrite proxy, lalu sambungkan form login/registrasi.
-2. Ganti `data/businesses.ts` dengan `GET /businesses` di `/explore`, homepage, dan `/business/[slug]`.
-3. Sambungkan bookmark ke `GET/POST/DELETE /bookmarks`.
-4. Bangun dashboard pemilik di atas `GET /businesses/mine`.
-5. Tambah halaman `/verify-email` dan alur reset kata sandi.
-6. Verifikasi domain di Resend supaya email sampai ke pengguna umum.
-7. Tambah test end-to-end dan accessibility.
+1. Verifikasi domain di Resend supaya email sampai ke pengguna umum.
+2. Tambah test end-to-end dan accessibility.
+3. Aktifkan aksi moderasi admin (verifikasi profil) bila aturan produknya sudah jelas.
+4. Kerjakan backlog backend: reset kata sandi, pulihkan profil arsip, klaim pemilik seed, rotasi sesi.
 
 ```mermaid
 flowchart LR

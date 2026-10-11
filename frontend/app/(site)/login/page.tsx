@@ -1,10 +1,25 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/container";
 import { LoginForm } from "@/components/auth/login-form";
+import { getMeApi } from "@/lib/api";
+import { getRedirectTarget } from "@/lib/redirect";
 
 export const metadata: Metadata = { title: "Masuk", description: "Masuk ke akun LUMORA." };
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const redirectTo = getRedirectTarget((await searchParams).next);
+  const user = await getMeApi((await cookies()).toString());
+
+  if (user) {
+    redirect(redirectTo);
+  }
+
   return (
     <section className="py-12 md:py-20">
       <Container>
@@ -19,7 +34,7 @@ export default function LoginPage() {
             </p>
           </div>
           <div className="p-6 sm:p-8 md:p-12">
-            <LoginForm />
+            <LoginForm redirectTo={redirectTo} />
           </div>
         </div>
       </Container>

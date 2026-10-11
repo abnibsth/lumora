@@ -3,13 +3,10 @@ import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
 import { ProfileMockup } from "@/components/business/profile-mockup";
-import { businesses } from "@/data/businesses";
 import { profileShowcase } from "@/data/landing";
 import { ROUTES, SECTION_IDS } from "@/lib/constants";
 
-export function ProfileShowcaseSection() {
-  const business = businesses[0];
-
+export function ProfileShowcaseSection({ business }: { business: import("@/types/business").Business }) {
   return (
     <section id={SECTION_IDS.showcase} className="overflow-hidden bg-forest py-20 text-white sm:py-28 lg:py-32">
       <Container>
@@ -28,7 +25,7 @@ export function ProfileShowcaseSection() {
         <Reveal scale={0.97} distance={20}>
           <ProfileMockup business={business} className="mt-12 border-white/15 shadow-[0_28px_90px_rgba(0,0,0,0.24)]" />
         </Reveal>
-        <p className="mt-4 text-xs text-white/60">{profileShowcase.note}</p>
+        <p className="mt-4 text-xs text-white/60">Informasi berasal dari profil yang dipublikasikan pemilik bisnis.</p>
       </Container>
     </section>
   );

@@ -1,6 +1,10 @@
-import { businesses as dummyBusinesses } from "@/data/businesses";
-import type { Business, BusinessCategory } from "@/types/business";
-import type { User } from "@/types/user";
+import type {
+  Business,
+  BusinessWriteInput,
+  AIDraftProfile,
+  OwnedBusiness,
+} from "@/types/business";
+import type { ApiErrorResponse, User } from "@/types/user";
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -20,12 +24,54 @@ export interface BusinessListResponse {
   limit: number;
 }
 
+export interface OwnedBusinessListResponse {
+  items: OwnedBusiness[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export interface BusinessFilterParams {
   q?: string;
   category?: string;
   location?: string;
   page?: number;
   limit?: number;
+}
+
+export interface ApiActionResult {
+  ok: boolean;
+  code?: string;
+  error?: string;
+}
+
+export interface AdminOverview {
+  metrics: {
+    totalUsers: number;
+    totalUmkmUsers: number;
+    totalMitraUsers: number;
+    totalBusinesses: number;
+    publishedBusinesses: number;
+    unverifiedPublishedBusinesses: number;
+  };
+  registrationGrowth: Array<{ month: string; count: number }>;
+  recentBusinesses: Array<{
+    id: string;
+    name: string;
+    category: string;
+    location: string;
+    createdAt: string;
+    status: "draft" | "published" | "archived";
+    verified: boolean;
+  }>;
+}
+
+function getApiError(data: unknown, fallback: string): Omit<ApiActionResult, "ok"> {
+  const response = data as Partial<ApiErrorResponse>;
+  return {
+    code: response.error?.code,
+    error: response.error?.message || fallback,
+  };
 }
 
 export async function fetchBusinesses(
@@ -43,67 +89,27 @@ export async function fetchBusinesses(
   const qs = query.toString();
   const url = `${getApiBaseUrl()}/api/v1/businesses${qs ? `?${qs}` : ""}`;
 
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-    });
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Business list request failed with status ${res.status}`);
 
-    if (res.ok) {
-      const data = (await res.json()) as BusinessListResponse;
-      if (Array.isArray(data.items)) {
-        return data;
-      }
-    }
-  } catch (err) {
-    console.warn("Backend API unavailable, falling back to local data:", err);
-  }
-
-  // Fallback to local dummy data if backend is offline or fails
-  const categoryFilter = params?.category && params.category !== "Semua" ? params.category : null;
-  const term = params?.q?.trim().toLowerCase();
-
-  const filtered = dummyBusinesses.filter((b) => {
-    const matchesCat = !categoryFilter || b.category === (categoryFilter as BusinessCategory);
-    const matchesQ =
-      !term ||
-      [b.name, b.category, b.location, b.description]
-        .join(" ")
-        .toLowerCase()
-        .includes(term);
-    return matchesCat && matchesQ;
-  });
-
-  return {
-    items: filtered,
-    total: filtered.length,
-    page: params?.page ?? 1,
-    limit: params?.limit ?? filtered.length,
-  };
+  const data = (await res.json()) as BusinessListResponse;
+  if (!Array.isArray(data.items)) throw new Error("Business list response is invalid");
+  return data;
 }
 
 export async function fetchBusinessBySlug(slug: string): Promise<Business | null> {
   const url = `${getApiBaseUrl()}/api/v1/businesses/${encodeURIComponent(slug)}`;
 
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-    });
-
-    if (res.ok) {
-      const data = (await res.json()) as Business;
-      return data;
-    }
-  } catch (err) {
-    console.warn(`Backend API detail failed for ${slug}, falling back:`, err);
-  }
-
-  return dummyBusinesses.find((b) => b.slug === slug) ?? null;
+  const res = await fetch(url, { next: { revalidate: 60 } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Business detail request failed with status ${res.status}`);
+  return (await res.json()) as Business;
 }
 
 export async function loginApi(params: {
   email: string;
   password: string;
-}): Promise<{ ok: boolean; user?: User; error?: string }> {
+}): Promise<ApiActionResult & { user?: User }> {
   try {
     const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
       method: "POST",
@@ -112,9 +118,9 @@ export async function loginApi(params: {
       credentials: "include",
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as User | ApiErrorResponse;
     if (!res.ok) {
-      return { ok: false, error: data?.message || "Email atau kata sandi salah." };
+      return { ok: false, ...getApiError(data, "Email atau kata sandi salah.") };
     }
     return { ok: true, user: data as User };
   } catch {
@@ -127,7 +133,7 @@ export async function registerApi(params: {
   email: string;
   password: string;
   role?: "umkm" | "mitra";
-}): Promise<{ ok: boolean; user?: User; error?: string }> {
+}): Promise<ApiActionResult & { user?: User }> {
   try {
     const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/register`, {
       method: "POST",
@@ -136,9 +142,9 @@ export async function registerApi(params: {
       credentials: "include",
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as User | ApiErrorResponse;
     if (!res.ok) {
-      return { ok: false, error: data?.message || "Pendaftaran gagal. Periksa input data." };
+      return { ok: false, ...getApiError(data, "Pendaftaran gagal. Periksa input data.") };
     }
     return { ok: true, user: data as User };
   } catch {
@@ -158,10 +164,12 @@ export async function logoutApi(): Promise<boolean> {
   }
 }
 
-export async function getMeApi(): Promise<User | null> {
+export async function getMeApi(cookie?: string): Promise<User | null> {
   try {
     const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
       credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
     });
     if (res.ok) {
       return (await res.json()) as User;
@@ -170,4 +178,284 @@ export async function getMeApi(): Promise<User | null> {
     // Ignore error
   }
   return null;
+}
+
+export async function verifyEmailApi(token: string): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/verify-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Verifikasi email gagal.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function resendVerificationApi(): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/resend-verification`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Email verifikasi gagal dikirim ulang.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchMyBusinesses(cookie?: string): Promise<
+  ApiActionResult & { data?: OwnedBusinessListResponse }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/businesses/mine?limit=50`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) {
+      return { ok: true, data: (await res.json()) as OwnedBusinessListResponse };
+    }
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Profil bisnis gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function createBusinessApi(
+  input: BusinessWriteInput,
+): Promise<ApiActionResult & { business?: OwnedBusiness }> {
+  return writeBusinessApi("/api/v1/businesses", "POST", input);
+}
+
+export async function updateBusinessApi(
+  id: string,
+  input: BusinessWriteInput,
+): Promise<ApiActionResult & { business?: OwnedBusiness }> {
+  return writeBusinessApi(`/api/v1/businesses/${encodeURIComponent(id)}`, "PATCH", input);
+}
+
+async function writeBusinessApi(
+  path: string,
+  method: "POST" | "PATCH",
+  input: BusinessWriteInput,
+): Promise<ApiActionResult & { business?: OwnedBusiness }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json()) as OwnedBusiness | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Profil bisnis gagal disimpan.") };
+    }
+    return { ok: true, business: data as OwnedBusiness };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function publishBusinessApi(
+  id: string,
+): Promise<ApiActionResult & { business?: OwnedBusiness }> {
+  try {
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/v1/businesses/${encodeURIComponent(id)}/publish`,
+      { method: "POST", credentials: "include" },
+    );
+    const data = (await res.json()) as OwnedBusiness | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Profil bisnis gagal diterbitkan.") };
+    }
+    return { ok: true, business: data as OwnedBusiness };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function archiveBusinessApi(id: string): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/businesses/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Profil bisnis gagal diarsipkan.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function uploadMediaApi(
+  file: File,
+): Promise<ApiActionResult & { url?: string }> {
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/media`, {
+      method: "POST",
+      credentials: "include",
+      body,
+    });
+    const data = (await res.json()) as { url: string } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Gambar gagal diunggah.") };
+    }
+    return { ok: true, url: (data as { url: string }).url };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function draftProfileApi(
+  narrative: string,
+): Promise<ApiActionResult & { draft?: AIDraftProfile }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/draft-profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ narrative }),
+    });
+    const data = (await res.json()) as AIDraftProfile | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Draf AI gagal dibuat.") };
+    }
+    return { ok: true, draft: data as AIDraftProfile };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchBookmarks(cookie?: string): Promise<
+  ApiActionResult & { data?: BusinessListResponse }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/bookmarks`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) {
+      return { ok: true, data: (await res.json()) as BusinessListResponse };
+    }
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Bookmark gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function addBookmarkApi(slug: string): Promise<ApiActionResult> {
+  return mutateBookmarkApi(slug, "POST");
+}
+
+export async function removeBookmarkApi(slug: string): Promise<ApiActionResult> {
+  return mutateBookmarkApi(slug, "DELETE");
+}
+
+async function mutateBookmarkApi(slug: string, method: "POST" | "DELETE"): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/v1/bookmarks/${encodeURIComponent(slug)}`,
+      { method, credentials: "include" },
+    );
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Bookmark gagal diperbarui.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function updateAccountApi(
+  name: string,
+): Promise<ApiActionResult & { user?: User }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ name }),
+    });
+    const data = (await res.json()) as User | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Nama akun gagal diperbarui.") };
+    }
+    return { ok: true, user: data as User };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function changePasswordApi(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Kata sandi gagal diubah.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function deleteAccountApi(password: string): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) return { ok: true };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Akun gagal dihapus.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchAdminOverview(cookie?: string): Promise<
+  ApiActionResult & { data?: AdminOverview }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/admin/overview`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) return { ok: true, data: (await res.json()) as AdminOverview };
+
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Overview admin gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
 }

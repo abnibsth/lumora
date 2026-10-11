@@ -29,9 +29,14 @@ var (
 const (
 	RoleUMKM  = "umkm"
 	RoleMitra = "mitra"
+	RoleAdmin = "admin"
 )
 
 func ValidRole(role string) bool {
+	return role == RoleUMKM || role == RoleMitra || role == RoleAdmin
+}
+
+func ValidRegistrationRole(role string) bool {
 	return role == RoleUMKM || role == RoleMitra
 }
 
@@ -164,7 +169,7 @@ func (p *RegisterParams) Validate() error {
 	if p.Role == "" {
 		p.Role = RoleUMKM
 	}
-	if !ValidRole(p.Role) {
+	if !ValidRegistrationRole(p.Role) {
 		return invalid("Role harus umkm atau mitra.")
 	}
 	return nil

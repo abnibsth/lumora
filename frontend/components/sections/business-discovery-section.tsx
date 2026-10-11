@@ -2,44 +2,24 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Reveal, StaggerContainer, StaggerItem } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
-import { businesses as defaultBusinesses } from "@/data/businesses";
-import { fetchBusinesses } from "@/lib/api";
 import { discoverySection } from "@/data/landing";
 import { ROUTES, SECTION_IDS } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
-const featuredSlugs = ["kopi-ruang-senja", "arunika-bakery", "nara-studio"];
 const filters = ["Semua", "F&B", "Retail", "Jasa", "Kreatif", "Fashion"] as const;
 
-export function BusinessDiscoverySection() {
-  const [data, setData] = useState<Business[]>(defaultBusinesses);
+export function BusinessDiscoverySection({ businesses }: { businesses: Business[] }) {
   const [filter, setFilter] = useState<(typeof filters)[number]>("Semua");
 
-  useEffect(() => {
-    let active = true;
-    fetchBusinesses({ limit: 12 })
-      .then((res) => {
-        if (active && res.items && res.items.length > 0) {
-          setData(res.items);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const selected = useMemo(() => {
-    const featured = data.filter((b) => featuredSlugs.includes(b.slug));
-    const pool = featured.length >= 3 ? featured : data;
-    return pool.filter(
+    return businesses.filter(
       (business) => filter === "Semua" || business.category === filter,
     );
-  }, [data, filter]);
+  }, [businesses, filter]);
 
   return (
     <section id={SECTION_IDS.businesses} className="bg-surface py-20 sm:py-24 lg:py-32">
@@ -55,7 +35,7 @@ export function BusinessDiscoverySection() {
               </h2>
             </div>
             <p className="max-w-lg text-base leading-7 text-muted lg:justify-self-end">
-              {discoverySection.description} Seluruh profil pada bagian ini merupakan data contoh.
+              {discoverySection.description}
             </p>
           </div>
         </Reveal>
@@ -105,7 +85,7 @@ export function BusinessDiscoverySection() {
             ))}
           </StaggerContainer>
         ) : (
-          <p className="mt-8 border-y border-line py-12 text-muted">Belum ada profil contoh pada kategori ini.</p>
+          <p className="mt-8 border-y border-line py-12 text-muted">Belum ada profil bisnis pada kategori ini.</p>
         )}
 
         <div className="mt-10">

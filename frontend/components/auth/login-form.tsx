@@ -7,7 +7,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { loginApi } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 
-export function LoginForm() {
+export function LoginForm({ redirectTo = ROUTES.dashboard }: { redirectTo?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,7 +30,7 @@ export function LoginForm() {
 
     setSuccess(true);
     setTimeout(() => {
-      router.push(ROUTES.explore);
+      router.push(redirectTo);
       router.refresh();
     }, 800);
   }
@@ -50,7 +50,7 @@ export function LoginForm() {
 
       {success ? (
         <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          Berhasil masuk! Mengarahkan ke halaman jelajahi...
+          Berhasil masuk. Membuka akunmu...
         </div>
       ) : null}
 

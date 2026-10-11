@@ -3,9 +3,10 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
+import { EmailVerificationNotice } from "@/components/auth/email-verification-notice";
 import { Logo } from "@/components/layout/logo";
 import {
   MobileNavPanel,
@@ -13,20 +14,50 @@ import {
   useMobileMenu,
 } from "@/components/layout/mobile-nav";
 import { primaryNav } from "@/data/navigation";
+import { getMeApi, logoutApi } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import type { User } from "@/types/user";
 
 export function Navbar() {
   const reducedMotion = useReducedMotion();
   const [scrolled, setScrolled] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { open, setOpen, triggerRef, panelRef } = useMobileMenu();
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    const loggedOut = await logoutApi();
+    if (!loggedOut) {
+      setLoggingOut(false);
+      return;
+    }
+    setUser(null);
+    setOpen(false);
+    router.push(ROUTES.home);
+    router.refresh();
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    getMeApi().then((currentUser) => {
+      if (active) setUser(currentUser);
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -76,24 +107,51 @@ export function Navbar() {
             </nav>
 
             <div className="hidden items-center gap-2 xl:flex">
-              <Link
-                href={ROUTES.login}
-                className={cn(
-                  buttonStyles({ variant: "ghost" }),
-                  "text-forest hover:bg-forest/[0.055]",
-                )}
-              >
-                Masuk
-              </Link>
-              <Link
-                href={ROUTES.registerUmkm}
-                className={cn(
-                  buttonStyles({ variant: "primary" }),
-                  "rounded-xl px-5 shadow-[0_4px_12px_rgba(15,61,46,0.14)] hover:shadow-[0_6px_16px_rgba(15,61,46,0.18)]",
-                )}
-              >
-                Buat Profil
-              </Link>
+              {user ? (
+                <>
+                  <Link
+                    href={ROUTES.dashboard}
+                    className={cn(
+                      buttonStyles({ variant: "ghost" }),
+                      "max-w-52 truncate text-forest hover:bg-forest/[0.055]",
+                    )}
+                  >
+                    {user.name}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className={cn(
+                      buttonStyles({ variant: "secondary" }),
+                      "disabled:cursor-wait disabled:opacity-60",
+                    )}
+                  >
+                    {loggingOut ? "Keluar..." : "Keluar"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href={ROUTES.login}
+                    className={cn(
+                      buttonStyles({ variant: "ghost" }),
+                      "text-forest hover:bg-forest/[0.055]",
+                    )}
+                  >
+                    Masuk
+                  </Link>
+                  <Link
+                    href={ROUTES.registerUmkm}
+                    className={cn(
+                      buttonStyles({ variant: "primary" }),
+                      "rounded-xl px-5 shadow-[0_4px_12px_rgba(15,61,46,0.14)] hover:shadow-[0_6px_16px_rgba(15,61,46,0.18)]",
+                    )}
+                  >
+                    Buat Profil
+                  </Link>
+                </>
+              )}
             </div>
 
             <MobileNavTrigger
@@ -105,11 +163,16 @@ export function Navbar() {
         </Container>
       </motion.header>
 
+      {user && !user.emailVerified ? <EmailVerificationNotice user={user} /> : null}
+
       <MobileNavPanel
         open={open}
         onClose={() => setOpen(false)}
         panelRef={panelRef}
         pathname={pathname}
+        user={user}
+        loggingOut={loggingOut}
+        onLogout={handleLogout}
       />
     </>
   );

@@ -25,7 +25,7 @@ export function RevenueChart({
   const min = Math.min(...series);
   const span = max - min || 1;
 
-  const summary = `Pendapatan bulanan contoh selama ${series.length} bulan terakhir, naik dari ${min} juta rupiah menjadi ${max} juta rupiah.`;
+  const summary = `Pendapatan bulanan selama ${series.length} bulan terakhir, bergerak dari ${min} juta rupiah menjadi ${max} juta rupiah.`;
 
   return (
     <figure className={cn("m-0", className)}>

@@ -1,11 +1,9 @@
 import { Reveal, ScrollTimeline } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
-import { businesses } from "@/data/businesses";
 import { journeySection } from "@/data/landing";
 import { SECTION_IDS } from "@/lib/constants";
 
-export function JourneySection() {
-  const business = businesses[0];
+export function JourneySection({ business }: { business: import("@/types/business").Business }) {
   const milestones = business.milestones ?? [];
 
   return (

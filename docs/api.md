@@ -666,22 +666,51 @@ Respons `200` (contoh nyata dari provider `gemini`, bukan karangan):
 
 ## Checklist perubahan frontend
 
-- [ ] Tambah rewrite `/api/:path*` di `next.config.ts` (lihat atas).
-- [ ] Buat `frontend/lib/api.ts`: fetch wrapper dengan `credentials: "include"` dan base path `/api/v1`.
-- [ ] Form `/register` → `POST /auth/register`; form `/login` → `POST /auth/login`. Ambil error dari `error.code` (`validation_failed` tampilkan `error.message`, `email_taken`, `invalid_credentials`).
-- [ ] Setelah login/register sukses → redirect; panggil `GET /auth/me` saat hydration buat state navbar (ganti tombol Masuk/Buat Profil jadi nama user + Keluar → `POST /auth/logout`).
-- [ ] Buat halaman `/verify-email`: baca `token` dari query, `POST /auth/verify-email` (bukan GET), tampilkan sukses atau tawarkan kirim ulang saat `400 invalid_token`. Tautan di email mengarah ke halaman ini.
-- [ ] Pakai `emailVerified` dari `/auth/me` untuk menampilkan ajakan verifikasi + tombol `POST /auth/resend-verification` (`409 email_already_verified` = sudah beres, `429` = tunggu). Tangani `403 email_not_verified` saat publish / draf AI dengan arahan ke halaman verifikasi.
-- [ ] `businessName` di form register diabaikan backend — profil dibuat lewat `POST /businesses` (butuh login), jadi simpan dulu di state sampai form profil ada.
-- [ ] Kalau ada form buat/edit profil → `POST /businesses` (buat), `PATCH /businesses/:id` (edit), `POST /businesses/:id/publish` (tayang); semua wajib login, baca `status` dari respons, tampilkan `error.message` untuk `validation_failed`.
-- [ ] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`. Tombol hapus → `DELETE /businesses/:id` (arsip; konfirmasi dulu di UI karena tidak bisa dibatalkan lewat API).
-- [ ] Halaman akun: `PATCH /auth/me` untuk ganti nama, `POST /auth/change-password` untuk ganti kata sandi (ingatkan bahwa perangkat lain akan logout), `DELETE /auth/me` untuk hapus akun (wajib minta kata sandi + konfirmasi eksplisit).
-- [ ] `/explore` + `BusinessDiscoveryExplorer`: ganti `import { businesses } from "@/data/businesses"` → fetch `GET /businesses?limit=50`, filter `q`/`category` dikirim sebagai query (server side).
-- [ ] `/business/[slug]`: hapus `generateStaticParams` berbasis data lokal, ganti ke fetch di Server Component + `next: { revalidate: 60 }` supaya SEO tetap jalan. 404 → panggil `notFound()`.
-- [ ] Homepage (featured discovery): fetch `GET /businesses?limit=6`.
-- [ ] Setelah semua terhubung: hapus `frontend/data/businesses.ts` — jangan ada dua sumber kebenaran.
-- [ ] Bookmark: ganti `localStorage` → `GET /bookmarks`, `POST /bookmarks/:slug`, `DELETE /bookmarks/:slug` (semua wajib login, shape list sama dengan `GET /businesses`).
-- [ ] `coverImage` / `logo`: bisa pakai URL eksternal seperti sekarang, atau upload dulu ke `POST /media` lalu isi respons `url`-nya.
+> **Status:** seluruh poin sudah diterapkan. Frontend sudah terintegrasi penuh dengan backend (autentikasi, verifikasi email, dashboard pemilik, CRUD profil, upload media, AI draft, bookmark server-side, pengaturan akun). Daftar di bawah dipertahankan sebagai jejak kontrak.
+
+- [x] Tambah rewrite `/api/:path*` dan `/uploads/:path*` di `next.config.ts` (lihat atas).
+- [x] Buat `frontend/lib/api.ts`: fetch wrapper dengan `credentials: "include"` dan base path `/api/v1`.
+- [x] Form `/register` → `POST /auth/register`; form `/login` → `POST /auth/login`. Ambil error dari `error.code` (`validation_failed` tampilkan `error.message`, `email_taken`, `invalid_credentials`).
+- [x] Setelah login/register sukses → redirect; panggil `GET /auth/me` saat hydration buat state navbar (ganti tombol Masuk/Buat Profil jadi nama user + Keluar → `POST /auth/logout`).
+- [x] Buat halaman `/verify-email`: baca `token` dari query, `POST /auth/verify-email` (bukan GET), tampilkan sukses atau tawarkan kirim ulang saat `400 invalid_token`. Tautan di email mengarah ke halaman ini.
+- [x] Pakai `emailVerified` dari `/auth/me` untuk menampilkan ajakan verifikasi + tombol `POST /auth/resend-verification` (`409 email_already_verified` = sudah beres, `429` = tunggu). Tangani `403 email_not_verified` saat publish / draf AI dengan arahan ke halaman verifikasi.
+- [x] `businessName` di form register diabaikan backend — profil dibuat lewat `POST /businesses` (butuh login).
+- [x] Form buat/edit profil → `POST /businesses` (buat), `PATCH /businesses/:id` (edit), `POST /businesses/:id/publish` (tayang); semua wajib login, baca `status` dari respons, tampilkan `error.message` untuk `validation_failed`.
+- [x] Dashboard pemilik: `GET /businesses/mine` untuk daftar profil milik akun (draft + published), tiap item ada `status`. Tombol hapus → `DELETE /businesses/:id` (arsip; konfirmasi dulu di UI karena tidak bisa dibatalkan lewat API).
+- [x] Halaman akun: `PATCH /auth/me` untuk ganti nama, `POST /auth/change-password` untuk ganti kata sandi (ingatkan bahwa perangkat lain akan logout), `DELETE /auth/me` untuk hapus akun (wajib minta kata sandi + konfirmasi eksplisit).
+- [x] `/explore` + `BusinessDiscoveryExplorer`: fetch `GET /businesses?limit=50`, filter `q`/`category` dikirim sebagai query (server side).
+- [x] `/business/[slug]`: hapus `generateStaticParams` berbasis data lokal, ganti ke fetch di Server Component + `next: { revalidate: 60 }` supaya SEO tetap jalan. 404 → panggil `notFound()`.
+- [x] Homepage (featured discovery): fetch `GET /businesses?limit=6`.
+- [x] Setelah semua terhubung: hapus `frontend/data/businesses.ts` — tidak ada lagi dua sumber kebenaran.
+- [x] Bookmark: ganti `localStorage` → `GET /bookmarks`, `POST /bookmarks/:slug`, `DELETE /bookmarks/:slug` (semua wajib login, shape list sama dengan `GET /businesses`).
+- [x] `coverImage` / `logo`: upload ke `POST /media` lalu isi respons `url`-nya.
+
+### `GET /api/v1/admin/overview` — ringkasan admin
+
+Wajib login **dan** role `admin` (middleware `RequireAdmin`). Read-only; belum ada endpoint mutasi. Akun admin dibuat di luar HTTP lewat `backend/cmd/provision-admin` (registrasi publik tidak menerima role `admin`).
+
+```json
+{
+  "metrics": {
+    "totalUsers": 0,
+    "totalUmkmUsers": 0,
+    "totalMitraUsers": 0,
+    "totalBusinesses": 0,
+    "publishedBusinesses": 0,
+    "unverifiedPublishedBusinesses": 0
+  },
+  "registrationGrowth": [{ "month": "2026-05-01T00:00:00Z", "count": 0 }],
+  "recentBusinesses": [
+    { "id": "uuid", "name": "Kopi Ruang Senja", "category": "F&B", "location": "Bandung", "createdAt": "2026-10-10T00:00:00Z", "status": "published", "verified": false }
+  ]
+}
+```
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | objek overview |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Bukan admin | 403 | `forbidden` |
 
 ---
 

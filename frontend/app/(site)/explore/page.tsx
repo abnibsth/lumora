@@ -1,14 +1,23 @@
 import type { Metadata } from "next";
 import { BusinessDiscoveryExplorer } from "@/components/business/business-discovery-explorer";
 import { Container } from "@/components/ui/container";
-import { Badge } from "@/components/ui/badge";
+import { fetchBusinesses } from "@/lib/api";
+import type { Business } from "@/types/business";
 
 export const metadata: Metadata = {
   title: "Jelajahi Bisnis",
   description: "Jelajahi profil, cerita, perkembangan, dan kebutuhan UMKM dari berbagai daerah di Indonesia.",
 };
 
-export default function ExplorePage() {
+export default async function ExplorePage() {
+  let businesses: Business[] = [];
+  let loadError = false;
+  try {
+    businesses = (await fetchBusinesses({ limit: 50 })).items;
+  } catch {
+    loadError = true;
+  }
+
   return (
     <section className="pb-24 pt-12 md:pb-32 md:pt-20" aria-labelledby="explore-title">
       <Container>
@@ -24,10 +33,12 @@ export default function ExplorePage() {
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-display text-2xl font-semibold text-ink">Bisnis untuk kamu kenali</p>
-          <Badge tone="demo">Profil dan data contoh</Badge>
+          <p className="text-sm text-muted">Informasi berasal dari profil yang dipublikasikan pemilik.</p>
         </div>
         <div className="mt-7">
-          <BusinessDiscoveryExplorer full />
+          {loadError ? (
+            <p className="border-y border-line py-10 text-muted">Profil bisnis belum dapat dimuat. Coba lagi beberapa saat lagi.</p>
+          ) : <BusinessDiscoveryExplorer full initialBusinesses={businesses} />}
         </div>
       </Container>
     </section>

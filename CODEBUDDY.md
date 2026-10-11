@@ -5,7 +5,7 @@ This file provides guidance to CodeBuddy Code when working with code in this rep
 ## Repository layout
 
 - `backend/` — Go REST API (Gin + Postgres 16 + pgx/v5 + sqlc + goose); module `github.com/alfian/lumora/backend`, Go 1.27. Actively developed; phases 1–11 complete.
-- `frontend/` — Next.js 16 App Router prototype (marketing + business discovery). Uses hardcoded mock data; it does **not** call the backend yet (only a dormant `/api/:path*` proxy rewrite exists).
+- `frontend/` — Next.js 16 App Router (marketing, discovery, owner dashboard, admin). Integrated with the backend: auth, email verification, profile CRUD, media upload, AI draft, server-side bookmarks, and account settings. Unit tests run with Vitest (`npm run test`).
 - `docs/` — `api.md` (authoritative endpoint contract), `fases.md` (backend phase history + known gaps), `manual-test.md` (step-by-step endpoint smoke test; its section 10 is the production/Railway runbook).
 
 ## Common commands
@@ -49,6 +49,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src golang:1.27 go te
 npm install
 npm run dev      # http://localhost:3000
 npm run lint
+npm run test     # vitest run (unit tests for lib helpers)
 npm run build
 npm run start
 ```
@@ -116,8 +117,9 @@ The real provider uses the **HTTPS API, not SMTP**, because Railway blocks outbo
 
 - App Router, Server Components by default; `"use client"` only for browser APIs, events, or state.
 - `lib/constants.ts` is the source of truth for routes; `types/business.ts` is the data contract.
-- `data/businesses.ts` holds the 9 demo profiles; `lib/bookmarks.ts` persists bookmarks to `localStorage` via `useSyncExternalStore`.
-- `next.config.ts` rewrites `/api/:path*` → `http://localhost:8080/api/:path*` (unused so far) and maps the marketing routes to a shared renderer.
+- All business data comes from the backend (`GET /businesses`, `GET /businesses/:slug`); there is no local mock dataset. `lib/api.ts` is the single fetch wrapper. `lib/redirect.ts` holds the open-redirect guard and is unit-tested.
+- `next.config.ts` rewrites `/api/:path*` and `/uploads/:path*` to the backend `BACKEND_URL` (defaults to the Railway URL) and maps the marketing routes to a shared renderer.
+- Auth is server-validated: `/dashboard` and `/admin` read the session cookie and call `/api/v1/auth/me`; `hooks/use-bookmarks.ts` hydrates server-side bookmarks for the public site.
 - `frontend/AGENTS.md` mandates the **antislop** skills for any UI, copy, people, mobile-layout, or code-comment work — read the relevant `.agents/skills/antislop*/SKILL.md` before that kind of change, and ask the user whether to apply it during or after the work.
 
 ## Railway deploy (production)

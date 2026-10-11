@@ -14,6 +14,7 @@ import { AboutSection } from "@/components/sections/about-section";
 import { FaqSection } from "@/components/sections/faq-section";
 import { FinalCtaSection } from "@/components/sections/final-cta-section";
 import { ROUTES, SECTION_IDS } from "@/lib/constants";
+import { fetchBusinesses } from "@/lib/api";
 
 const ecosystemItems = [
   { label: "UMKM Lokal", path: "M3 10h18M5 10v11h14V10M3 10l2-7h14l2 7M9 21v-7h6v7" },
@@ -46,7 +47,15 @@ function EcosystemMarquee() {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  let businesses: Awaited<ReturnType<typeof fetchBusinesses>>["items"] = [];
+  let businessesError = false;
+  try {
+    businesses = (await fetchBusinesses({ limit: 6 })).items;
+  } catch {
+    businessesError = true;
+  }
+
   return (
     <>
       <section
@@ -120,12 +129,14 @@ export default function Home() {
       </section>
 
       <ProblemSection />
-      <BusinessDiscoverySection />
+      {businessesError ? (
+        <section className="bg-surface py-20"><Container><p className="border-y border-line py-10 text-muted">Profil bisnis belum dapat dimuat. Coba lagi beberapa saat lagi.</p></Container></section>
+      ) : <BusinessDiscoverySection businesses={businesses} />}
       <ValueSection />
       <AiSection />
-      <ProfileShowcaseSection />
+      {businesses[0] ? <ProfileShowcaseSection business={businesses[0]} /> : null}
       <PersonaSection />
-      <JourneySection />
+      {businesses[0] ? <JourneySection business={businesses[0]} /> : null}
       <AboutSection />
       <FaqSection />
       <FinalCtaSection />

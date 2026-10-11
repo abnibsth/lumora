@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: lumora
       POSTGRES_DB: lumora
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - lumora-pgdata:/var/lib/postgresql/data
     healthcheck:

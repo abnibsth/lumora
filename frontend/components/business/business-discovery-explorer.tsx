@@ -1,52 +1,63 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Select } from "radix-ui";
 import { motion, useReducedMotion } from "motion/react";
 import { BusinessCard } from "@/components/business/business-card";
-import { businesses as defaultBusinesses } from "@/data/businesses";
 import { fetchBusinesses } from "@/lib/api";
 import { BUSINESS_CATEGORIES, type BusinessCategory, type Business } from "@/types/business";
-import {
-  getSavedSlugsServerSnapshot,
-  getSavedSlugsSnapshot,
-  subscribeSavedSlugs,
-  writeSavedSlugs,
-} from "@/lib/bookmarks";
+import { useBookmarks } from "@/hooks/use-bookmarks";
 import { cn } from "@/lib/utils";
 
 type Filter = "Semua" | BusinessCategory;
 const filters: Filter[] = ["Semua", ...BUSINESS_CATEGORIES];
 
-export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) {
+export function BusinessDiscoveryExplorer({
+  full = false,
+  initialBusinesses = [],
+}: {
+  full?: boolean;
+  initialBusinesses?: Business[];
+}) {
   const reducedMotion = useReducedMotion();
-  const [data, setData] = useState<Business[]>(defaultBusinesses);
+  const [data, setData] = useState<Business[]>(initialBusinesses);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Semua");
-  const savedSlugs = useSyncExternalStore(
-    subscribeSavedSlugs,
-    getSavedSlugsSnapshot,
-    getSavedSlugsServerSnapshot,
-  );
+  const { savedSlugs, pendingSlug, loading: bookmarksLoading, error: bookmarkError, toggleBookmark } = useBookmarks();
 
   useEffect(() => {
     let active = true;
-    fetchBusinesses({ limit: 50 })
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setLoadError(null);
+      fetchBusinesses({
+      q: full ? query.trim() || undefined : undefined,
+      category: filter,
+      limit: 50,
+      })
       .then((res) => {
-        if (active && res.items && res.items.length > 0) {
+        if (active) {
           setData(res.items);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setLoadError("Profil bisnis gagal dimuat. Coba lagi.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    }, 250);
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [filter, full, query]);
 
   const visibleBusinesses = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("id");
     return data.filter((business) => {
-      const matchesCategory = filter === "Semua" || business.category === filter;
       const matchesQuery =
         !full ||
         !term ||
@@ -54,17 +65,9 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
           .join(" ")
           .toLocaleLowerCase("id")
           .includes(term);
-      return matchesCategory && matchesQuery;
+      return matchesQuery;
     }).slice(0, full ? undefined : 6);
-  }, [data, filter, full, query]);
-
-  function toggleSaved(slug: string) {
-    writeSavedSlugs(
-      savedSlugs.includes(slug)
-        ? savedSlugs.filter((saved) => saved !== slug)
-        : [...savedSlugs, slug],
-    );
-  }
+  }, [data, full, query]);
 
   return (
     <div>
@@ -118,12 +121,16 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
         </div>}
         <p role="status" className="text-sm text-muted">
           {full
-            ? `${visibleBusinesses.length} bisnis ditemukan${savedSlugs.length ? ` · ${savedSlugs.length} disimpan` : ""}`
-            : savedSlugs.length
-              ? `${savedSlugs.length} profil disimpan di perangkat ini.`
+              ? `${visibleBusinesses.length} bisnis ditemukan${savedSlugs.length ? ` · ${savedSlugs.length} tersimpan di akun` : ""}`
+              : savedSlugs.length
+              ? `${savedSlugs.length} profil tersimpan di akun.`
               : ""}
         </p>
       </div>
+
+      {bookmarkError ? <p className="mt-3 text-sm text-red-700" role="alert">{bookmarkError}</p> : null}
+      {loadError ? <p className="mt-3 text-sm text-red-700" role="alert">{loadError}</p> : null}
+      {loading ? <p className="mt-3 text-sm text-muted" role="status">Memuat profil bisnis...</p> : null}
 
       {visibleBusinesses.length ? (
         <ul className="mt-8 grid gap-x-6 gap-y-12 md:grid-cols-2 xl:grid-cols-3">
@@ -138,7 +145,13 @@ export function BusinessDiscoveryExplorer({ full = false }: { full?: boolean }) 
                 </li>
               ) : null}
               <motion.li initial={reducedMotion ? false : { opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0, transition: { duration: reducedMotion ? 0 : 0.45, delay: reducedMotion ? 0 : Math.min(index, 5) * 0.05 } }} viewport={{ once: true, amount: 0.1 }} whileHover={reducedMotion ? undefined : { y: -3 }} transition={{ duration: reducedMotion ? 0 : 0.3 }}>
-                <BusinessCard business={business} saved={savedSlugs.includes(business.slug)} onToggleSaved={() => toggleSaved(business.slug)} editorial={full} />
+                <BusinessCard
+                  business={business}
+                  saved={savedSlugs.includes(business.slug)}
+                  saving={bookmarksLoading || pendingSlug === business.slug}
+                  onToggleSaved={() => toggleBookmark(business.slug)}
+                  editorial={full}
+                />
               </motion.li>
             </Fragment>
           ))}

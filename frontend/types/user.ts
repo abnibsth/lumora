@@ -1,4 +1,4 @@
-export type UserRole = "umkm" | "mitra";
+export type UserRole = "umkm" | "mitra" | "admin";
 
 export interface User {
   id: string;
@@ -10,6 +10,8 @@ export interface User {
 }
 
 export interface ApiErrorResponse {
-  error: string;
-  message: string;
+  error: {
+    code: string;
+    message: string;
+  };
 }

@@ -1,17 +1,14 @@
 "use client";
 
-import { motion, useInView, useReducedMotion } from "motion/react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Reveal, StaggerContainer, StaggerItem } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { aiSection } from "@/data/landing";
-import { ROUTES, SECTION_IDS } from "@/lib/constants";
+import { SECTION_IDS } from "@/lib/constants";
 
 const prompts = ["Ceritakan bisnis saya", "Buat Business Model Canvas", "Cari bisnis"] as const;
 type Prompt = (typeof prompts)[number];
-type View = "chat" | "draft";
 
 function AiAvatar() {
   return (
@@ -29,124 +26,6 @@ function TypingIndicator() {
         {[0, 1, 2].map((dot) => (
           <span key={dot} className="h-1.5 w-1.5 rounded-full bg-forest/55 motion-safe:animate-pulse" style={{ animationDelay: `${dot * 140}ms` }} />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function ProfileConversation({ onCreateDraft, onEdit, played, onPlayed }: { onCreateDraft: () => void; onEdit: () => void; played: boolean; onPlayed: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const visible = useInView(ref, { once: true, amount: 0.15 });
-  const reduced = useReducedMotion();
-  const [stage, setStage] = useState(played ? 4 : 0);
-  const finished = stage === 4;
-  useEffect(() => {
-    if (!visible || reduced || finished) return;
-    const timers = [350, 850, 1750, 2150].map((delay, index) =>
-      setTimeout(() => setStage(index + 1), delay),
-    );
-    return () => timers.forEach(clearTimeout);
-  }, [visible, reduced, finished]);
-  useEffect(() => {
-    if (visible) onPlayed();
-  }, [visible, onPlayed]);
-  const reveal = (step: number) => ({
-    initial: false as const,
-    animate: { opacity: reduced || stage >= step ? 1 : 0, y: reduced || stage >= step ? 0 : 8 },
-    transition: { duration: reduced ? 0 : 0.35 },
-  });
-  return (
-    <div ref={ref} className="space-y-5" onPointerDownCapture={() => setStage(4)} onFocusCapture={() => setStage(4)}>
-      <div className="flex items-end gap-2">
-        <AiAvatar />
-        <p className="max-w-[82%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
-          Halo! Ceritakan sedikit tentang bisnismu. Tidak perlu menggunakan bahasa formal.
-        </p>
-      </div>
-      <motion.div {...reveal(1)} className="flex justify-end">
-        <p className="max-w-[85%] rounded-[16px] rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-surface sm:max-w-[75%]">
-          Saya punya kedai kopi di Bandung sejak 2023. Pelanggan kebanyakan warga sekitar dan pekerja remote. Sekarang saya sedang mencari mitra untuk membuka cabang kedua.
-        </p>
-      </motion.div>
-      {!reduced && stage === 2 ? <TypingIndicator /> : null}
-      <motion.div {...reveal(3)} className="flex items-start gap-2">
-        <AiAvatar />
-        <div className="max-w-[88%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
-          <p>Oke, saya menangkap beberapa informasi dari ceritamu.</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {["F&B", "Bandung", "Sejak 2023", "Mencari Mitra"].map((item) => (
-              <motion.span initial={false} animate={{ opacity: reduced || stage >= 3 ? 1 : 0 }} transition={{ duration: reduced ? 0 : 0.25, delay: reduced ? 0 : ["F&B", "Bandung", "Sejak 2023", "Mencari Mitra"].indexOf(item) * 0.1 }} key={item} className="rounded-full border border-forest/15 bg-surface px-2.5 py-1 text-xs font-medium text-forest">{item}</motion.span>
-            ))}
-          </div>
-          <dl className="mt-3 space-y-1 text-xs leading-5 text-muted">
-            <div><dt className="inline font-semibold text-ink">Target: </dt><dd className="inline">warga lokal &amp; pekerja remote</dd></div>
-            <div><dt className="inline font-semibold text-ink">Kebutuhan: </dt><dd className="inline">mitra ekspansi</dd></div>
-          </dl>
-          <p className="mt-3">Saya bisa membantu menyusunnya menjadi profil bisnis.</p>
-          <motion.div {...reveal(4)} className="mt-4 flex flex-wrap items-center gap-4">
-            <button id="ai-create-draft" type="button" onClick={onCreateDraft} className="min-h-10 rounded-xl bg-forest px-4 text-xs font-semibold text-white transition-colors hover:bg-forest-deep">
-              Buat Draft Profil <span aria-hidden="true">→</span>
-            </button>
-            <button id="ai-edit-information" type="button" onClick={onEdit} className="min-h-10 text-xs font-semibold text-accent underline-offset-4 hover:underline">Edit informasi</button>
-          </motion.div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function CanvasConversation() {
-  return (
-    <>
-      <div className="flex justify-end"><p className="max-w-[85%] rounded-[16px] rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-surface sm:max-w-[75%]">Bantu buat Business Model Canvas dari informasi bisnis saya.</p></div>
-      <div className="flex items-start gap-2">
-        <AiAvatar />
-        <div className="max-w-[88%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
-          <p>Saya bisa mulai dari informasi yang sudah kamu berikan.</p>
-          <dl className="mt-4 divide-y divide-forest/10 border-y border-forest/10">
-            <div className="py-2.5"><dt className="text-xs font-semibold text-accent">Value Proposition</dt><dd className="mt-1">Kopi lokal dengan suasana komunitas.</dd></div>
-            <div className="py-2.5"><dt className="text-xs font-semibold text-accent">Customer Segment</dt><dd className="mt-1">Warga sekitar dan pekerja remote.</dd></div>
-            <div className="py-2.5"><dt className="text-xs font-semibold text-accent">Channels</dt><dd className="mt-1">Toko fisik dan media sosial.</dd></div>
-          </dl>
-          <button id="ai-view-canvas" type="button" className="mt-4 min-h-10 rounded-xl bg-forest px-4 text-xs font-semibold text-white transition-colors hover:bg-forest-deep">Lihat Business Model Canvas <span aria-hidden="true">→</span></button>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function SearchConversation() {
-  return (
-    <>
-      <div className="flex justify-end"><p className="max-w-[85%] rounded-[16px] rounded-br-sm bg-forest px-4 py-3 text-sm leading-6 text-surface sm:max-w-[75%]">Cari UMKM F&amp;B di Bandung yang sedang berkembang.</p></div>
-      <div className="flex items-start gap-2">
-        <AiAvatar />
-        <div className="max-w-[88%] rounded-[16px] rounded-bl-sm bg-soft-green px-4 py-3 text-sm leading-6 text-ink">
-          <p>Saya menemukan profil yang sesuai dengan pencarianmu.</p>
-          <div className="mt-3 border-y border-forest/10 py-3">
-            <p className="font-display text-lg font-semibold">Kopi Ruang Senja</p>
-            <div className="mt-1 flex flex-wrap justify-between gap-2 text-xs text-muted"><span>F&amp;B · Bandung</span><span className="font-semibold text-accent">+23% / 6 bulan</span></div>
-          </div>
-          <Link href={ROUTES.business("kopi-ruang-senja")} className="mt-3 inline-flex min-h-10 items-center text-xs font-semibold text-accent underline underline-offset-4">Lihat Profil <span aria-hidden="true" className="ml-1">→</span></Link>
-          <p className="mt-2 text-xs text-muted">Ringkasan berdasarkan informasi yang tersedia di profil.</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function DraftProfile({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="ai-result-enter flex min-h-[27rem] flex-col p-5 sm:p-7">
-      <button id="ai-back-to-chat" type="button" onClick={onBack} className="self-start text-sm font-semibold text-accent hover:underline"><span aria-hidden="true">←</span> Kembali ke percakapan</button>
-      <div className="my-auto rounded-2xl bg-soft-green p-6 sm:p-8">
-        <p className="text-xs font-semibold tracking-[0.14em] text-accent uppercase">Draf Profil</p>
-        <h3 className="mt-3 font-display text-2xl font-semibold leading-tight text-ink sm:text-3xl">Kedai kopi yang tumbuh bersama lingkungan sekitar.</h3>
-        <p className="mt-5 text-sm leading-7 text-muted">Kopi Ruang Senja adalah kedai independen di Bandung yang dibuka sejak 2023. Ruang komunitas dan hubungan dengan pelanggan lokal menjadi bagian penting dari cara bisnis ini berkembang.</p>
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <button id="ai-edit-draft" type="button" onClick={onBack} className="min-h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-base font-semibold text-ink hover:bg-background sm:min-h-11 sm:w-auto sm:text-sm">Edit Informasi</button>
-          <Link href={ROUTES.business("kopi-ruang-senja")} className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-forest px-4 text-base font-semibold text-white hover:bg-forest-deep sm:min-h-11 sm:w-auto sm:text-sm">Lihat Profil Lengkap <span aria-hidden="true" className="ml-1">→</span></Link>
-        </div>
       </div>
     </div>
   );

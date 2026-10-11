@@ -2,20 +2,24 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { loginApi, logoutApi } from "@/lib/api";
 
 export default function AdminLoginPage() {
   const reduced = useReducedMotion();
+  const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [notice, setNotice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fields = new FormData(event.currentTarget);
     const email = String(fields.get("email") || "").trim();
@@ -30,10 +34,20 @@ export default function AdminLoginPage() {
       event.currentTarget.querySelector<HTMLInputElement>(nextErrors.email ? "#admin-email" : "#admin-password")?.focus();
       return;
     }
-    // Prototype checks fields locally; credentials are never sent or persisted.
-    event.currentTarget.reset();
-    setVisible(false);
-    setNotice("Login belum tersedia karena autentikasi backend belum terhubung. Tidak ada kredensial yang dikirim atau disimpan.");
+    setSubmitting(true);
+    const result = await loginApi({ email, password });
+    setSubmitting(false);
+    if (!result.ok || !result.user) {
+      setNotice(result.error || "Login gagal.");
+      return;
+    }
+    if (result.user.role !== "admin") {
+      await logoutApi();
+      setNotice("Akun ini tidak memiliki akses administrator.");
+      return;
+    }
+    router.replace("/admin");
+    router.refresh();
   }
 
   return (
@@ -58,7 +72,7 @@ export default function AdminLoginPage() {
           <h1 id="admin-login-heading" className="mt-4 text-[clamp(1.9rem,2.5vw,2.5rem)] font-semibold leading-[1.2] tracking-[-0.04em] text-[#103D30]">Selamat datang kembali.</h1>
           <p className="mt-3 text-sm leading-7 text-[#66736d]">Masuk ke dashboard administrator.</p>
 
-          <form id="admin-login-form" noValidate onSubmit={handleSubmit} className="mt-9 space-y-6" aria-describedby="admin-prototype-note">
+          <form id="admin-login-form" noValidate onSubmit={handleSubmit} className="mt-9 space-y-6">
             <div className="space-y-2.5">
               <Label htmlFor="admin-email" className="text-sm font-medium text-[#14382f]">Email</Label>
               <Input id="admin-email" name="email" type="email" autoComplete="off" placeholder="nama@perusahaan.com" required aria-invalid={!!errors.email} aria-describedby={errors.email ? "admin-email-error" : undefined} className="h-12 rounded-lg border-[#d8d8cf] bg-transparent px-4 text-base shadow-none focus-visible:border-[#103D30] focus-visible:ring-[#103D30]/15" />
@@ -74,24 +88,15 @@ export default function AdminLoginPage() {
               </div>
               {errors.password && <p id="admin-password-error" className="text-xs text-[#a1342b]">{errors.password}</p>}
             </div>
-            <Button id="admin-login-submit" type="submit" className="h-12 w-full rounded-lg bg-[#103D30] text-sm font-medium text-white transition-colors duration-300 hover:bg-[#0b3027]">Masuk ke dashboard <ArrowRight aria-hidden="true" className="ml-2 size-4" /></Button>
+            <Button id="admin-login-submit" type="submit" disabled={submitting} className="h-12 w-full rounded-lg bg-[#103D30] text-sm font-medium text-white transition-colors duration-300 hover:bg-[#0b3027]">{submitting ? "Memeriksa akses..." : "Masuk ke dashboard"} <ArrowRight aria-hidden="true" className="ml-2 size-4" /></Button>
             {notice && <p role="status" className="rounded-lg border border-[#d8d8cf] bg-[#e7efe9]/50 p-3 text-xs leading-6 text-[#14382f]">{notice}</p>}
           </form>
 
-          <p id="admin-prototype-note" className="mt-5 text-xs leading-6 text-[#66736d]">Prototype UI · Login belum aktif. Gunakan data contoh saja; jangan masukkan kredensial asli. Form hanya memeriksa input di perangkat ini.</p>
-          <div className="mt-8 border-t border-[#d8d8cf] pt-6">
-            <Link id="admin-open-prototype" href="/admin" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-[#103D30] underline decoration-[#103D30]/25 underline-offset-4 hover:decoration-[#103D30]">Lihat demo dashboard <ArrowUpRightIcon /></Link>
-            <p className="text-xs leading-6 text-[#66736d]">Pratinjau data demo, bukan login. Dashboard belum diproteksi.</p>
-          </div>
+          <p className="mt-5 text-xs leading-6 text-[#66736d]">Hanya akun yang diprovision sebagai administrator yang dapat masuk. Registrasi publik tidak dapat membuat akun admin.</p>
         </motion.div>
         <p className="text-center text-[11px] text-[#66736d]">LUMORA — Admin Workspace</p>
       </section>
     </main>
   );
 }
-
-function ArrowUpRightIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" className="size-3.5"><path d="M4 12 12 4M4 4h8v8" /></svg>;
-}
-
 

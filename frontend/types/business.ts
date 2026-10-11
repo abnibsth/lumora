@@ -47,3 +47,38 @@ export interface Business {
   bmc: BmcEntry[];
   verified?: boolean;
 }
+
+export interface OwnedBusiness extends Business {
+  status: "draft" | "published";
+}
+
+export interface BusinessWriteInput {
+  name: string;
+  category: BusinessCategory;
+  location: string;
+  description: string;
+  story: string;
+  coverImage?: string;
+  logo?: string;
+  foundedYear: number;
+  seeking: string[];
+  seekingObjective?: string;
+  owner: BusinessOwner;
+  milestones?: BusinessMilestone[];
+  bmc?: BmcEntry[];
+}
+
+export interface AIDraftProfile {
+  name: string;
+  category: BusinessCategory | "";
+  location: string;
+  description: string;
+  story: string;
+  foundedYear: number;
+  owner: BusinessOwner;
+  milestones: BusinessMilestone[];
+  bmc: BmcEntry[];
+  seeking: string[];
+  seekingObjective: string;
+  suggestions: string[];
+}

@@ -107,6 +107,7 @@ func main() {
 	bookmarkService := service.NewBookmarkService(queries, queries)
 	bookmarkHandler := handler.NewBookmarkHandler(bookmarkService)
 	mediaHandler := handler.NewMediaHandler(cfg.UploadDir)
+	adminHandler := handler.NewAdminHandler(service.NewAdminService(pool))
 
 	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
 	// the default, "stub" is the offline one used for keyless runs and tests.
@@ -271,6 +272,9 @@ func main() {
 		aiGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", middleware.DefaultDraftLimitMessage),
 		aiLimiter.Middleware(),
 		aiHandler.Draft)
+
+	admin := v1.Group("/admin", middleware.RequireSession(), middleware.RequireAdmin())
+	admin.GET("/overview", adminHandler.Overview)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, useReducedMotion } from "motion/react";
 import {
@@ -33,6 +34,8 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { logoutApi } from "@/lib/api";
+import type { User } from "@/types/user";
 
 const sections = [
   { title: "Dashboard", icon: LayoutDashboard, badge: undefined },
@@ -90,9 +93,17 @@ function AdminNavigation({
   );
 }
 
-export default function AdminShell({ children }: { children: ReactNode }) {
+export default function AdminShell({ children, user }: { children: ReactNode; user: User }) {
   const [active, setActive] = useState(0);
   const reduced = useReducedMotion();
+  const router = useRouter();
+
+  async function logout() {
+    if (await logoutApi()) {
+      router.replace("/admin/login");
+      router.refresh();
+    }
+  }
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -140,14 +151,12 @@ export default function AdminShell({ children }: { children: ReactNode }) {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  asChild
-                  tooltip="Halaman Login Admin"
+                  tooltip="Keluar"
+                  onClick={logout}
                   className="min-h-9 rounded-lg text-xs font-medium text-[#66736d] hover:bg-[#e7efe9] hover:text-forest"
                 >
-                  <Link href="/admin/login">
-                    <LogOut className="size-4 shrink-0" aria-hidden="true" />
-                    <span>Halaman Login</span>
-                  </Link>
+                  <LogOut className="size-4 shrink-0" aria-hidden="true" />
+                  <span>Keluar</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -190,7 +199,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                 variant="outline"
                 className="hidden border-forest/30 bg-[#e7efe9] font-medium text-forest sm:inline-flex"
               >
-                Prototype Mode
+                {user.name}
               </Badge>
             </div>
           </header>
@@ -215,7 +224,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
                   {sections[active].title}
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#66736d]">
-                  Tampilan antarmuka dan formulir manajemen untuk <strong>{sections[active].title}</strong> siap diintegrasikan begitu kontrak API CRUD dan arsitektur backend Go / database PostgreSQL telah didefinisikan.
+                  Modul <strong>{sections[active].title}</strong> belum memiliki kontrak API. Overview tetap read-only sampai aturan produk dan audit mutasi ditetapkan.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button
@@ -241,4 +250,3 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     </TooltipProvider>
   );
 }
-

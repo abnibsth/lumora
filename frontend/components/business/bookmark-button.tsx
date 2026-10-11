@@ -3,9 +3,7 @@ import { cn } from "@/lib/utils";
 /**
  * The save toggle on a business card.
  *
- * It is a real control with a real effect (localStorage, plus the count the
- * discovery section shows), not a decorative icon button, which is what R-26
- * requires. The accessible name stays constant and `aria-pressed` carries the
+ * The accessible name stays constant and `aria-pressed` carries the
  * state, so a screen reader announces "Simpan Kopi Ruang Senja, pressed" rather
  * than a label that silently changes under the user.
  *
@@ -15,11 +13,13 @@ import { cn } from "@/lib/utils";
 export function BookmarkButton({
   name,
   saved,
+  saving = false,
   onToggle,
   className,
 }: {
   name: string;
   saved: boolean;
+  saving?: boolean;
   onToggle: () => void;
   className?: string;
 }) {
@@ -29,11 +29,13 @@ export function BookmarkButton({
       aria-pressed={saved}
       aria-label={`Simpan ${name}`}
       onClick={onToggle}
+      disabled={saving}
       className={cn(
         "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors duration-200 ease-out",
         saved
           ? "border-forest bg-forest text-mint"
           : "border-line-strong bg-surface text-muted hover:text-ink",
+        saving && "cursor-wait opacity-60",
         className,
       )}
     >

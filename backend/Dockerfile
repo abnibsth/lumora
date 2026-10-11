@@ -9,7 +9,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/migrate \
-    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/seed ./cmd/seed
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/seed ./cmd/seed \
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/provision-admin ./cmd/provision-admin
 
 FROM alpine:3.22
 
@@ -17,7 +18,7 @@ RUN apk add --no-cache ca-certificates su-exec \
     && adduser -D -u 10001 lumora
 
 WORKDIR /app
-COPY --from=build /out/api /out/migrate /out/seed /app/
+COPY --from=build /out/api /out/migrate /out/seed /out/provision-admin /app/
 COPY migrations /app/migrations
 
 # Kept outside /app and root-owned so the unprivileged app user can run it
