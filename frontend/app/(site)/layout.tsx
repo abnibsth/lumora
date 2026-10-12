@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 
@@ -5,7 +6,7 @@ import { Footer } from "@/components/layout/footer";
  * Route group so the header and footer are declared once instead of on every
  * page. The parentheses keep the group out of the URL, so this still serves "/".
  */
-export default function SiteLayout({ children }: LayoutProps<"/">) {
+export default function SiteLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <Navbar />
