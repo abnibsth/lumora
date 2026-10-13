@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchBusinessBySlug, fetchBusinesses } from "./api";
+import { fetchBusinessBySlug, fetchBusinesses, fetchMyBusinesses, createBusinessApi, updateBusinessApi, publishBusinessApi, archiveBusinessApi, draftProfileApi, uploadMediaApi, removeBookmarkApi } from "./api";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -12,9 +12,50 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("dashboard API contracts", () => {
+  it("fetches the requested owned page with the actual total and cookie", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ items: [], total: 61, page: 2, limit: 50 }));
+    vi.stubGlobal("fetch", fetcher);
+    const result = await fetchMyBusinesses("lumora_session=test", { page: 2, limit: 50 });
+    expect(result.data?.total).toBe(61);
+    expect(fetcher.mock.calls[0]).toEqual([expect.stringContaining("/businesses/mine?limit=50&page=2"), expect.objectContaining({ headers: { Cookie: "lumora_session=test" } })]);
+  });
+  it("preserves the default first-page URL", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ items: [], total: 0, page: 1, limit: 50 }));
+    vi.stubGlobal("fetch", fetcher);
+    await fetchMyBusinesses();
+    expect(fetcher.mock.calls[0][0]).toEqual(expect.stringContaining("/businesses/mine?limit=50"));
+  });
+  it("keeps mutation endpoints and structured draft payloads", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ id: "1", status: "draft" }));
+    vi.stubGlobal("fetch", fetcher);
+    const input = { name: "Usaha", category: "F&B" as const, location: "Bandung", description: "Usaha", story: "Cerita", foundedYear: 2020, owner: { name: "User", role: "Pendiri", bio: "Bio" }, milestones: [{ year: 2020, title: "Mulai" }], bmc: [{ label: "Custom", value: "Tetap" }], seeking: [] };
+    await createBusinessApi(input);
+    await updateBusinessApi("1", input);
+    await publishBusinessApi("1");
+    await archiveBusinessApi("1");
+    expect(fetcher.mock.calls.map((call) => call[0])).toEqual([expect.stringContaining("/businesses"), expect.stringContaining("/businesses/1"), expect.stringContaining("/businesses/1/publish"), expect.stringContaining("/businesses/1")]);
+    expect(fetcher.mock.calls[1][1]).toEqual(expect.objectContaining({ method: "PATCH", body: JSON.stringify(input) }));
+  });
+  it("surfaces verified-email errors without pretending publish succeeded", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => jsonResponse({ error: { code: "email_not_verified", message: "Verifikasi email" } }, 403)));
+    expect(await publishBusinessApi("1")).toEqual({ ok: false, code: "email_not_verified", error: "Verifikasi email" });
+  });
+  it("uses the existing AI, upload and bookmark endpoints", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ url: "/uploads/test.png" }));
+    vi.stubGlobal("fetch", fetcher);
+    await draftProfileApi("Narasi usaha yang faktual");
+    await uploadMediaApi(new File(["image"], "test.png", { type: "image/png" }));
+    await removeBookmarkApi("kopi-lokal");
+    expect(fetcher.mock.calls[0]).toEqual([expect.stringContaining("/ai/draft-profile"), expect.objectContaining({ body: JSON.stringify({ narrative: "Narasi usaha yang faktual" }) })]);
+    expect(fetcher.mock.calls[1][1]).toEqual(expect.objectContaining({ body: expect.any(FormData) }));
+    expect(fetcher.mock.calls[2]).toEqual([expect.stringContaining("/bookmarks/kopi-lokal"), expect.objectContaining({ method: "DELETE" })]);
+  });
+});
+
 describe("fetchBusinesses", () => {
   it("returns the parsed list envelope", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ items: [], total: 0, page: 1, limit: 12 })));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => jsonResponse({ items: [], total: 0, page: 1, limit: 12 })));
     await expect(fetchBusinesses({ limit: 12 })).resolves.toEqual({ items: [], total: 0, page: 1, limit: 12 });
   });
 
@@ -24,7 +65,7 @@ describe("fetchBusinesses", () => {
   });
 
   it("throws when the response shape is invalid", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ items: null })));
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => jsonResponse({ items: null })));
     await expect(fetchBusinesses()).rejects.toThrow();
   });
 

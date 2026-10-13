@@ -8,9 +8,8 @@ import { removeBookmarkApi } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
-export function SavedBusinesses({ initialBusinesses }: { initialBusinesses: Business[] }) {
+export function SavedBusinesses({ businesses, onBusinessesChange }: { businesses: Business[]; onBusinessesChange: (businesses: Business[]) => void }) {
   const router = useRouter();
-  const [businesses, setBusinesses] = useState(initialBusinesses);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,11 +28,11 @@ export function SavedBusinesses({ initialBusinesses }: { initialBusinesses: Busi
       return;
     }
 
-    setBusinesses((current) => current.filter((business) => business.slug !== slug));
+    onBusinessesChange(businesses.filter((business) => business.slug !== slug));
   }
 
   return (
-    <section className="border-t border-forest py-10" aria-labelledby="saved-businesses-heading">
+    <section className="mt-6 rounded-xl border border-line bg-surface p-5 sm:p-7" aria-labelledby="saved-businesses-heading">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-accent">Untuk dipantau</p>
@@ -66,7 +65,7 @@ export function SavedBusinesses({ initialBusinesses }: { initialBusinesses: Busi
                 <button
                   type="button"
                   onClick={() => remove(business.slug)}
-                  disabled={pendingSlug === business.slug}
+                  disabled={pendingSlug !== null}
                   className="min-h-11 px-3 text-sm font-medium text-red-700 underline decoration-red-300 underline-offset-4 hover:decoration-red-700 disabled:opacity-60"
                 >
                   {pendingSlug === business.slug ? "Menghapus..." : "Hapus simpanan"}

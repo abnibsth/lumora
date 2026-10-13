@@ -78,10 +78,10 @@ export function AccountSettings({
     router.refresh();
   }
 
-  const fieldClass = "mt-2 min-h-12 w-full border border-line-strong bg-surface px-4 text-base text-ink focus:border-forest";
+  const fieldClass = "mt-2 min-h-12 w-full rounded-lg border border-line-strong bg-surface px-4 text-base text-ink focus:border-forest";
 
   return (
-    <section className="border-t border-forest py-10" aria-labelledby="account-settings-heading">
+    <section className="mt-6 rounded-xl border border-line bg-surface p-5 sm:p-7" aria-labelledby="account-settings-heading">
       <p className="text-sm font-medium text-accent">Akun</p>
       <h2 id="account-settings-heading" className="mt-1 text-2xl font-semibold text-ink">Pengaturan akun</h2>
       <p className="mt-2 text-sm text-muted">Email login: {user.email}</p>
@@ -90,7 +90,7 @@ export function AccountSettings({
       {error ? <p className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">{error}</p> : null}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-2">
-        <form onSubmit={updateName} className="border border-line bg-surface p-5 sm:p-7">
+        <form onSubmit={updateName} className="rounded-xl border border-line bg-ivory/40 p-5 sm:p-7">
           <h3 className="text-lg font-semibold text-ink">Nama tampilan</h3>
           <label htmlFor="account-name" className="mt-5 block text-sm font-medium text-ink">Nama</label>
           <input id="account-name" required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} />
@@ -99,7 +99,7 @@ export function AccountSettings({
           </button>
         </form>
 
-        <form onSubmit={changePassword} className="border border-line bg-surface p-5 sm:p-7">
+        <form onSubmit={changePassword} className="rounded-xl border border-line bg-ivory/40 p-5 sm:p-7">
           <h3 className="text-lg font-semibold text-ink">Ganti kata sandi</h3>
           <label htmlFor="current-password" className="mt-5 block text-sm font-medium text-ink">Kata sandi saat ini</label>
           <input id="current-password" type="password" required minLength={8} maxLength={128} autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className={fieldClass} />

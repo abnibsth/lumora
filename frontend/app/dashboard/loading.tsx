@@ -1,0 +1,3 @@
+export default function DashboardLoading() {
+  return <main aria-busy="true" aria-label="Memuat workspace UMKM" className="min-h-svh bg-ivory px-4 py-8 sm:px-8"><div className="mx-auto max-w-6xl"><p role="status" className="text-sm font-medium text-forest">Memuat Business Workspace...</p><div className="mt-6 h-24 rounded-xl border border-line bg-surface motion-safe:animate-pulse" /><div className="mt-5 grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((item) => <div key={item} className="h-28 rounded-xl border border-line bg-surface motion-safe:animate-pulse" />)}</div><div className="mt-5 h-80 rounded-xl border border-line bg-surface motion-safe:animate-pulse" /></div></main>;
+}

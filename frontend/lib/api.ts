@@ -213,11 +213,13 @@ export async function resendVerificationApi(): Promise<ApiActionResult> {
   }
 }
 
-export async function fetchMyBusinesses(cookie?: string): Promise<
+export async function fetchMyBusinesses(cookie?: string, params?: { page?: number; limit?: number }): Promise<
   ApiActionResult & { data?: OwnedBusinessListResponse }
 > {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/v1/businesses/mine?limit=50`, {
+    const query = new URLSearchParams({ limit: String(params?.limit ?? 50) });
+    if (params?.page) query.set("page", String(params.page));
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/businesses/mine?${query}`, {
       credentials: "include",
       cache: "no-store",
       headers: cookie ? { Cookie: cookie } : undefined,

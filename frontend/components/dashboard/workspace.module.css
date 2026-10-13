@@ -1,0 +1,65 @@
+.workspace, .portal {
+  --primary: var(--lumora-forest);
+  --primary-foreground: #fff;
+  --background: var(--lumora-ivory);
+  --foreground: var(--lumora-text);
+  --card: var(--lumora-surface);
+  --card-foreground: var(--lumora-text);
+  --popover: var(--lumora-surface);
+  --popover-foreground: var(--lumora-text);
+  --secondary: var(--lumora-soft-green);
+  --secondary-foreground: var(--lumora-forest);
+  --muted: var(--lumora-soft-green);
+  --muted-foreground: var(--lumora-muted);
+  --accent: var(--lumora-soft-green);
+  --accent-foreground: var(--lumora-forest);
+  --border: var(--lumora-border);
+  --input: var(--lumora-border-strong);
+  --ring: var(--lumora-focus);
+  --destructive: #b42318;
+  --sidebar: var(--lumora-forest);
+  --sidebar-foreground: #fbfaf6;
+  --sidebar-primary: var(--lumora-lime);
+  --sidebar-primary-foreground: var(--lumora-deep-forest);
+  --sidebar-accent: #245f45;
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: #47705f;
+  --sidebar-ring: var(--lumora-lime);
+  --radius: .75rem;
+  color: var(--lumora-text);
+}
+.workspace { background: var(--lumora-ivory); }
+.workspace [hidden] { display: none !important; }
+.workspace :global([data-slot="sidebar-inner"]) { background: var(--lumora-forest); }
+.workspace :global([data-slot="sidebar-menu-button"][data-active="true"]) { background: var(--lumora-lime); color: var(--lumora-deep-forest); }
+.navigation { background: var(--lumora-forest); color: var(--lumora-surface); }
+.workspace :global([data-slot="sidebar"][data-collapsible="icon"]) .menuButton {
+  width: 3rem !important;
+  height: 3rem !important;
+  padding: 0 !important;
+  margin-inline: auto;
+  justify-content: center;
+}
+.menuButton[aria-disabled="true"] { pointer-events: auto; cursor: default; }
+.menuButton svg { width: 1.125rem; height: 1.125rem; }
+.workspace :global([data-slot="sidebar-gap"]), .workspace :global([data-slot="sidebar-container"]) {
+  transition-timing-function: ease-in-out;
+}
+.workspace :global([data-slot="sidebar-menu-button"]):focus-visible { outline-color: var(--lumora-lime); }
+:global([data-slot="sidebar"][data-mobile="true"]):has(.navigation) {
+  width: min(18rem, 100vw);
+  max-width: 100vw;
+  background: var(--lumora-forest);
+  color: var(--lumora-surface);
+}
+.navigation :global([data-slot="sidebar-menu-button"][data-active="true"]) { background: var(--lumora-lime); color: var(--lumora-deep-forest); }
+.navigation button:hover { background-color: #245f45; color: #fff; }
+.navigation button[data-active="true"]:hover { background-color: var(--lumora-lime); color: var(--lumora-deep-forest); }
+.navigation button:focus-visible, .workspace :global([data-slot="sidebar-container"]) button:focus-visible { outline-color: var(--lumora-lime); }
+.portal { background: var(--lumora-surface); border-color: var(--lumora-border); color: var(--lumora-text); }
+.portal :global([data-slot="dropdown-menu-item"]):focus { background: var(--lumora-soft-green); }
+.workspace :global([data-slot="card"]) { background: var(--lumora-surface); color: var(--lumora-text); border-color: color-mix(in srgb, var(--lumora-border) 60%, transparent); border-radius: .75rem; }
+.workspace :global([data-slot="input"]) { border-color: var(--lumora-border-strong); background: var(--lumora-surface); }
+@media (prefers-reduced-motion: reduce) {
+  .workspace *, .portal *, .navigation *, :global([data-slot="sidebar"][data-mobile="true"]):has(.navigation) { animation: none !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
+}
