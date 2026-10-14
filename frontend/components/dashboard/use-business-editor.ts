@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { applyDraft, emptyForm, formFromBusiness, type EditorSection, type ProfileForm } from "@/lib/dashboard";
 import type { AIDraftProfile, OwnedBusiness } from "@/types/business";
+import { mergeSavedForm, type BusinessWorkspace } from "@/lib/workspace-management";
 
 export function useBusinessEditor(ownerName: string, initialBusiness: OwnedBusiness | null, initialSection: EditorSection, initiallyOpen: boolean) {
   const [editing, setEditing] = useState<OwnedBusiness | null>(initialBusiness);
@@ -42,7 +43,11 @@ export function useBusinessEditor(ownerName: string, initialBusiness: OwnedBusin
   function create(after?: () => void) { guard(() => { load(null, "identity"); after?.(); }); }
   function close() { guard(() => { setOpen(false); setEditing(null); setForm(emptyForm(ownerName)); }); }
   function saved() { setOpen(false); setEditing(null); setBaseline(JSON.stringify(form)); }
+  function acceptSaved(business: OwnedBusiness, view: BusinessWorkspace) {
+    const next = mergeSavedForm(form, JSON.parse(baseline) as ProfileForm, business, view, !editing);
+    setEditing(business); setForm(next.form); setBaseline(JSON.stringify(next.baseline)); setOpen(true);
+  }
   function acceptDiscard() { const action = pendingDiscard?.action; setPendingDiscard(null); action?.(); }
   function apply(draft: AIDraftProfile) { setForm((current) => applyDraft(current, draft)); }
-  return { editing, form, setForm, open, section, setSection, busy, setBusy, generation, dirty, pendingDiscard, cancelDiscard: () => setPendingDiscard(null), acceptDiscard, guard, guardLeaving, start, create, close, saved, apply };
+  return { editing, form, baselineForm: JSON.parse(baseline) as ProfileForm, setForm, open, section, setSection, busy, setBusy, generation, dirty, pendingDiscard, cancelDiscard: () => setPendingDiscard(null), acceptDiscard, guard, guardLeaving, start, create, close, saved, acceptSaved, apply };
 }

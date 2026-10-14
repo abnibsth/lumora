@@ -37,6 +37,14 @@ describe("dashboard API contracts", () => {
     expect(fetcher.mock.calls.map((call) => call[0])).toEqual([expect.stringContaining("/businesses"), expect.stringContaining("/businesses/1"), expect.stringContaining("/businesses/1/publish"), expect.stringContaining("/businesses/1")]);
     expect(fetcher.mock.calls[1][1]).toEqual(expect.objectContaining({ method: "PATCH", body: JSON.stringify(input) }));
   });
+  it("does not send unchanged structured data in a partial profile PATCH", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ id: "1", status: "draft" }));
+    vi.stubGlobal("fetch", fetcher);
+    await updateBusinessApi("1", { name: "Nama baru" });
+    expect(fetcher.mock.calls[0][1]).toEqual(expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "Nama baru" }) }));
+    expect(fetcher.mock.calls[0][1]?.body).not.toContain("milestones");
+    expect(fetcher.mock.calls[0][1]?.body).not.toContain("bmc");
+  });
   it("surfaces verified-email errors without pretending publish succeeded", async () => {
     vi.stubGlobal("fetch", vi.fn<typeof fetch>(async () => jsonResponse({ error: { code: "email_not_verified", message: "Verifikasi email" } }, 403)));
     expect(await publishBusinessApi("1")).toEqual({ ok: false, code: "email_not_verified", error: "Verifikasi email" });

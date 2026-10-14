@@ -5,7 +5,7 @@ import { BusinessList } from "./business-list";
 import type { OwnedBusiness } from "@/types/business";
 
 const business: OwnedBusiness = { id: "1", slug: "kopi", name: "Kopi", category: "F&B", location: "Bandung", description: "Kopi lokal", story: "Cerita", foundedYear: 2020, owner: { name: "User", role: "Pemilik", bio: "Bio" }, milestones: [], bmc: [], status: "draft" };
-const props = { businesses: [business], total: 1, page: 1, busy: false, onPageChange: () => {}, onRetry: () => {}, onCreate: () => {}, onEdit: () => {}, onPublish: () => {}, onArchive: () => {} };
+const props = { businesses: [business], total: 1, page: 1, busy: false, onPageChange: () => {}, onRetry: () => {}, onCreate: () => {}, onEdit: () => {}, onPublish: () => {}, onArchive: () => {}, onPreview: () => {}, emailVerified: true };
 
 describe("dashboard list preview", () => {
   it("does not repeat the create CTA and uses secondary publish styling", () => {

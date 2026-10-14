@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,13 +13,18 @@ import { BusinessList } from "./business-list";
 import { BusinessEditor } from "./business-editor";
 import { useBusinessEditor } from "./use-business-editor";
 import { WorkspaceConfirmation } from "./workspace-confirmation";
+import { BusinessProfilePreview } from "./business-profile-preview";
+import { previewFromForm, SECTION_FOR_STEP, type ProfileError } from "@/lib/profile-management";
+import { BUSINESS_VIEWS, scopedPatch, validateWorkspace, viewForField, resolveOwnedSelection, type BusinessWorkspace } from "@/lib/workspace-management";
+import { WorkspaceDomainEditor } from "./workspace-domain-editor";
+import { WorkspacePageHeader } from "./workspace-header";
 import { archiveBusinessApi, createBusinessApi, fetchBookmarks, fetchMyBusinesses, getMeApi, logoutApi, publishBusinessApi, updateBusinessApi, type OwnedBusinessListResponse } from "@/lib/api";
 import { dashboardHref, inputFromForm, resolveView, type EditorSection, type WorkspaceView } from "@/lib/dashboard";
 import type { Business, OwnedBusiness } from "@/types/business";
 import type { User } from "@/types/user";
 
-function sectionFor(view: WorkspaceView): EditorSection { return view === "story" ? "story" : view === "canvas" ? "canvas" : view === "ai" ? "ai" : "identity"; }
-const editorViews = ["story", "canvas", "ai"];
+function sectionFor(view: WorkspaceView): EditorSection { return view === "story" ? "story" : view === "canvas" ? "canvas" : view === "ai" ? "ai" : view === "saved" ? "partners" : "identity"; }
+const editorViews = ["story", "canvas", "saved", "ai"];
 
 export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, profilesError: initialProfilesError, bookmarksError: initialBookmarksError, defaultSidebarOpen = true }: {
   user: User; initialBusinesses: OwnedBusinessListResponse; initialBookmarks: Business[]; profilesError?: string; bookmarksError?: string; defaultSidebarOpen?: boolean;
@@ -32,10 +37,12 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
   const [profilesError, setProfilesError] = useState(initialProfilesError);
   const [bookmarksError, setBookmarksError] = useState(initialBookmarksError);
+  const [resolvedBusinesses, setResolvedBusinesses] = useState<OwnedBusiness[]>([]);
+  const ownedItems = useMemo(() => [...listing.items, ...resolvedBusinesses.filter((item) => !listing.items.some((row) => row.id === item.id))], [listing.items, resolvedBusinesses]);
   const [selectedId, setSelectedId] = useState(() => initialBusinesses.items.find((item) => item.id === search.get("business"))?.id || initialBusinesses.items[0]?.id || "");
-  const selected = listing.items.find((item) => item.id === selectedId) || listing.items[0] || null;
+  const selected = resolveOwnedSelection(ownedItems, search.get("business") || selectedId || null);
   const urlBusiness = search.get("business");
-  const urlProfile = listing.items.find((item) => item.id === urlBusiness) || null;
+  const urlProfile = ownedItems.find((item) => item.id === urlBusiness) || null;
   const initialEditorProfile = urlBusiness ? urlProfile : selected;
   const editor = useBusinessEditor(user.name, initialEditorProfile, sectionFor(view), (editorViews.includes(view) || (view === "profiles" && !!urlBusiness)) && !!initialEditorProfile && !initialProfilesError);
   const [loading, setLoading] = useState(false);
@@ -43,24 +50,74 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   const [acting, setActing] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [archiveTarget, setArchiveTarget] = useState<OwnedBusiness | null>(null);
+  const [preview, setPreview] = useState<{ business: OwnedBusiness; unsaved: boolean } | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  const [validationErrors, setValidationErrors] = useState<ProfileError[]>([]);
   const busy = loading || saving || acting || editor.busy;
+  const currentUrl = useRef<string | null>(null);
+  const invalidBusiness = !!urlBusiness && !urlProfile && editor.editing?.id !== urlBusiness;
+  const editorRef = useRef(editor);
+  useEffect(() => { editorRef.current = editor; }, [editor]);
+
+  useEffect(() => {
+    if (!urlBusiness || ownedItems.some((item) => item.id === urlBusiness) || profilesError) return;
+    let cancelled = false;
+    async function resolveOwnedBusiness() {
+      const pages = Math.ceil(listing.total / 50);
+      for (let page = 1; page <= pages; page++) {
+        if (page === listing.page || cancelled) continue;
+        const result = await fetchMyBusinesses(undefined, { page, limit: 50 });
+        if (cancelled || !result.ok || !result.data) return;
+        const found = result.data.items.find((item) => item.id === urlBusiness);
+        if (found) {
+          setResolvedBusinesses((current) => [...current.filter((item) => item.id !== found.id), found]);
+          editorRef.current.start(found, sectionFor(view), () => setSelectedId(found.id));
+          return;
+        }
+      }
+    }
+    void resolveOwnedBusiness();
+    return () => { cancelled = true; };
+  }, [urlBusiness, listing.total, listing.page, profilesError, view, ownedItems]);
+
+  useEffect(() => {
+    currentUrl.current = window.location.pathname + window.location.search;
+  }, [search]);
+
+  useEffect(() => {
+    function restoreHistory() {
+      const url = new URL(window.location.href);
+      const nextView = resolveView(url.searchParams.get("view"));
+      const id = url.searchParams.get("business");
+      const previous = currentUrl.current;
+      if (busy && previous) { window.history.replaceState(null, "", previous); return; }
+      const target = resolveOwnedSelection(ownedItems, id);
+      if (!target || editor.editing?.id === target.id || (editor.open && !editor.editing && !id)) return;
+      const destination = url.pathname + url.search;
+      if (editor.dirty && previous) window.history.replaceState(null, "", previous);
+      editor.start(target, sectionFor(nextView), () => { setSelectedId(target.id); window.history.replaceState(null, "", destination); });
+    }
+    window.addEventListener("popstate", restoreHistory);
+    return () => window.removeEventListener("popstate", restoreHistory);
+  }, [editor, ownedItems, busy]);
 
   function expired() { router.push("/login?next=%2Fdashboard"); }
-  function navigate(next: WorkspaceView, businessId?: string) {
-    const url = new URL(dashboardHref(next, businessId), window.location.origin);
+  function navigate(next: WorkspaceView, businessId: string | null | undefined = editor.open ? editor.editing?.id : selected?.id) {
+    const url = new URL(dashboardHref(next, businessId || undefined), window.location.origin);
     if (listing.page > 1) url.searchParams.set("page", String(listing.page));
     window.history.pushState(null, "", `${url.pathname}${url.search}`);
   }
   function edit(business: OwnedBusiness, section: EditorSection = "identity") {
     if (busy) return;
-    editor.start(business, section, () => { setSelectedId(business.id); navigate(section === "story" ? "story" : section === "canvas" ? "canvas" : section === "ai" ? "ai" : "profiles", business.id); });
+    editor.start(business, section, () => { setSelectedId(business.id); navigate(section === "story" ? "story" : section === "canvas" ? "canvas" : section === "ai" ? "ai" : section === "partners" ? "saved" : "profiles", business.id); });
   }
   function changeView(next: WorkspaceView) {
-    if (editorViews.includes(next) && selected && !profilesError) edit(selected, sectionFor(next));
+    if (busy) return;
+    if (editor.open) { editor.setSection(sectionFor(next)); navigate(next); }
+    else if (editorViews.includes(next) && selected && !profilesError) edit(selected, sectionFor(next));
     else navigate(next);
   }
-  function create() { if (busy) return; editor.create(() => { setNotice(null); navigate("profiles"); }); }
+  function create() { if (busy) return; editor.create(() => { setNotice(null); navigate("profiles", null); }); }
 
   async function reloadProfiles(page = listing.page) {
     setLoading(true);
@@ -82,8 +139,20 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
+    const domain = (BUSINESS_VIEWS.includes(view) ? view : "profiles") as BusinessWorkspace;
+    const issues = validateWorkspace(editor.form, domain, !editor.editing);
+    setValidationErrors(issues);
+    if (issues.length) {
+      const first = issues[0];
+      const targetView = viewForField(first.field);
+      editor.setSection(targetView === "profiles" ? SECTION_FOR_STEP[Math.min(first.step, 3)] : sectionFor(targetView));
+      navigate(targetView);
+      setNotice({ text: issues.map((issue) => issue.message).join(" "), error: true });
+      requestAnimationFrame(() => document.getElementById(first.field.startsWith("bmc-") || first.field.startsWith("milestone-") ? first.field : `profile-${first.field}`)?.focus());
+      return;
+    }
     setSaving(true); setNotice(null);
-    const result = editor.editing ? await updateBusinessApi(editor.editing.id, inputFromForm(editor.form)) : await createBusinessApi(inputFromForm(editor.form));
+    const result = editor.editing ? await updateBusinessApi(editor.editing.id, scopedPatch(editor.form, editor.baselineForm, domain)) : await createBusinessApi(inputFromForm(editor.form));
     setSaving(false);
     if (!result.ok || !result.business) {
       if (result.code === "unauthenticated") return expired();
@@ -92,8 +161,9 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     const created = !editor.editing;
     const item = result.business;
     setListing((current) => ({ ...current, total: current.total + (created ? 1 : 0), items: created ? [item, ...current.items].slice(0, 50) : current.items.map((business) => business.id === item.id ? item : business) }));
-    setSelectedId(item.id); editor.saved(); navigate("profiles");
-    setNotice({ text: created ? "Draft profil berhasil disimpan. Profil belum tampil ke publik." : "Perubahan profil berhasil disimpan.", error: false });
+    setResolvedBusinesses((current) => current.map((row) => row.id === item.id ? item : row));
+    setSelectedId(item.id); editor.acceptSaved(item, domain); navigate(view, item.id);
+    setNotice({ text: created ? "Draft profil berhasil disimpan. Profil belum tampil ke publik." : domain === "story" ? "Cerita usaha berhasil disimpan." : domain === "canvas" ? "Model bisnis berhasil disimpan." : domain === "saved" ? "Kebutuhan kerja sama berhasil disimpan." : "Perubahan profil berhasil disimpan.", error: false });
     if (created) await reloadProfiles(1);
   }
   async function publish(business: OwnedBusiness) {
@@ -127,21 +197,26 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     return () => window.removeEventListener("focus", refreshUser);
   }, [accountUser.emailVerified]);
 
-  const listProps = { businesses: listing.items, total: listing.total, page: listing.page, busy, error: profilesError, onPageChange: (page: number) => { void reloadProfiles(page); }, onRetry: () => { void reloadProfiles(); }, onCreate: create, onEdit: (business: OwnedBusiness) => edit(business, sectionFor(view)), onPublish: (business: OwnedBusiness) => editor.guardLeaving(() => { void publish(business); }), onArchive: (business: OwnedBusiness) => editor.guardLeaving(() => setArchiveTarget(business)) };
-  const editorVisible = editor.open && ["profiles", ...editorViews].includes(view);
+  const listProps = { emailVerified: accountUser.emailVerified, onPreview: (business: OwnedBusiness) => setPreview({ business, unsaved: false }), businesses: listing.items, total: listing.total, page: listing.page, busy, error: profilesError, onPageChange: (page: number) => { void reloadProfiles(page); }, onRetry: () => { void reloadProfiles(); }, onCreate: create, onEdit: (business: OwnedBusiness) => edit(business, sectionFor(view)), onPublish: (business: OwnedBusiness) => editor.guardLeaving(() => { void publish(business); }), onArchive: (business: OwnedBusiness) => editor.guardLeaving(() => setArchiveTarget(business)) };
+  const editorVisible = editor.open && !invalidBusiness && ["profiles", ...editorViews].includes(view);
 
   return <WorkspaceShell user={accountUser} view={view} onViewChange={changeView} onLogout={logout} logoutPending={logoutPending} defaultSidebarOpen={defaultSidebarOpen}>
     {!accountUser.emailVerified ? <div className="mb-6 overflow-hidden rounded-lg border border-line"><EmailVerificationNotice user={accountUser} /></div> : null}
     {notice ? <p role={notice.error ? "alert" : "status"} className={`mb-6 rounded-lg border p-4 text-sm ${notice.error ? "border-red-200 bg-red-50 text-red-800" : "border-line bg-soft-green text-forest"}`}>{notice.text}</p> : null}
     {editor.open && !editorVisible ? <Card className="mb-6 flex-row flex-wrap items-center justify-between gap-3 border-line p-4 shadow-none"><p className="text-sm text-muted">{editor.dirty ? "Draft memiliki perubahan belum disimpan." : "Editor profil masih terbuka."}</p><Button onClick={() => navigate("profiles", editor.editing?.id)} className="min-h-11 bg-forest px-4 text-white">Kembali ke editor</Button></Card> : null}
-    {view === "overview" ? <><DashboardOverview name={accountUser.name} total={listing.total} savedCount={bookmarks.length} profile={selected} businesses={listing.items} profilesError={profilesError} bookmarksError={bookmarksError} onSelect={setSelectedId} onCreate={create} onEdit={(section) => { if (selected) edit(selected, section); }} onSaved={() => navigate("saved")} onRetry={() => { void reloadProfiles(1); }} busy={busy} />{!profilesError && listing.total > 0 ? <BusinessList {...listProps} preview /> : null}{!profilesError && listing.total > 3 ? <Button variant="ghost" onClick={() => navigate("profiles")} className="mt-4 min-h-11 text-forest">Lihat semua profil</Button> : null}</> : null}
-    <div hidden={!["profiles", ...editorViews].includes(view)}><div className="mb-6"><h1 className="text-2xl font-semibold tracking-tight text-forest">{view === "story" ? "Cerita dan perjalanan usaha" : view === "canvas" ? "Business Model Canvas" : view === "ai" ? "Susun profil dengan Lumora AI" : "Profil bisnis"}</h1><p className="mt-2 text-sm leading-6 text-muted">{view === "profiles" ? "Draft tetap privat sampai kamu menerbitkannya." : "Pilih profil bisnis, lalu lanjutkan mengisi bagian yang ingin kamu kelola."}</p></div>
-      {editorViews.includes(view) && listing.items.length > 1 ? <div className="mb-5"><label htmlFor="workspace-profile" className="mr-3 text-sm text-muted">Profil bisnis</label><select id="workspace-profile" value={editor.editing?.id || selected?.id || ""} disabled={busy} onChange={(event) => { const target = listing.items.find((item) => item.id === event.target.value); if (target) edit(target, sectionFor(view)); }} className="min-h-11 max-w-full rounded-lg border border-line bg-surface px-3 text-sm">{listing.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div> : null}
-      <div hidden={!editorVisible}>{editor.open ? <BusinessEditor key={editor.generation} form={editor.form} section={editorViews.includes(view) ? sectionFor(view) : editor.section} editingName={editor.editing?.name} dirty={editor.dirty} saving={saving} emailVerified={accountUser.emailVerified} onChange={editor.setForm} onSection={(section) => { editor.setSection(section); navigate(section === "story" ? "story" : section === "canvas" ? "canvas" : section === "ai" ? "ai" : "profiles", editor.editing?.id); }} onApply={editor.apply} onSubmit={save} onCancel={editor.close} onSessionExpired={expired} onBusyChange={editor.setBusy} /> : null}</div>
-      {!editorVisible || view === "profiles" ? <BusinessList {...listProps} /> : null}
+    {view === "overview" ? <><DashboardOverview name={accountUser.name} total={listing.total} savedCount={bookmarks.length} profile={selected} businesses={listing.items} profilesError={profilesError} bookmarksError={bookmarksError} onSelect={(id) => { const target = ownedItems.find((item) => item.id === id); if (target) editor.start(target, "identity", () => { setSelectedId(id); navigate("overview", id); }); }} onCreate={create} onEdit={(section) => { if (selected) edit(selected, section); }} onSaved={() => changeView("saved")} onRetry={() => { void reloadProfiles(1); }} busy={busy} />{!profilesError && listing.total > 0 ? <BusinessList {...listProps} preview /> : null}{!profilesError && listing.total > 3 ? <Button variant="ghost" onClick={() => navigate("profiles")} className="mt-4 min-h-11 text-forest">Lihat semua profil</Button> : null}</> : null}
+    <div hidden={!["profiles", ...editorViews].includes(view)}><WorkspacePageHeader view={view} />
+      {ownedItems.length > 0 ? <div className="mb-5"><label htmlFor="workspace-profile" className="mr-3 text-sm text-muted">Profil bisnis</label><select id="workspace-profile" value={invalidBusiness ? "" : editor.open ? editor.editing?.id || "new" : selected?.id || ""} disabled={busy} onChange={(event) => { const target = ownedItems.find((item) => item.id === event.target.value); if (target) edit(target, sectionFor(view)); }} className="min-h-11 max-w-full rounded-lg border border-line bg-surface px-3 text-sm">{editor.open && !editor.editing ? <option value="new">Draft baru — belum tersimpan</option> : null}<option value="" disabled>Pilih profil bisnis</option>{ownedItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div> : editor.open ? <p className="mb-5 text-sm font-medium text-accent">Draft baru — belum tersimpan</p> : null}
+      {invalidBusiness ? <p role="alert" className="mb-5 rounded-lg bg-red-50 p-4 text-sm text-red-700">Profil pada URL tidak ditemukan dalam data milik akun ini. Pilih profil yang tersedia; tidak ada profil lain yang dibuka otomatis.</p> : null}
+      <div hidden={!editorVisible}>{editor.open ? <>
+        <div hidden={view !== "profiles"}>{view === "profiles" ? <BusinessEditor validationErrors={validationErrors} key={editor.generation} form={editor.form} section={editor.section} editingName={editor.editing?.name} dirty={editor.dirty} saving={saving} onChange={editor.setForm} onSection={editor.setSection} onSubmit={save} onCancel={editor.close} onSessionExpired={expired} onBusyChange={editor.setBusy} onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })} onWorkspace={changeView} /> : null}</div>
+        {editorViews.map((domain) => <div key={`${editor.generation}-${domain}`} hidden={view !== domain}>{domain === "ai" || view === domain ? <WorkspaceDomainEditor errors={validationErrors} view={domain as "story" | "canvas" | "saved" | "ai"} form={editor.form} disabled={busy} dirty={editor.dirty} creating={!editor.editing} emailVerified={accountUser.emailVerified} onChange={editor.setForm} onSubmit={save} onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })} onApply={editor.apply} onBusyChange={editor.setBusy} onSessionExpired={expired} /> : null}</div>)}
+      </> : null}</div>
+      {view === "profiles" ? <BusinessList {...listProps} /> : !editorVisible ? <Card className="gap-3 border-line/60 p-5 shadow-none"><h2 className="text-lg font-semibold text-forest">Pilih profil untuk dikelola</h2><p className="text-sm leading-6 text-muted">{profilesError || "Pilih bisnis pada menu di atas. Jika belum ada, mulai dari Profil Bisnis; semua bagian akan memakai draft yang sama."}</p>{profilesError ? <Button disabled={busy} onClick={() => { void reloadProfiles(); }} className="min-h-11 w-fit bg-forest px-4 text-white">Coba lagi</Button> : <Button disabled={busy} onClick={create} className="min-h-11 w-fit bg-forest px-4 text-white">Buat profil bisnis</Button>}</Card> : null}
     </div>
-    <div hidden={view !== "saved"}><h1 className="text-2xl font-semibold text-forest">Peluang & Mitra</h1><p className="mt-2 text-sm leading-6 text-muted">Temukan kembali bisnis yang kamu simpan. Daftar ini adalah profil tersimpan, bukan daftar peluang kemitraan.</p>{bookmarksError ? <Card role="alert" className="mt-6 border-line p-5 shadow-none"><p className="text-sm text-red-700">{bookmarksError}</p><Button onClick={reloadBookmarks} className="min-h-11 w-fit bg-forest px-4 text-white">Coba lagi</Button></Card> : <SavedBusinesses businesses={bookmarks} onBusinessesChange={setBookmarks} />}</div>
+    <div hidden={view !== "saved"} className="mt-6"><p className="text-sm leading-6 text-muted">Profil tersimpan adalah bookmark bisnis, terpisah dari kebutuhan kerja sama usahamu.</p>{bookmarksError ? <Card role="alert" className="mt-6 border-line p-5 shadow-none"><p className="text-sm text-red-700">{bookmarksError}</p><Button onClick={reloadBookmarks} className="min-h-11 w-fit bg-forest px-4 text-white">Coba lagi</Button></Card> : <SavedBusinesses businesses={bookmarks} onBusinessesChange={setBookmarks} />}</div>
     <div hidden={view !== "settings"}><h1 className="text-2xl font-semibold text-forest">Pengaturan Akun</h1><AccountSettings user={accountUser} onUserChange={setAccountUser} /></div>
+    {preview ? <BusinessProfilePreview business={preview.business} unsaved={preview.unsaved} onClose={() => setPreview(null)} /> : null}
     {editor.pendingDiscard ? <WorkspaceConfirmation title="Buang perubahan yang belum disimpan?" description="Perubahan pada editor akan hilang. Profil yang sudah tersimpan tidak berubah." confirmLabel="Buang perubahan" cancelLabel="Lanjutkan mengedit" onConfirm={editor.acceptDiscard} onCancel={editor.cancelDiscard} /> : null}
     {archiveTarget ? <WorkspaceConfirmation title={`Arsipkan ${archiveTarget.name}?`} description="Profil hilang dari publik dan dashboard. Saat ini belum ada pemulihan arsip." confirmLabel="Ya, arsipkan" pending={acting} onConfirm={() => { void archive(); }} onCancel={() => setArchiveTarget(null)} /> : null}
   </WorkspaceShell>;

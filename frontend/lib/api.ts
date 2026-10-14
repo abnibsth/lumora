@@ -243,7 +243,7 @@ export async function createBusinessApi(
 
 export async function updateBusinessApi(
   id: string,
-  input: BusinessWriteInput,
+  input: Partial<BusinessWriteInput>,
 ): Promise<ApiActionResult & { business?: OwnedBusiness }> {
   return writeBusinessApi(`/api/v1/businesses/${encodeURIComponent(id)}`, "PATCH", input);
 }
@@ -251,7 +251,7 @@ export async function updateBusinessApi(
 async function writeBusinessApi(
   path: string,
   method: "POST" | "PATCH",
-  input: BusinessWriteInput,
+  input: Partial<BusinessWriteInput>,
 ): Promise<ApiActionResult & { business?: OwnedBusiness }> {
   try {
     const res = await fetch(`${getApiBaseUrl()}${path}`, {
