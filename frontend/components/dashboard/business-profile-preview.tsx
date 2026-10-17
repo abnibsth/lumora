@@ -3,20 +3,64 @@
 import { Dialog } from "radix-ui";
 import { X } from "lucide-react";
 import type { OwnedBusiness } from "@/types/business";
-import { ProfileImage } from "./profile-media-step";
+import { BusinessProfileView } from "@/components/business/business-profile-view";
 import styles from "./workspace.module.css";
 
-export function BusinessProfilePreview({ business, unsaved, onClose }: { business: OwnedBusiness; unsaved: boolean; onClose: () => void }) {
-  return <Dialog.Root open onOpenChange={(open) => { if (!open) onClose(); }}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-50 bg-deep-forest/50" /><Dialog.Content className={`${styles.portal} fixed inset-0 z-50 flex flex-col bg-surface sm:inset-6 sm:mx-auto sm:max-w-5xl sm:rounded-xl sm:border sm:border-line`}>
-    <header className="flex items-center justify-between gap-3 border-b border-line p-4 sm:px-6"><div className="min-w-0"><Dialog.Title className="text-base font-semibold text-forest">Preview profil bisnis</Dialog.Title><Dialog.Description className="mt-1 text-xs leading-5 text-muted">Preview privat{unsaved ? " · Perubahan belum disimpan" : business.status === "draft" ? " · Draft belum diterbitkan" : " · Profil sudah terbit"}. Membuka preview tidak menyimpan atau menerbitkan profil.</Dialog.Description></div><Dialog.Close className="flex size-11 shrink-0 items-center justify-center rounded-lg text-forest hover:bg-soft-green" aria-label="Tutup preview"><X className="size-5" /></Dialog.Close></header>
-    <article className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
-      <ProfileImage src={business.coverImage} alt={`Cover ${business.name}`} className="aspect-[16/7] min-h-36" />
-      <div className="mt-5 flex items-start gap-4"><ProfileImage src={business.logo} alt={`Logo ${business.name}`} contain className="size-16 shrink-0 border border-line" /><div className="min-w-0"><p className="text-xs leading-6 text-accent">{business.category} · {business.location || "Lokasi belum diisi"}{business.foundedYear ? ` · Berdiri ${business.foundedYear}` : ""}</p><h2 className="mt-1 break-words text-2xl font-semibold tracking-tight text-forest sm:text-3xl">{business.name || "Nama usaha belum diisi"}</h2></div></div><p className="mt-4 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{business.description || "Deskripsi belum diisi."}</p>
-      <div className="mt-6 grid gap-6 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"><section><h3 className="text-lg font-semibold text-forest">Cerita usaha</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{business.story || "Cerita usaha belum diisi."}</p></section><aside className="rounded-lg bg-ivory p-4"><h3 className="text-sm font-semibold text-forest">Pemilik usaha</h3><p className="mt-3 break-words font-medium text-forest">{business.owner.name || "Nama pemilik belum diisi"}</p><p className="mt-1 text-xs text-accent">{business.owner.role}</p><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-muted">{business.owner.bio}</p></aside></div>
-      {business.milestones.length ? <section className="mt-6 border-t border-line pt-5"><h3 className="text-lg font-semibold text-forest">Perjalanan dan pencapaian</h3><ol className="mt-4 grid gap-4 sm:grid-cols-2">{business.milestones.map((item, index) => <li key={index} className="border-l-2 border-lime pl-4"><p className="text-xs font-medium text-accent">{item.year || "Tahun belum diisi"}</p><h4 className="mt-2 break-words text-sm font-semibold text-forest">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted">{item.description}</p></li>)}</ol></section> : null}
-      {business.bmc.length ? <section className="mt-6 border-t border-line pt-5"><h3 className="text-lg font-semibold text-forest">Model bisnis</h3><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{business.bmc.map((item, index) => <section key={index} className="rounded-lg border border-line bg-ivory/50 p-4"><h4 className="break-words text-sm font-semibold text-forest">{item.label}</h4><p className="mt-3 whitespace-pre-wrap break-words text-xs leading-6 text-muted">{item.value}</p></section>)}</div></section> : null}
-      {business.seeking?.length || business.seekingObjective ? <section className="mt-6 border-t border-line pt-5"><h3 className="text-lg font-semibold text-forest">Peluang kerja sama</h3><ul className="mt-3 flex flex-wrap gap-2">{business.seeking?.map((item, index) => <li key={index} className="max-w-full break-words rounded-md bg-soft-green px-3 py-2 text-xs text-forest">{item}</li>)}</ul><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{business.seekingObjective}</p></section> : null}
-      <p className="mt-6 border-t border-line pt-4 text-xs leading-6 text-muted">Informasi berasal dari profil milik akunmu. Field kontak dan galeri belum didukung; tidak ada data contoh yang ditambahkan.</p>
-    </article>
-  </Dialog.Content></Dialog.Portal></Dialog.Root>;
+export function BusinessProfilePreview({
+  business,
+  unsaved,
+  onClose,
+}: {
+  business: OwnedBusiness;
+  unsaved: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-deep-forest/60 backdrop-blur-xs" />
+        <Dialog.Content
+          className={`${styles.portal} fixed inset-0 z-50 flex flex-col bg-surface sm:inset-6 sm:mx-auto sm:max-w-[960px] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl overflow-hidden`}
+        >
+          {/* Sticky/Fixed Modal Header */}
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface p-4 sm:px-6">
+            <div className="min-w-0">
+              <Dialog.Title className="text-base font-semibold text-forest">
+                Preview Profil Bisnis
+              </Dialog.Title>
+              <Dialog.Description className="mt-0.5 text-xs text-muted">
+                Preview privat
+                {unsaved
+                  ? " · Perubahan belum disimpan"
+                  : business.status === "draft"
+                    ? " · Draft belum diterbitkan"
+                    : " · Profil sudah terbit"}
+                . Membuka preview tidak menyimpan atau menerbitkan profil.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close
+              className="flex size-10 shrink-0 items-center justify-center rounded-lg text-forest hover:bg-soft-green transition-colors"
+              aria-label="Tutup preview"
+            >
+              <X className="size-5" />
+            </Dialog.Close>
+          </header>
+
+          {/* Scrollable Preview Body using the unified BusinessProfileView */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-ivory">
+            <BusinessProfileView
+              business={business}
+              isModal={true}
+              isUnsaved={unsaved}
+            />
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 }

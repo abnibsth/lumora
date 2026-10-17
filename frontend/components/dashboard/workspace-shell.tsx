@@ -23,7 +23,7 @@ function WorkspaceHeader({ user, view, onViewChange, onLogout, logoutPending }: 
     if (isMobile && wasOpen.current && !openMobile) menuRef.current?.focus();
     wasOpen.current = openMobile;
   }, [isMobile, openMobile]);
-  return <header className="sticky top-0 z-20 border-b border-line/60 bg-ivory/95 backdrop-blur-sm"><div className="mx-auto flex min-h-18 w-full max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+  return <header className="sticky top-0 z-20 border-b border-line/60 bg-ivory/95 backdrop-blur-sm"><div className="flex min-h-18 w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
     <div className="flex min-w-0 items-center gap-3">
       <button ref={menuRef} type="button" onClick={toggleSidebar} aria-label={isMobile ? "Buka navigasi" : open ? "Ciutkan sidebar" : "Perluas sidebar"} aria-expanded={isMobile ? openMobile : open} className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-forest hover:bg-soft-green"><PanelLeft className="size-5" /></button>
       <div className="min-w-0"><p className="hidden text-[10px] font-medium uppercase tracking-[.15em] text-muted sm:block">LUMORA / Workspace</p><p className="truncate text-sm font-semibold text-forest">{titles[view]}</p></div>
@@ -49,7 +49,7 @@ export function WorkspaceShell({ children, defaultSidebarOpen = true, ...props }
     <WorkspaceSidebar view={props.view} onNavigate={props.onViewChange} />
     <SidebarInset className="min-w-0 bg-ivory">
       <WorkspaceHeader {...props} />
-      <motion.main id="workspace-main" tabIndex={-1} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? 0 : .2 }} className="mx-auto w-full max-w-7xl px-4 py-6 outline-none sm:px-6 lg:px-8">{children}</motion.main>
+      <motion.main id="workspace-main" tabIndex={-1} initial={reduced ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduced ? 0 : .2 }} className="w-full px-4 py-6 outline-none sm:px-6 lg:px-8">{children}</motion.main>
     </SidebarInset>
   </SidebarProvider></TooltipProvider></MotionConfig>;
 }

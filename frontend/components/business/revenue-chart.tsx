@@ -21,16 +21,41 @@ export function RevenueChart({
   series: number[];
   className?: string;
 }) {
-  const max = Math.max(...series);
-  const min = Math.min(...series);
+  if (!Array.isArray(series) || series.length < 2) {
+    return null;
+  }
+
+  const validSeries = series.filter(
+    (item) => typeof item === "number" && Number.isFinite(item) && item >= 0,
+  );
+
+  if (validSeries.length < 2) {
+    return null;
+  }
+
+  const max = Math.max(...validSeries);
+  const min = Math.min(...validSeries);
+  if (!Number.isFinite(max) || !Number.isFinite(min)) {
+    return null;
+  }
+
   const span = max - min || 1;
 
-  const summary = `Pendapatan bulanan selama ${series.length} bulan terakhir, bergerak dari ${min} juta rupiah menjadi ${max} juta rupiah.`;
+  const minFormatted = min.toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  const maxFormatted = max.toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+
+  const summary = `Pendapatan bulanan selama ${validSeries.length} bulan terakhir, bergerak dari Rp${minFormatted} juta menjadi Rp${maxFormatted} juta rupiah.`;
 
   return (
     <figure className={cn("m-0", className)}>
       <figcaption className="text-xs font-medium text-muted">
-        Pendapatan {series.length} bulan terakhir
+        Pendapatan {validSeries.length} bulan terakhir
       </figcaption>
 
       <div
@@ -38,7 +63,7 @@ export function RevenueChart({
         aria-label={summary}
         className="mt-3 flex h-16 items-end gap-1.5"
       >
-        {series.map((value, index) => {
+        {validSeries.map((value, index) => {
           // Keep every bar visible: the lowest still shows 25% of the height.
           const height = 25 + ((value - min) / span) * 75;
           return (
@@ -52,8 +77,8 @@ export function RevenueChart({
       </div>
 
       <div className="mt-2 flex justify-between text-xs text-muted">
-        <span>Rp{min.toFixed(1)} jt</span>
-        <span>Rp{max.toFixed(1)} jt</span>
+        <span>Rp{minFormatted} jt</span>
+        <span>Rp{maxFormatted} jt</span>
       </div>
     </figure>
   );

@@ -31,7 +31,8 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
 }) {
   const router = useRouter();
   const search = useSearchParams();
-  const view = resolveView(search.get("view"));
+  const [viewState, setViewState] = useState<WorkspaceView>(() => resolveView(search.get("view")));
+  const view = viewState;
   const [accountUser, setAccountUser] = useState(user);
   const [listing, setListing] = useState(initialBusinesses);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
@@ -81,6 +82,10 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   }, [urlBusiness, listing.total, listing.page, profilesError, view, ownedItems]);
 
   useEffect(() => {
+    const nextView = resolveView(search.get("view"));
+    setViewState(nextView);
+    const businessParam = search.get("business");
+    if (businessParam) setSelectedId(businessParam);
     currentUrl.current = window.location.pathname + window.location.search;
   }, [search]);
 
@@ -88,7 +93,9 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     function restoreHistory() {
       const url = new URL(window.location.href);
       const nextView = resolveView(url.searchParams.get("view"));
+      setViewState(nextView);
       const id = url.searchParams.get("business");
+      if (id) setSelectedId(id);
       const previous = currentUrl.current;
       if (busy && previous) { window.history.replaceState(null, "", previous); return; }
       const target = resolveOwnedSelection(ownedItems, id);
@@ -103,21 +110,39 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
 
   function expired() { router.push("/login?next=%2Fdashboard"); }
   function navigate(next: WorkspaceView, businessId: string | null | undefined = editor.open ? editor.editing?.id : selected?.id) {
-    const url = new URL(dashboardHref(next, businessId || undefined), window.location.origin);
+    setViewState(next);
+    const targetId = businessId || (editor.open ? editor.editing?.id : selected?.id);
+    if (targetId) setSelectedId(targetId);
+    const url = new URL(dashboardHref(next, targetId || undefined), window.location.origin);
     if (listing.page > 1) url.searchParams.set("page", String(listing.page));
     window.history.pushState(null, "", `${url.pathname}${url.search}`);
   }
   function edit(business: OwnedBusiness, section: EditorSection = "identity") {
     if (busy) return;
-    editor.start(business, section, () => { setSelectedId(business.id); navigate(section === "story" ? "story" : section === "canvas" ? "canvas" : section === "ai" ? "ai" : section === "partners" ? "saved" : "profiles", business.id); });
+    const targetView = section === "story" ? "story" : section === "canvas" ? "canvas" : section === "ai" ? "ai" : section === "partners" ? "saved" : "profiles";
+    editor.start(business, section, () => {
+      setSelectedId(business.id);
+      navigate(targetView, business.id);
+    });
   }
   function changeView(next: WorkspaceView) {
     if (busy) return;
-    if (editor.open) { editor.setSection(sectionFor(next)); navigate(next); }
-    else if (editorViews.includes(next) && selected && !profilesError) edit(selected, sectionFor(next));
-    else navigate(next);
+    if (editor.open) {
+      editor.setSection(sectionFor(next));
+      navigate(next);
+    } else if (editorViews.includes(next) && selected && !profilesError) {
+      edit(selected, sectionFor(next));
+    } else {
+      navigate(next);
+    }
   }
-  function create() { if (busy) return; editor.create(() => { setNotice(null); navigate("profiles", null); }); }
+  function create() {
+    if (busy) return;
+    editor.create(() => {
+      setNotice(null);
+      navigate("profiles", null);
+    });
+  }
 
   async function reloadProfiles(page = listing.page) {
     setLoading(true);
@@ -205,16 +230,82 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     {notice ? <p role={notice.error ? "alert" : "status"} className={`mb-6 rounded-lg border p-4 text-sm ${notice.error ? "border-red-200 bg-red-50 text-red-800" : "border-line bg-soft-green text-forest"}`}>{notice.text}</p> : null}
     {editor.open && !editorVisible ? <Card className="mb-6 flex-row flex-wrap items-center justify-between gap-3 border-line p-4 shadow-none"><p className="text-sm text-muted">{editor.dirty ? "Draft memiliki perubahan belum disimpan." : "Editor profil masih terbuka."}</p><Button onClick={() => navigate("profiles", editor.editing?.id)} className="min-h-11 bg-forest px-4 text-white">Kembali ke editor</Button></Card> : null}
     {view === "overview" ? <><DashboardOverview name={accountUser.name} total={listing.total} savedCount={bookmarks.length} profile={selected} businesses={listing.items} profilesError={profilesError} bookmarksError={bookmarksError} onSelect={(id) => { const target = ownedItems.find((item) => item.id === id); if (target) editor.start(target, "identity", () => { setSelectedId(id); navigate("overview", id); }); }} onCreate={create} onEdit={(section) => { if (selected) edit(selected, section); }} onSaved={() => changeView("saved")} onRetry={() => { void reloadProfiles(1); }} busy={busy} />{!profilesError && listing.total > 0 ? <BusinessList {...listProps} preview /> : null}{!profilesError && listing.total > 3 ? <Button variant="ghost" onClick={() => navigate("profiles")} className="mt-4 min-h-11 text-forest">Lihat semua profil</Button> : null}</> : null}
-    <div hidden={!["profiles", ...editorViews].includes(view)}><WorkspacePageHeader view={view} />
+    <div hidden={!["profiles", ...editorViews].includes(view)} className="w-full min-w-0"><WorkspacePageHeader view={view} />
       {ownedItems.length > 0 ? <div className="mb-5"><label htmlFor="workspace-profile" className="mr-3 text-sm text-muted">Profil bisnis</label><select id="workspace-profile" value={invalidBusiness ? "" : editor.open ? editor.editing?.id || "new" : selected?.id || ""} disabled={busy} onChange={(event) => { const target = ownedItems.find((item) => item.id === event.target.value); if (target) edit(target, sectionFor(view)); }} className="min-h-11 max-w-full rounded-lg border border-line bg-surface px-3 text-sm">{editor.open && !editor.editing ? <option value="new">Draft baru — belum tersimpan</option> : null}<option value="" disabled>Pilih profil bisnis</option>{ownedItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div> : editor.open ? <p className="mb-5 text-sm font-medium text-accent">Draft baru — belum tersimpan</p> : null}
       {invalidBusiness ? <p role="alert" className="mb-5 rounded-lg bg-red-50 p-4 text-sm text-red-700">Profil pada URL tidak ditemukan dalam data milik akun ini. Pilih profil yang tersedia; tidak ada profil lain yang dibuka otomatis.</p> : null}
-      <div hidden={!editorVisible}>{editor.open ? <>
-        <div hidden={view !== "profiles"}>{view === "profiles" ? <BusinessEditor validationErrors={validationErrors} key={editor.generation} form={editor.form} section={editor.section} editingName={editor.editing?.name} dirty={editor.dirty} saving={saving} onChange={editor.setForm} onSection={editor.setSection} onSubmit={save} onCancel={editor.close} onSessionExpired={expired} onBusyChange={editor.setBusy} onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })} onWorkspace={changeView} /> : null}</div>
-        {editorViews.map((domain) => <div key={`${editor.generation}-${domain}`} hidden={view !== domain}>{domain === "ai" || view === domain ? <WorkspaceDomainEditor errors={validationErrors} view={domain as "story" | "canvas" | "saved" | "ai"} form={editor.form} disabled={busy} dirty={editor.dirty} creating={!editor.editing} emailVerified={accountUser.emailVerified} onChange={editor.setForm} onSubmit={save} onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })} onApply={editor.apply} onBusyChange={editor.setBusy} onSessionExpired={expired} /> : null}</div>)}
+      <div hidden={!editorVisible} className="w-full min-w-0">{editor.open ? <>
+        <div hidden={view !== "profiles"} className="w-full min-w-0">{view === "profiles" ? <BusinessEditor validationErrors={validationErrors} key={editor.generation} form={editor.form} section={editor.section} editingName={editor.editing?.name} dirty={editor.dirty} saving={saving} onChange={editor.setForm} onSection={editor.setSection} onSubmit={save} onCancel={editor.close} onSessionExpired={expired} onBusyChange={editor.setBusy} onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })} onWorkspace={changeView} /> : null}</div>
+        {editorViews.map((domain) => (
+          <div key={`${editor.generation}-${domain}`} hidden={view !== domain} className="w-full min-w-0">
+            {domain === "ai" || view === domain ? (
+              <WorkspaceDomainEditor
+                errors={validationErrors}
+                view={domain as "story" | "canvas" | "saved" | "ai"}
+                form={editor.form}
+                disabled={busy}
+                dirty={editor.dirty}
+                creating={!editor.editing}
+                businessName={editor.editing?.name}
+                bookmarks={bookmarks}
+                bookmarksError={bookmarksError}
+                onBookmarksChange={setBookmarks}
+                onReloadBookmarks={reloadBookmarks}
+                emailVerified={accountUser.emailVerified}
+                onChange={editor.setForm}
+                onSubmit={save}
+                onPreview={() => setPreview({ business: previewFromForm(editor.form, editor.editing), unsaved: editor.dirty || !editor.editing })}
+                onApply={editor.apply}
+                onBusyChange={editor.setBusy}
+                onSessionExpired={expired}
+              />
+            ) : null}
+          </div>
+        ))}
       </> : null}</div>
-      {view === "profiles" ? <BusinessList {...listProps} /> : !editorVisible ? <Card className="gap-3 border-line/60 p-5 shadow-none"><h2 className="text-lg font-semibold text-forest">Pilih profil untuk dikelola</h2><p className="text-sm leading-6 text-muted">{profilesError || "Pilih bisnis pada menu di atas. Jika belum ada, mulai dari Profil Bisnis; semua bagian akan memakai draft yang sama."}</p>{profilesError ? <Button disabled={busy} onClick={() => { void reloadProfiles(); }} className="min-h-11 w-fit bg-forest px-4 text-white">Coba lagi</Button> : <Button disabled={busy} onClick={create} className="min-h-11 w-fit bg-forest px-4 text-white">Buat profil bisnis</Button>}</Card> : null}
+      {view === "profiles" ? (
+        <BusinessList {...listProps} />
+      ) : !editorVisible ? (
+        view === "saved" || view === "story" ? (
+          <WorkspaceDomainEditor
+            errors={validationErrors}
+            view={view}
+            form={editor.form}
+            disabled={busy}
+            dirty={false}
+            creating={false}
+            hasProfile={false}
+            onCreateProfile={create}
+            bookmarks={bookmarks}
+            bookmarksError={bookmarksError}
+            onBookmarksChange={setBookmarks}
+            onReloadBookmarks={reloadBookmarks}
+            emailVerified={accountUser.emailVerified}
+            onChange={editor.setForm}
+            onSubmit={save}
+            onPreview={() => {}}
+            onApply={editor.apply}
+            onBusyChange={editor.setBusy}
+            onSessionExpired={expired}
+          />
+        ) : (
+          <Card className="gap-3 border-line/60 p-5 shadow-none">
+            <h2 className="text-lg font-semibold text-forest">Pilih profil untuk dikelola</h2>
+            <p className="text-sm leading-6 text-muted">
+              {profilesError || "Pilih bisnis pada menu di atas. Jika belum ada, mulai dari Profil Bisnis; semua bagian akan memakai draft yang sama."}
+            </p>
+            {profilesError ? (
+              <Button disabled={busy} onClick={() => { void reloadProfiles(); }} className="min-h-11 w-fit bg-forest px-4 text-white">
+                Coba lagi
+              </Button>
+            ) : (
+              <Button disabled={busy} onClick={create} className="min-h-11 w-fit bg-forest px-4 text-white">
+                Buat profil bisnis
+              </Button>
+            )}
+          </Card>
+        )
+      ) : null}
     </div>
-    <div hidden={view !== "saved"} className="mt-6"><p className="text-sm leading-6 text-muted">Profil tersimpan adalah bookmark bisnis, terpisah dari kebutuhan kerja sama usahamu.</p>{bookmarksError ? <Card role="alert" className="mt-6 border-line p-5 shadow-none"><p className="text-sm text-red-700">{bookmarksError}</p><Button onClick={reloadBookmarks} className="min-h-11 w-fit bg-forest px-4 text-white">Coba lagi</Button></Card> : <SavedBusinesses businesses={bookmarks} onBusinessesChange={setBookmarks} />}</div>
     <div hidden={view !== "settings"}><h1 className="text-2xl font-semibold text-forest">Pengaturan Akun</h1><AccountSettings user={accountUser} onUserChange={setAccountUser} /></div>
     {preview ? <BusinessProfilePreview business={preview.business} unsaved={preview.unsaved} onClose={() => setPreview(null)} /> : null}
     {editor.pendingDiscard ? <WorkspaceConfirmation title="Buang perubahan yang belum disimpan?" description="Perubahan pada editor akan hilang. Profil yang sudah tersimpan tidak berubah." confirmLabel="Buang perubahan" cancelLabel="Lanjutkan mengedit" onConfirm={editor.acceptDiscard} onCancel={editor.cancelDiscard} /> : null}

@@ -328,10 +328,9 @@ export async function draftProfileApi(
   narrative: string,
 ): Promise<ApiActionResult & { draft?: AIDraftProfile }> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/draft-profile`, {
+    const res = await fetch(`/api/ai/draft-profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({ narrative }),
     });
     const data = (await res.json()) as AIDraftProfile | ApiErrorResponse;
@@ -340,7 +339,7 @@ export async function draftProfileApi(
     }
     return { ok: true, draft: data as AIDraftProfile };
   } catch {
-    return { ok: false, error: "Gagal terhubung ke server backend." };
+    return { ok: false, error: "Gagal terhubung ke layanan Lumora AI." };
   }
 }
 
