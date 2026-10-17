@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmailVerificationNotice } from "@/components/auth/email-verification-notice";
 import { AccountSettings } from "./account-settings";
-import { SavedBusinesses } from "./saved-businesses";
 import { WorkspaceShell } from "./workspace-shell";
 import { DashboardOverview } from "./dashboard-overview";
 import { BusinessList } from "./business-list";
@@ -31,7 +30,17 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
 }) {
   const router = useRouter();
   const search = useSearchParams();
-  const [viewState, setViewState] = useState<WorkspaceView>(() => resolveView(search.get("view")));
+  const searchView = search.get("view");
+  const searchBusiness = search.get("business");
+  const searchKey = `${searchView ?? ""}:${searchBusiness ?? ""}`;
+  const [prevSearchKey, setPrevSearchKey] = useState(searchKey);
+  const [viewState, setViewState] = useState<WorkspaceView>(() => resolveView(searchView));
+  const [selectedId, setSelectedId] = useState(() => initialBusinesses.items.find((item) => item.id === search.get("business"))?.id || initialBusinesses.items[0]?.id || "");
+  if (searchKey !== prevSearchKey) {
+    setPrevSearchKey(searchKey);
+    setViewState(resolveView(searchView));
+    if (searchBusiness) setSelectedId(searchBusiness);
+  }
   const view = viewState;
   const [accountUser, setAccountUser] = useState(user);
   const [listing, setListing] = useState(initialBusinesses);
@@ -40,7 +49,6 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   const [bookmarksError, setBookmarksError] = useState(initialBookmarksError);
   const [resolvedBusinesses, setResolvedBusinesses] = useState<OwnedBusiness[]>([]);
   const ownedItems = useMemo(() => [...listing.items, ...resolvedBusinesses.filter((item) => !listing.items.some((row) => row.id === item.id))], [listing.items, resolvedBusinesses]);
-  const [selectedId, setSelectedId] = useState(() => initialBusinesses.items.find((item) => item.id === search.get("business"))?.id || initialBusinesses.items[0]?.id || "");
   const selected = resolveOwnedSelection(ownedItems, search.get("business") || selectedId || null);
   const urlBusiness = search.get("business");
   const urlProfile = ownedItems.find((item) => item.id === urlBusiness) || null;
@@ -82,10 +90,6 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   }, [urlBusiness, listing.total, listing.page, profilesError, view, ownedItems]);
 
   useEffect(() => {
-    const nextView = resolveView(search.get("view"));
-    setViewState(nextView);
-    const businessParam = search.get("business");
-    if (businessParam) setSelectedId(businessParam);
     currentUrl.current = window.location.pathname + window.location.search;
   }, [search]);
 

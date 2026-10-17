@@ -18,13 +18,11 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Pencil,
   X,
   Check,
   Layers,
   Copy,
-  ArrowRight,
 } from "lucide-react";
 import { BMC_LABELS } from "@/lib/dashboard";
 import type { BmcEntry } from "@/types/business";
@@ -257,7 +255,6 @@ export function NineBlockCanvas({
             type="button"
             role="tab"
             aria-selected={mode === "canvas"}
-            aria-pressed={mode === "canvas"}
             onClick={() => setMode("canvas")}
             className={`${styles.modeButton} ${
               mode === "canvas" ? styles.modeButtonActive : ""
@@ -270,7 +267,6 @@ export function NineBlockCanvas({
             type="button"
             role="tab"
             aria-selected={mode === "guide"}
-            aria-pressed={mode === "guide"}
             onClick={() => setMode("guide")}
             className={`${styles.modeButton} ${
               mode === "guide" ? styles.modeButtonActive : ""

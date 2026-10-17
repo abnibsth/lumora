@@ -1,5 +1,3 @@
-import type { BmcEntry } from "@/types/business";
-
 export interface BmcBlockMeta {
   id: string;
   label: string;
