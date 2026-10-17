@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Handshake,
   Compass,
@@ -81,7 +80,6 @@ export function PartnershipWorkspace({
   onBookmarksChange,
   onReloadBookmarks,
 }: PartnershipWorkspaceProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"kebutuhan" | "peluang" | "tersimpan">("kebutuhan");
 
   // Tag & Editing states for Tab 1
@@ -155,7 +153,9 @@ export function PartnershipWorkspace({
 
     if (!result.ok) {
       if (result.code === "unauthenticated") {
-        router.push(`${ROUTES.login}?next=${ROUTES.dashboard}`);
+        if (typeof window !== "undefined") {
+          window.location.href = `${ROUTES.login}?next=${encodeURIComponent(ROUTES.dashboard)}`;
+        }
         return;
       }
       setBookmarkActionError(result.error || "Gagal menghapus bookmark.");

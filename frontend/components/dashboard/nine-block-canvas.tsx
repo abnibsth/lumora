@@ -366,7 +366,7 @@ export function NineBlockCanvas({
                 return (
                   <div
                     key={def.id}
-                    id={`canvas-block-${def.id}`}
+                    id={`canvas-slot-${def.id}`}
                     role="button"
                     tabIndex={0}
                     onClick={() => openDrawer(def)}
