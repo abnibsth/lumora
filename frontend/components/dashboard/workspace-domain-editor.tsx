@@ -72,6 +72,7 @@ export function WorkspaceDomainEditor({
         onPreview={onPreview}
         onBookmarksChange={onBookmarksChange}
         onReloadBookmarks={onReloadBookmarks}
+        onSessionExpired={onSessionExpired}
       />
     );
   }

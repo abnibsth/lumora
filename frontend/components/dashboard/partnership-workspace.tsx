@@ -61,6 +61,7 @@ export interface PartnershipWorkspaceProps {
   onPreview: () => void;
   onBookmarksChange?: (businesses: Business[]) => void;
   onReloadBookmarks?: () => void;
+  onSessionExpired?: () => void;
 }
 
 export function PartnershipWorkspace({
@@ -79,6 +80,7 @@ export function PartnershipWorkspace({
   onPreview,
   onBookmarksChange,
   onReloadBookmarks,
+  onSessionExpired,
 }: PartnershipWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<"kebutuhan" | "peluang" | "tersimpan">("kebutuhan");
 
@@ -153,9 +155,7 @@ export function PartnershipWorkspace({
 
     if (!result.ok) {
       if (result.code === "unauthenticated") {
-        if (typeof window !== "undefined") {
-          window.location.href = `${ROUTES.login}?next=${encodeURIComponent(ROUTES.dashboard)}`;
-        }
+        onSessionExpired?.();
         return;
       }
       setBookmarkActionError(result.error || "Gagal menghapus bookmark.");
