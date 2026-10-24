@@ -28,7 +28,21 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 }
 
 function Hero({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description: string; actions?: React.ReactNode }) {
-  return <section className="bg-forest py-20 text-white md:py-28"><Container><div className="max-w-5xl">{eyebrow ? <p className="text-sm font-medium text-green">{eyebrow}</p> : null}<h1 className="mt-5 whitespace-pre-line text-balance font-display text-[clamp(2.625rem,11vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-6xl lg:text-7xl">{title}</h1><p className="mt-7 max-w-2xl text-lg leading-8 text-mint">{description}</p>{actions ? <div className="mt-9 flex flex-wrap gap-3">{actions}</div> : null}</div></Container></section>;
+  return (
+    <section className="marketing-banner-wave bg-forest py-20 text-white md:py-28">
+      <Container>
+        <div className="max-w-5xl">
+          {eyebrow ? <p className="text-sm font-medium text-green">{eyebrow}</p> : null}
+          <h1 className="mt-5 whitespace-pre-line text-balance font-display text-[clamp(2.625rem,11vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-6xl lg:text-7xl">{title}</h1>
+          <p className="mt-7 max-w-2xl text-lg leading-8 text-mint">{description}</p>
+          {actions ? <div className="mt-9 flex flex-wrap gap-3">{actions}</div> : null}
+        </div>
+      </Container>
+      <svg className="marketing-banner-wave-edge" viewBox="0 0 1440 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <path d="M0 44C160 4 320 4 480 44S800 96 960 52S1280 4 1440 36V100H0Z" />
+      </svg>
+    </section>
+  );
 }
 
 function FormPreview() {

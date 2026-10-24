@@ -6,6 +6,7 @@ import { Reveal, StaggerContainer, StaggerItem } from "@/components/ui/section";
 import { Container } from "@/components/ui/container";
 import { aiSection } from "@/data/landing";
 import { SECTION_IDS } from "@/lib/constants";
+import type { HomepageContent } from "@/types/homepage";
 
 const prompts = ["Ceritakan bisnis saya", "Buat Business Model Canvas", "Cari bisnis"] as const;
 type Prompt = (typeof prompts)[number];
@@ -31,8 +32,9 @@ function TypingIndicator() {
   );
 }
 
-export function AiSection() {
+export function AiSection({ content }: { content?: HomepageContent["ai"] }) {
   const [input, setInput] = useState("");
+
   const [typing, setTyping] = useState(false);
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [error, setError] = useState("");
@@ -124,21 +126,34 @@ export function AiSection() {
   const runPrompt = (prompt: Prompt) => { void sendMessage(prompt); };
   const submitMessage = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void sendMessage(input); };
 
+  if (content && !content.visible) {
+    return null;
+  }
+
+  const eyebrow = content?.eyebrow || aiSection.eyebrow;
+  const heading = content?.heading || aiSection.heading;
+  const description = content?.description || aiSection.description;
+  const guardrailTitle = content?.guardrailTitle || "Batas yang kami jaga";
+  const guardrailDescription =
+    content?.guardrailDescription ||
+    "LUMORA tidak memberikan rekomendasi investasi atau menentukan kelayakan sebuah usaha.";
+
   return (
-    <section id={SECTION_IDS.ai} className="bg-background py-20 sm:py-28 lg:py-36">
+    <section id={SECTION_IDS.ai} className="home-ai">
       <Container>
         <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:gap-20">
           <StaggerContainer className="lg:sticky lg:top-28" stagger={0.08}>
-            <StaggerItem><p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">{aiSection.eyebrow}</p></StaggerItem>
-            <StaggerItem><h2 className="mt-4 font-display text-section font-medium text-balance text-ink">{aiSection.heading}</h2></StaggerItem>
-            <StaggerItem><p className="mt-6 max-w-lg text-base leading-8 text-muted">{aiSection.description}</p></StaggerItem>
+            <StaggerItem><p className="text-xs font-semibold tracking-[0.18em] text-accent uppercase">{eyebrow}</p></StaggerItem>
+            <StaggerItem><h2 className="mt-4 font-display text-section font-medium text-balance text-ink">{heading}</h2></StaggerItem>
+            <StaggerItem><p className="mt-6 max-w-lg text-base leading-8 text-muted">{description}</p></StaggerItem>
             <StaggerItem>
               <div className="mt-8 border-t border-line pt-6">
-                <p className="text-sm font-semibold text-ink">Batas yang kami jaga</p>
-                <p className="mt-2 text-sm leading-6 text-muted">LUMORA tidak memberikan rekomendasi investasi atau menentukan kelayakan sebuah usaha.</p>
+                <p className="text-sm font-semibold text-ink">{guardrailTitle}</p>
+                <p className="mt-2 text-sm leading-6 text-muted">{guardrailDescription}</p>
               </div>
             </StaggerItem>
           </StaggerContainer>
+
 
           <Reveal distance={30} scale={0.98} delay={0.08}>
             <div className="overflow-hidden rounded-[18px] border border-line bg-surface shadow-[0_18px_60px_rgba(13,45,35,0.08)]">

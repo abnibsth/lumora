@@ -31,34 +31,34 @@ export const footerColumns: FooterColumn[] = [
   {
     title: "Produk",
     items: [
-      { label: "Jelajahi UMKM", href: `#${SECTION_IDS.businesses}` },
-      { label: "Cara Kerja", href: `#${SECTION_IDS.howItWorks}` },
-      { label: "Fitur", href: `#${SECTION_IDS.ai}` },
-      { label: "Tentang", href: `#${SECTION_IDS.about}` },
+      { label: "Jelajahi UMKM", href: `/#${SECTION_IDS.businesses}` },
+      { label: "Cara Kerja", href: `/#${SECTION_IDS.howItWorks}` },
+      { label: "Fitur", href: `/#${SECTION_IDS.ai}` },
+      { label: "Tentang", href: `/#${SECTION_IDS.about}` },
     ],
   },
   {
     title: "Untuk UMKM",
     items: [
       { label: "Buat Profil", href: ROUTES.registerUmkm },
-      { label: "Perjalanan Bisnis", href: `#${SECTION_IDS.journey}` },
-      { label: "Business Model Canvas", href: `#${SECTION_IDS.ai}` },
-      { label: "Asisten AI", href: `#${SECTION_IDS.ai}` },
+      { label: "Perjalanan Bisnis", href: `/#${SECTION_IDS.journey}` },
+      { label: "Business Model Canvas", href: `/#${SECTION_IDS.ai}` },
+      { label: "Asisten AI", href: `/#${SECTION_IDS.ai}` },
     ],
   },
   {
     title: "Untuk Pemodal",
     items: [
       { label: "Discovery", href: ROUTES.explore },
-      { label: "Profil Bisnis", href: `#${SECTION_IDS.showcase}` },
-      { label: "AI Discovery", href: `#${SECTION_IDS.ai}` },
+      { label: "Profil Bisnis", href: `/#${SECTION_IDS.showcase}` },
+      { label: "AI Discovery", href: `/#${SECTION_IDS.ai}` },
     ],
   },
   {
     title: "Perusahaan",
     items: [
-      { label: "Tentang LUMORA", href: `#${SECTION_IDS.about}` },
-      { label: "FAQ", href: `#${SECTION_IDS.faq}` },
+      { label: "Tentang LUMORA", href: `/#${SECTION_IDS.about}` },
+      { label: "Panduan Platform", href: ROUTES.howItWorks },
     ],
   },
 ];

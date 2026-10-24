@@ -251,3 +251,230 @@ select {
     scroll-behavior: auto !important;
   }
 }
+
+.marketing-banner-wave {
+  position: relative;
+  isolation: isolate;
+  --banner-wave-height: clamp(2.5rem, 6vw, 5.5rem);
+  padding-bottom: calc(clamp(5rem, 8vw, 7rem) + var(--banner-wave-height));
+}
+.marketing-banner-wave-edge {
+  position: absolute;
+  inset: auto 0 -1px;
+  display: block;
+  width: 100%;
+  height: var(--banner-wave-height);
+  fill: var(--lumora-ivory);
+  pointer-events: none;
+}
+
+.lumora-home {
+  --home-forest: #153f32;
+  --home-ivory: #f6f3e9;
+  --home-lime: #c4ec78;
+  --home-serif: Georgia, "Times New Roman", serif;
+  --home-space: clamp(3.5rem, 6vw, 6rem);
+  background: var(--home-ivory);
+  color: var(--home-forest);
+}
+.lumora-home .home-section { padding-block: var(--home-space); }
+.lumora-home .home-eyebrow { font-size: .75rem; line-height: 1.5; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.lumora-home .home-heading { font-family: var(--home-serif); font-size: clamp(2.25rem, 4vw, 3.75rem); line-height: 1.08; font-weight: 400; letter-spacing: -.035em; text-wrap: balance; }
+.lumora-home .home-heading em { font-weight: 400; }
+.lumora-home .home-copy { font-size: .9375rem; line-height: 1.85; color: var(--lumora-muted); }
+.lumora-home .home-link { display: inline-flex; min-height: 44px; align-items: center; gap: 1rem; font-size: .875rem; font-weight: 500; text-decoration: underline; text-underline-offset: 5px; }
+.lumora-home .home-link span { transition: transform .2s ease; }
+.lumora-home .home-link:hover span { transform: translateX(4px); }
+.lumora-home .home-button { display: inline-flex; min-height: 48px; justify-content: center; align-items: center; gap: 1rem; padding: .8rem 1.5rem; border-radius: 999px; font-size: .875rem; font-weight: 500; background: var(--home-forest); color: var(--home-ivory); transition: background-color .2s; }
+.lumora-home .home-button:hover { background: #245b46; }
+.lumora-home .home-button-lime { color: var(--home-forest); background: var(--home-lime); }
+.lumora-home .home-button-lime:hover { background: #d5f49e; }
+.lumora-home :focus-visible { outline: 3px solid currentColor; outline-offset: 4px; }
+.lumora-home .home-ai :is(input, button):focus-visible { outline-color: var(--home-forest); }
+
+.lumora-home .home-hero { padding-top: clamp(.75rem, 1.5vw, 1.5rem); }
+.lumora-home .home-hero-frame { position: relative; overflow: hidden; border-radius: 24px; background: var(--home-forest); }
+.lumora-home .home-banner { display: block; width: 100%; height: auto; }
+.lumora-home .home-banner-cta { position: absolute; left: 8.4%; top: 69.3%; width: 21.5%; height: 8.7%; min-height: 44px; padding: 0; border-radius: 999px; font-size: clamp(.875rem, 1.8vw, 1.6rem); background: var(--home-ivory); color: var(--home-forest); box-shadow: 3px 4px 0 var(--home-lime); }
+.lumora-home .home-banner-cta:hover { background: var(--home-lime); }
+.lumora-home .home-hero-mobile { display: none; }
+.lumora-home .home-hero-caption { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding-block: .75rem; border-bottom: 1px solid var(--lumora-border); }
+.lumora-home .home-hero-caption p { font-size: .75rem; color: var(--lumora-muted); }
+.lumora-home .home-hero-caption a { font-size: .75rem; min-height: 44px; }
+.lumora-home .home-mobile-art { position: relative; overflow: hidden; aspect-ratio: 1.2; border-radius: 12px 12px 32px 12px; }
+.lumora-home .home-mobile-art-image { object-fit: cover; object-position: center; }
+.lumora-home .home-mobile-headline { font-family: var(--home-serif); }
+.lumora-home .home-value-intro { display: grid; gap: 2rem; grid-template-columns: 1.1fr .7fr; align-items: end; }
+.lumora-home .home-value-points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 2.75rem; border-top: 1px solid var(--lumora-border); }
+.lumora-home .home-value-point { padding: 1.75rem 2rem 0; border-left: 1px solid var(--lumora-border); }
+.lumora-home .home-value-point:first-child { border-left: 0; padding-left: 0; }
+.lumora-home .home-value-point:last-child { padding-right: 0; }
+.lumora-home .home-value-number { font-family: var(--home-serif); color: var(--lumora-accent-strong); font-style: italic; font-size: 1.25rem; }
+.lumora-home .home-value-point h3 { font-size: 1.0625rem; font-weight: 500; margin-top: 1rem; margin-bottom: .5rem; }
+.lumora-home .home-value-point p { font-size: .875rem; line-height: 1.8; color: var(--lumora-muted); max-width: 21rem; }
+.lumora-home .home-discovery { background: #fffdf7; border-radius: 56px 56px 0 0; }
+.lumora-home .home-section-top { display: flex; align-items: end; justify-content: space-between; gap: 2rem; }
+.lumora-home .home-section-top .home-heading { max-width: 43rem; margin-top: .875rem; }
+.lumora-home .home-section-top > p { max-width: 21rem; }
+.lumora-home .home-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 2rem; }
+.lumora-home .home-filter { min-height: 44px; padding: .5rem 1.1rem; border: 1px solid var(--lumora-border-strong); border-radius: 999px; font-size: .8125rem; transition: background-color .2s, border-color .2s; }
+.lumora-home .home-filter:hover { background: var(--lumora-soft-green); }
+.lumora-home .home-filter[aria-pressed="true"] { background: var(--home-forest); color: var(--home-ivory); border-color: var(--home-forest); }
+.lumora-home .home-business-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem 1.5rem; margin-top: 1.75rem; }
+.lumora-home .home-business { display: block; height: 100%; }
+.lumora-home .home-business-image { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 14px 14px 36px 14px; background: #e9e9de; }
+.lumora-home .home-business-image img { object-fit: cover; transition: transform .4s ease; }
+.lumora-home .home-business:hover img { transform: scale(1.035); }
+.lumora-home .home-business-monogram { display: flex; height: 100%; align-items: center; justify-content: center; font-family: var(--home-serif); font-size: 4rem; color: var(--home-forest); }
+.lumora-home .home-business-meta { margin-top: 1rem; font-size: .6875rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--lumora-muted); }
+.lumora-home .home-business h3 { font-family: var(--home-serif); font-size: 1.625rem; line-height: 1.2; margin-top: .5rem; }
+.lumora-home .home-business-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: .5rem; font-size: .875rem; line-height: 1.8; color: var(--lumora-muted); }
+.lumora-home .home-empty { margin-top: 1.75rem; padding-block: 2.5rem; border-block: 1px solid var(--lumora-border); }
+.lumora-home .home-features { overflow: hidden; background: var(--home-forest); color: var(--home-ivory); border-radius: 0 0 70px 0; }
+.lumora-home .home-features-layout { display: grid; grid-template-columns: .85fr 1.15fr; gap: 5rem; }
+.lumora-home .home-features .home-eyebrow { color: var(--home-lime); }
+.lumora-home .home-features .home-copy { color: #d0d9cb; }
+.lumora-home .home-feature-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem 2.5rem; }
+.lumora-home .home-feature { border-top: 1px solid #ffffff50; padding-top: 1.25rem; }
+.lumora-home .home-feature-number { display: block; color: var(--home-lime); font-size: .75rem; }
+.lumora-home .home-feature-title { display: block; font-family: var(--home-serif); font-size: 1.5rem; line-height: 1.2; margin-block: .75rem; }
+.lumora-home .home-feature-description { font-size: .875rem; line-height: 1.8; color: #d0d9cb; }
+.lumora-home .home-story-layout { display: grid; grid-template-columns: .85fr 1.15fr; gap: 4rem; align-items: start; }
+.lumora-home .home-story-business { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 16px 70px 16px 16px; background: #e5e8dc; }
+.lumora-home .home-story-business img { object-fit: cover; }
+.lumora-home .home-story-caption { padding-top: 1.25rem; }
+.lumora-home .home-story-caption h3 { font-family: var(--home-serif); font-size: 1.75rem; line-height: 1.2; }
+.lumora-home .home-story-caption p { margin-top: .75rem; }
+.lumora-home .home-story-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+.lumora-home .home-timeline { border-left: 1px solid var(--lumora-border-strong); margin-top: 2rem; margin-left: .3rem; }
+.lumora-home .home-milestone { position: relative; padding: 0 0 1.75rem 1.75rem; }
+.lumora-home .home-milestone:last-child { padding-bottom: 0; }
+.lumora-home .home-milestone::before { content: ""; position: absolute; left: -4.5px; top: .5rem; width: 8px; height: 8px; border-radius: 50%; background: var(--home-forest); }
+.lumora-home .home-milestone-year { font-family: var(--home-serif); font-size: 1.5rem; font-style: italic; color: var(--lumora-accent-strong); }
+.lumora-home .home-milestone h4 { margin-top: .3rem; font-size: .9375rem; font-weight: 500; }
+.lumora-home .home-milestone p { margin-top: .35rem; font-size: .875rem; line-height: 1.75; color: var(--lumora-muted); }
+.lumora-home .home-story-empty { align-self: stretch; display: flex; flex-direction: column; justify-content: center; border-block: 1px solid var(--lumora-border); padding-block: 2.5rem; }
+.lumora-home .home-how { background: #e9eddf; border-radius: 70px 0 70px 0; }
+.lumora-home .home-how-layout { display: grid; grid-template-columns: .7fr 1.3fr; gap: 4rem; }
+.lumora-home .home-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.75rem 2rem; padding-top: .5rem; }
+.lumora-home .home-flow li { border-top: 1px solid #153f3255; padding-top: 1rem; }
+.lumora-home .home-flow-number { font-family: var(--home-serif); font-size: 1.5rem; font-style: italic; }
+.lumora-home .home-flow h3 { font-size: .9375rem; font-weight: 500; margin-top: .75rem; }
+.lumora-home .home-flow p { font-size: .875rem; line-height: 1.8; margin-top: .5rem; color: var(--lumora-muted); }
+.lumora-home .home-how [role="tablist"] { border-color: #153f3230; }
+.lumora-home .home-how [role="tab"] { border-radius: 999px; }
+.lumora-home .home-ai { padding-block: var(--home-space); background: var(--home-ivory); }
+.lumora-home .home-ai h2 { font-family: var(--home-serif); font-size: clamp(2.25rem, 4vw, 3.75rem); font-weight: 400; line-height: 1.08; letter-spacing: -.035em; }
+.lumora-home .home-final { padding: 0 0 1.5rem; }
+.lumora-home .home-final-panel { display: grid; grid-template-columns: 1.2fr .8fr; align-items: end; gap: 3rem; background: var(--home-forest); color: var(--home-ivory); padding: clamp(2rem, 5vw, 4.5rem); border-radius: 20px 70px 20px 20px; }
+.lumora-home .home-final-panel .home-heading { font-size: clamp(2.5rem, 4.5vw, 4rem); }
+.lumora-home .home-final-panel .home-copy { color: #d0d9cb; }
+.lumora-home .home-final-actions { display: flex; flex-direction: column; align-items: start; gap: 1.25rem; margin-top: 1.75rem; }
+@media (max-width: 1023px) {
+  .lumora-home .home-features-layout, .lumora-home .home-story-layout, .lumora-home .home-how-layout { gap: 2.5rem; }
+  .lumora-home .home-business-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lumora-home .home-features-layout, .lumora-home .home-how-layout { grid-template-columns: 1fr; }
+  .lumora-home .home-features-layout > div:first-child { max-width: 38rem; }
+  .lumora-home .home-final-panel { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+@media (max-width: 767px) {
+  .lumora-home .home-hero-desktop { display: none; }
+  .lumora-home .home-hero-mobile { display: block; }
+  .lumora-home .home-hero-frame { border-radius: 20px 20px 48px 20px; }
+  .lumora-home .home-mobile-copy { padding: 2.25rem 1.5rem 1rem; }
+  .lumora-home .home-mobile-copy h1 { font-family: var(--home-serif); font-size: clamp(2.5rem, 9vw, 3.75rem); line-height: 1.08; letter-spacing: -.035em; color: var(--home-ivory); }
+  .lumora-home .home-mobile-copy p { font-size: .9375rem; line-height: 1.8; color: #d0d9cb; margin-top: 1rem; }
+  .lumora-home .home-mobile-copy > a { margin-top: 1.5rem; }
+  .lumora-home .home-mobile-visual { position: relative; aspect-ratio: 1.25; overflow: hidden; }
+  .lumora-home .home-mobile-visual img { object-fit: cover; object-position: right center; }
+  .lumora-home .home-value-intro, .lumora-home .home-story-layout, .lumora-home .home-how-layout { grid-template-columns: 1fr; gap: 1.75rem; }
+  .lumora-home .home-value-points { grid-template-columns: 1fr; margin-top: 2rem; }
+  .lumora-home .home-value-point, .lumora-home .home-value-point:first-child { display: grid; grid-template-columns: 2rem 1fr; gap: 0 .75rem; border-left: 0; border-bottom: 1px solid var(--lumora-border); padding: 1.25rem 0; }
+  .lumora-home .home-value-point h3 { margin-top: 0; }
+  .lumora-home .home-value-point p { grid-column: 2; }
+  .lumora-home .home-section-top { display: block; }
+  .lumora-home .home-section-top > p { margin-top: 1rem; }
+  .lumora-home .home-discovery { border-radius: 32px 32px 0 0; }
+  .lumora-home .home-features, .lumora-home .home-how { border-bottom-right-radius: 40px; }
+  .lumora-home .home-how { border-top-left-radius: 40px; }
+  .lumora-home .home-feature-list { gap: 1.75rem 1.25rem; }
+  .lumora-home .home-feature h3 { font-size: 1.375rem; }
+  .lumora-home .home-final-panel { border-top-right-radius: 48px; }
+}
+@media (max-width: 479px) {
+  .lumora-home .home-business-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .lumora-home .home-feature-list { grid-template-columns: 1fr; }
+  .lumora-home .home-flow { grid-template-columns: 1fr; gap: 1.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lumora-home *, .lumora-home *::before, .lumora-home *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+  .lumora-home .home-business:hover img, .lumora-home .home-link:hover span { transform: none; }
+}
+
+.lumora-home .home-live-hero { padding-block: 0; }
+.lumora-home .home-live-hero + .home-section { padding-top: clamp(1.5rem, 3vw, 3rem); }
+.lumora-home .home-live-banner { position: relative; overflow: hidden; background: var(--home-forest); color: var(--home-ivory); }
+.lumora-home .home-live-inner { max-width: 1280px; }
+.lumora-home .home-live-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; align-items: center; padding: clamp(2rem, 5vw, 4.5rem); padding-bottom: clamp(5rem, 8vw, 7rem); }
+.lumora-home .home-live-copy { min-width: 0; }
+.lumora-home .home-live-wordmark { font-family: var(--home-serif); font-size: clamp(1.75rem, 3vw, 2.75rem); letter-spacing: -.04em; }
+.lumora-home .home-live-copy h1 { font-family: var(--home-serif); font-size: clamp(2.75rem, 4.6vw, 4.5rem); line-height: 1.06; font-weight: 400; letter-spacing: -.04em; margin-top: 1.5rem; text-wrap: balance; }
+.lumora-home .home-live-copy h1 em { font-weight: 400; color: #d9ebc4; }
+.lumora-home .home-live-description { max-width: 28rem; margin-top: 1.5rem; font-size: .9375rem; line-height: 1.85; color: #d0d9cb; }
+.lumora-home .home-live-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1.5rem; margin-top: 2rem; }
+.lumora-home .home-live-footnote { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid #ffffff30; font-size: .75rem; line-height: 1.8; color: #d0d9cb; max-width: 26rem; }
+.lumora-home .home-live-showcase { position: relative; min-width: 0; min-height: 450px; }
+.lumora-home .home-live-business { position: relative; display: block; width: 68%; margin-left: auto; background: var(--home-ivory); color: var(--home-forest); border: 8px solid var(--home-ivory); border-radius: 14px; box-shadow: 0 16px 32px #071e2540; transform: rotate(5deg); transition: transform .25s ease; z-index: 2; }
+.lumora-home .home-live-business:hover { transform: rotate(2deg) translateY(-4px); }
+.lumora-home .home-live-business-photo { position: relative; overflow: hidden; aspect-ratio: 1.8; background: #dce3d4; border-radius: 7px; }
+.lumora-home .home-live-monogram { display: grid; height: 100%; place-items: center; font-family: var(--home-serif); font-size: 4rem; }
+.lumora-home .home-live-business-copy { padding: .875rem .5rem .5rem; }
+.lumora-home .home-live-business-copy p { font-size: .6875rem; line-height: 1.6; }
+.lumora-home .home-live-business-copy h2 { font-family: var(--home-serif); font-size: clamp(1.25rem, 2vw, 1.75rem); line-height: 1.2; margin-top: .35rem; overflow-wrap: anywhere; }
+.lumora-home .home-live-profile-link { display: flex; align-items: center; justify-content: space-between; font-size: .75rem; font-weight: 500; padding-top: .75rem; }
+.lumora-home .home-live-business-secondary { width: 51%; margin: -1rem 0 0; transform: rotate(-7deg); z-index: 3; }
+.lumora-home .home-live-business-secondary:hover { transform: rotate(-3deg) translateY(-4px); }
+.lumora-home .home-live-journey { position: relative; display: flex; flex-direction: column; gap: .5rem; width: 54%; margin: -7rem 0 0 auto; padding: 1.25rem 1.25rem 2.5rem; border: 1px solid #ced3bd; border-radius: 12px; background: #d9ebc4; color: var(--home-forest); z-index: 4; transform: rotate(4deg); transition: transform .25s ease; }
+.lumora-home .home-live-journey:hover { transform: rotate(1deg) translateY(-4px); }
+.lumora-home .home-live-journey-label { font-size: .6875rem; text-transform: uppercase; letter-spacing: .07em; }
+.lumora-home .home-live-year { font-family: var(--home-serif); font-size: 2.5rem; line-height: 1.1; }
+.lumora-home .home-live-journey-name { font-family: var(--home-serif); font-size: 1.375rem; }
+.lumora-home .home-live-journey-title { font-size: .8125rem; line-height: 1.6; }
+.lumora-home .home-live-journey-arrow { position: absolute; right: 1.25rem; bottom: .75rem; font-size: 1.25rem; }
+.lumora-home .home-live-fallback { padding: .75rem; border: 1px solid #ffffff40; border-radius: 16px 60px 16px 16px; }
+.lumora-home .home-live-fallback-photo { position: relative; aspect-ratio: 1.2; overflow: hidden; border-radius: 8px 48px 8px 8px; }
+.lumora-home .home-live-fallback figcaption { padding: 1rem .25rem .25rem; font-family: var(--home-serif); font-size: 1.375rem; }
+.lumora-home .home-live-fallback figcaption span { display: block; margin-top: .5rem; font-family: var(--font-sans); font-size: .6875rem; color: #d0d9cb; }
+.lumora-home .home-live-wave { position: absolute; bottom: -1px; left: 0; display: block; width: 100%; height: clamp(2rem, 5vw, 4rem); fill: var(--home-ivory); pointer-events: none; }
+@media (max-width: 1023px) {
+  .lumora-home .home-live-layout { gap: 1.75rem; padding-inline: 2rem; }
+  .lumora-home .home-live-copy h1 { font-size: 3rem; }
+  .lumora-home .home-live-showcase { min-height: 390px; }
+  .lumora-home .home-live-business { width: 86%; }
+  .lumora-home .home-live-business-secondary { width: 65%; margin-top: 1rem; }
+  .lumora-home .home-live-journey { width: 65%; margin-top: -3rem; }
+}
+@media (max-width: 767px) {
+  .lumora-home .home-live-inner { padding-inline: 0; }
+  .lumora-home .home-live-layout { grid-template-columns: minmax(0, 1fr); padding: 2rem 1.5rem 4.5rem; gap: 2rem; }
+  .lumora-home .home-live-copy h1 { font-size: clamp(2.35rem, 8vw, 3.5rem); }
+  .lumora-home .home-live-wordmark { font-size: 1.75rem; }
+  .lumora-home .home-live-description { font-size: .875rem; }
+  .lumora-home .home-live-actions { align-items: stretch; flex-direction: column; gap: .75rem; }
+  .lumora-home .home-live-actions .home-link { justify-content: center; }
+  .lumora-home .home-live-footnote { margin-top: 1rem; }
+  .lumora-home .home-live-showcase { display: grid; grid-template-columns: 1fr; gap: 1rem; min-height: 0; }
+  .lumora-home .home-live-business, .lumora-home .home-live-business-secondary, .lumora-home .home-live-journey { width: 100%; margin: 0; transform: none; }
+  .lumora-home .home-live-business-secondary { display: grid; grid-template-columns: .8fr 1.2fr; gap: .5rem; }
+  .lumora-home .home-live-business-secondary .home-live-business-photo { aspect-ratio: auto; min-height: 125px; }
+  .lumora-home .home-live-business-copy h2 { font-size: 1.5rem; }
+  .lumora-home .home-live-journey { padding: 1rem 2.5rem 1rem 1rem; }
+  .lumora-home .home-live-year { font-size: 2rem; }
+  .lumora-home .home-live-business:hover, .lumora-home .home-live-journey:hover { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) and (min-width: 768px) {
+  .lumora-home .home-live-business:hover { transform: rotate(5deg); }
+  .lumora-home .home-live-business-secondary:hover { transform: rotate(-7deg); }
+  .lumora-home .home-live-journey:hover { transform: rotate(4deg); }
+}
+

@@ -1,66 +1,59 @@
-import { Section } from "@/components/ui/section";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { Container } from "@/components/ui/container";
+import { Reveal } from "@/components/ui/section";
 import { Tabs } from "@/components/ui/tabs";
-import { JourneyList, JourneyStep } from "@/components/ui/journey-line";
-import {
-  howItWorksSection,
-  investorFlow,
-  umkmFlow,
-  type FlowStep,
-} from "@/data/landing";
+import { howItWorksSection, investorFlow, umkmFlow, type FlowStep } from "@/data/landing";
 import { SECTION_IDS } from "@/lib/constants";
+import type { HomepageContent } from "@/types/homepage";
 
-/**
- * How it works, as two flows behind one segmented control.
- *
- * Both flows are sequences, so both use the journey line. That is the motif
- * doing its actual job: showing that these are steps in an order, which is why
- * it was built rather than a decorative grid.
- *
- * The flows are rendered by the same component so the two sides cannot drift
- * apart in structure, and the step markers are numbered rather than bulleted
- * because the order carries meaning.
- */
-function Flow({ steps }: { steps: FlowStep[] }) {
+function StepProcess({ steps }: { steps: FlowStep[] }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
-      <JourneyList>
-        {steps.map((step, index) => (
-          <JourneyStep
-            key={step.title}
-            marker={String(index + 1).padStart(2, "0")}
-            title={step.title}
-          >
-            {step.body}
-          </JourneyStep>
-        ))}
-      </JourneyList>
-    </div>
+    <ol className="home-flow">
+      {steps.map((step, index) => (
+        <li key={step.title}>
+          <span className="home-flow-number" aria-hidden="true">0{index + 1}</span>
+          <h3>{step.title}</h3>
+          <p>{step.body}</p>
+        </li>
+      ))}
+    </ol>
   );
 }
 
-export function HowItWorksSection() {
-  return (
-    <Section id={SECTION_IDS.howItWorks}>
-      <SectionHeading
-        align="center"
-        title={howItWorksSection.heading}
-        description={howItWorksSection.description}
-        className="mx-auto max-w-2xl"
-      />
+export function HowItWorksSection({ content }: { content?: HomepageContent["howItWorks"] }) {
+  if (content && !content.visible) {
+    return null;
+  }
 
-      <Tabs
-        label="Pilih alur"
-        className="mx-auto mt-8 max-w-2xl"
-        items={[
-          { id: "umkm", label: "Untuk UMKM", content: <Flow steps={umkmFlow} /> },
-          {
-            id: "pemodal",
-            label: "Untuk Pemodal",
-            content: <Flow steps={investorFlow} />,
-          },
-        ]}
-      />
-    </Section>
+  const eyebrow = content?.eyebrow || "Cara kerja";
+  const heading = content?.heading || howItWorksSection.heading;
+  const description = content?.description || howItWorksSection.description;
+  const umkmLabel = content?.umkmLabel || "Pelaku UMKM";
+  const partnerLabel = content?.partnerLabel || "Mitra & Pemodal";
+  const umkmSteps = content?.umkmSteps?.length ? content.umkmSteps : umkmFlow;
+  const partnerSteps = content?.partnerSteps?.length ? content.partnerSteps : investorFlow;
+
+  return (
+    <section id={SECTION_IDS.howItWorks} className="home-section home-how" aria-labelledby="home-how-title">
+      <Container>
+        <div className="home-how-layout">
+          <Reveal>
+            <p className="home-eyebrow">{eyebrow}</p>
+            <h2 id="home-how-title" className="home-heading mt-4">{heading}</h2>
+            <p className="home-copy mt-5">{description}</p>
+          </Reveal>
+          <Reveal delay={0.08}>
+            {/* Segmented Control */}
+            <Tabs
+              label="Pilih alur penggunaan LUMORA"
+              items={[
+                { id: "home-flow-umkm", label: umkmLabel, content: <StepProcess steps={umkmSteps} /> },
+                { id: "home-flow-partner", label: partnerLabel, content: <StepProcess steps={partnerSteps} /> },
+              ]}
+            />
+          </Reveal>
+        </div>
+      </Container>
+    </section>
   );
 }
+

@@ -1,25 +1,47 @@
 import { Reveal } from "@/components/ui/section";
 import Link from "next/link";
 import { Container } from "@/components/ui/container";
-import { buttonStyles } from "@/components/ui/button";
-import { finalCta } from "@/data/landing";
 import { ROUTES } from "@/lib/constants";
+import type { HomepageContent } from "@/types/homepage";
 
-export function FinalCtaSection() {
+export function FinalCtaSection({ content }: { content?: HomepageContent["finalCta"] }) {
+  if (content && !content.visible) {
+    return null;
+  }
+
+  const eyebrow = content?.eyebrow || "Langkah berikutnya";
+  const heading = content?.heading || "Beri ruang untuk cerita usahamu.";
+  const description =
+    content?.description ||
+    "Buat profil UMKM untuk memperkenalkan produk, model bisnis, dan perjalanan usahamu. Atau kenali bisnis yang sudah bergabung.";
+  const primaryCta = content?.primaryCta || {
+    label: "Daftarkan UMKM",
+    href: ROUTES.registerUmkm,
+  };
+  const secondaryCta = content?.secondaryCta || {
+    label: "Jelajahi semua bisnis",
+    href: ROUTES.explore,
+  };
+
   return (
-    <section className="bg-forest py-24 text-white sm:py-32 lg:py-40">
+    <section className="home-final" aria-labelledby="home-final-title">
       <Container>
-        <div className="mx-auto max-w-4xl text-center">
-          <Reveal distance={12} scale={0.98}>
-            <h2 className="font-display text-[clamp(2.25rem,5vw,4.75rem)] leading-[1.08] font-medium tracking-[-0.035em] text-balance">
-              {finalCta.heading}
+        <div className="home-final-panel">
+          <Reveal>
+            <p className="home-eyebrow text-lime">{eyebrow}</p>
+            <h2 id="home-final-title" className="home-heading mt-4">
+              {heading}
             </h2>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-8 text-white/75 sm:text-lg">{finalCta.description}</p>
           </Reveal>
-          <Reveal delay={0.1} distance={16}>
-            <div className="mt-10 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
-              <Link href={ROUTES.registerUmkm} className={buttonStyles({ variant: "onDark", size: "lg", className: "w-full sm:w-auto" })}>Daftarkan UMKM</Link>
-              <Link href={ROUTES.explore} className={buttonStyles({ variant: "onDarkOutline", size: "lg", className: "w-full sm:w-auto" })}>Jelajahi Bisnis</Link>
+          <Reveal delay={0.08}>
+            <p className="home-copy">{description}</p>
+            <div className="home-final-actions">
+              <Link id="home-final-register" href={primaryCta.href} className="home-button home-button-lime">
+                {primaryCta.label} <span aria-hidden="true">↗</span>
+              </Link>
+              <Link id="home-final-explore" href={secondaryCta.href} className="home-link">
+                {secondaryCta.label} <span aria-hidden="true">→</span>
+              </Link>
             </div>
           </Reveal>
         </div>
@@ -27,3 +49,4 @@ export function FinalCtaSection() {
     </section>
   );
 }
+
