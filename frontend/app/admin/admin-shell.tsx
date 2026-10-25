@@ -18,9 +18,6 @@ import {
   LogOut,
   Search,
   Bell,
-  ArrowLeft,
-  CheckCircle2,
-  Filter,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,6 +37,11 @@ import { Badge } from "@/components/ui/badge";
 import { logoutApi, type AdminOverview } from "@/lib/api";
 import type { User } from "@/types/user";
 import HomepageEditor from "./homepage-editor";
+import BusinessManagementView from "./business-management-view";
+import BusinessStoriesView from "./business-stories-view";
+import BusinessPartnershipsView from "./business-partnerships-view";
+import FaqManagementView from "./faq-management-view";
+import MediaLibraryView from "./media-library-view";
 
 // Navigation Context so child components (like DashboardView) can navigate tabs with filters
 interface AdminNavContextType {
@@ -147,12 +149,6 @@ export default function AdminShell({
     }
   }
 
-  // Filter unverified businesses from overview data if requested
-  const unverifiedBusinesses = overview?.recentBusinesses.filter((b) => !b.verified) ?? [];
-  const displayedManagementList =
-    tabFilter === "unverified"
-      ? unverifiedBusinesses
-      : overview?.recentBusinesses ?? [];
 
   return (
     <AdminNavContext.Provider
@@ -286,137 +282,20 @@ export default function AdminShell({
                 children
               ) : active === 1 ? (
                 <HomepageEditor />
-              ) : active === 2 && tabFilter === "unverified" ? (
-                /* Dedicated Manajemen UMKM (Filter: Belum Diverifikasi) view */
-                <motion.section
-                  key="manajemen-umkm-unverified"
-                  initial={reduced ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: reduced ? 0 : 0.25 }}
-                  className="rounded-2xl border border-[#d8d8cf] bg-[#fbfaf6] p-5 sm:p-7 shadow-xs space-y-6"
-                >
-                  {/* Header & Back Button */}
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#d8d8cf] pb-5">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActive(0);
-                            setTabFilter(null);
-                          }}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#123f32] hover:underline"
-                        >
-                          <ArrowLeft className="size-3.5" />
-                          <span>Kembali ke Dashboard</span>
-                        </button>
-                      </div>
-                      <h2 className="mt-2 text-2xl font-bold tracking-tight text-[#123f32]">
-                        Manajemen UMKM
-                      </h2>
-                      <p className="mt-1 text-xs sm:text-sm text-[#4a5550]">
-                        Meninjau profil bisnis yang belum diverifikasi oleh admin platform.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900">
-                        <Filter className="size-3" />
-                        Filter: Belum Diverifikasi ({displayedManagementList.length})
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setTabFilter(null)}
-                        className="rounded-xl border border-[#d8d8cf] bg-[#f5f2e9] px-3 py-1 text-xs font-medium text-[#123f32] hover:bg-[#e7efe9]"
-                      >
-                        Tampilkan Semua Sampel
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Informative Banner */}
-                  <div className="rounded-xl border border-[#d8d8cf] bg-[#f5f2e9] p-4 text-xs text-[#14382f] leading-relaxed">
-                    <p className="font-semibold text-[#123f32] mb-1">
-                      Status Modul & Batasan Data
-                    </p>
-                    <p className="text-[#4a5550]">
-                      Daftar di bawah memuat profil belum diverifikasi yang tersedia pada data sampel Overview CMS ({displayedManagementList.length} profil). Fitur persetujuan, penolakan, serta pagination direktori lengkap sedang dalam tahap implementasi modul Manajemen UMKM.
-                    </p>
-                  </div>
-
-                  {/* Profiles Table */}
-                  {displayedManagementList.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <CheckCircle2 className="mx-auto size-8 text-[#123f32]" />
-                      <p className="mt-2 text-sm font-semibold text-[#14382f]">
-                        Tidak Ada Profil Menunggu Verifikasi
-                      </p>
-                      <p className="mt-1 text-xs text-[#4a5550]">
-                        Semua profil yang ada di sampel data telah berstatus terverifikasi.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[540px] text-left text-xs">
-                        <thead>
-                          <tr className="border-b border-[#d8d8cf] text-[#123f32]">
-                            <th className="py-3 font-semibold">Nama Bisnis</th>
-                            <th className="py-3 font-semibold">Kategori & Lokasi</th>
-                            <th className="py-3 font-semibold">Status Publikasi</th>
-                            <th className="py-3 font-semibold">Verifikasi Admin</th>
-                            <th className="py-3 font-semibold text-right">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#d8d8cf]/60">
-                          {displayedManagementList.map((biz) => (
-                            <tr key={biz.id} className="hover:bg-[#f5f2e9]/50 transition-colors">
-                              <td className="py-3.5 pr-3 font-semibold text-[#14382f]">
-                                {biz.name}
-                              </td>
-                              <td className="py-3.5 pr-3 text-[#4a5550]">
-                                {biz.category || "-"} · {biz.location || "-"}
-                              </td>
-                              <td className="py-3.5 pr-3">
-                                <span
-                                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium border ${
-                                    biz.status === "published"
-                                      ? "bg-[#e7efe9] text-[#123f32] border-[#b7df68]/60"
-                                      : "bg-[#f5f2e9] text-[#4a5550] border-[#d8d8cf]"
-                                  }`}
-                                >
-                                  {biz.status}
-                                </span>
-                              </td>
-                              <td className="py-3.5 pr-3">
-                                <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-900">
-                                  Belum Diverifikasi
-                                </span>
-                              </td>
-                              <td className="py-3.5 text-right">
-                                <span className="text-[11px] text-[#526059] italic">
-                                  Kurasi via API (segera)
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="pt-2 flex justify-start">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActive(0);
-                        setTabFilter(null);
-                      }}
-                      className="rounded-xl border border-[#d8d8cf] bg-[#f5f2e9] px-4 py-2 text-xs font-semibold text-[#123f32] hover:bg-[#e7efe9]"
-                    >
-                      ← Kembali ke Dashboard
-                    </button>
-                  </div>
-                </motion.section>
+              ) : active === 2 ? (
+                <BusinessManagementView
+                  overview={overview}
+                  initialFilter={tabFilter}
+                  onClearFilter={() => setTabFilter(null)}
+                />
+              ) : active === 3 ? (
+                <BusinessStoriesView overview={overview} />
+              ) : active === 4 ? (
+                <BusinessPartnershipsView overview={overview} />
+              ) : active === 5 ? (
+                <FaqManagementView overview={overview} />
+              ) : active === 6 ? (
+                <MediaLibraryView overview={overview} />
               ) : (
                 /* Standard Module Placeholder */
                 <motion.section
