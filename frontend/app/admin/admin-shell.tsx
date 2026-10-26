@@ -42,6 +42,8 @@ import BusinessStoriesView from "./business-stories-view";
 import BusinessPartnershipsView from "./business-partnerships-view";
 import FaqManagementView from "./faq-management-view";
 import MediaLibraryView from "./media-library-view";
+import UserManagementView from "./user-management-view";
+import WebsiteSettingsView from "./website-settings-view";
 
 // Navigation Context so child components (like DashboardView) can navigate tabs with filters
 interface AdminNavContextType {
@@ -296,6 +298,10 @@ export default function AdminShell({
                 <FaqManagementView overview={overview} />
               ) : active === 6 ? (
                 <MediaLibraryView overview={overview} />
+              ) : active === 7 ? (
+                <UserManagementView user={user} overview={overview} />
+              ) : active === 8 ? (
+                <WebsiteSettingsView overview={overview} />
               ) : (
                 /* Standard Module Placeholder */
                 <motion.section
