@@ -129,7 +129,6 @@ export default function HomepageEditor() {
 
       setAdminState(data.data);
       setOriginalContent(JSON.stringify(content));
-      setIsDirty(false);
       setSuccessMessage("Draft konten beranda berhasil disimpan!");
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: unknown) {
@@ -206,7 +205,6 @@ export default function HomepageEditor() {
 
       setAdminState(data.data?.state || data.data);
       setOriginalContent(JSON.stringify(content));
-      setIsDirty(false);
       setShowPublishConfirm(false);
       setSuccessMessage("Konten beranda berhasil dipublikasikan ke Website Publik!");
       setTimeout(() => setSuccessMessage(null), 5000);
@@ -261,7 +259,6 @@ export default function HomepageEditor() {
       setAdminState(restoredState);
       setContent(restoredState.draftContent);
       setOriginalContent(JSON.stringify(restoredState.draftContent));
-      setIsDirty(false);
       setShowRevisions(false);
       setSuccessMessage(`Revisi #${revisionId.slice(0, 8)} berhasil dipulihkan ke draft aktif! Silakan periksa lalu publikasikan.`);
       setTimeout(() => setSuccessMessage(null), 5000);

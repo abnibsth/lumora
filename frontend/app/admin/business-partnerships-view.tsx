@@ -633,10 +633,12 @@ export default function BusinessPartnershipsView({
                                 {b.name}
                               </button>
                               {b.verified && (
-                                <ShieldCheck
-                                  className="size-4 shrink-0 text-[#123f32]"
-                                  title="Profil Terverifikasi LUMORA"
-                                />
+                                <span title="Profil Terverifikasi LUMORA" className="inline-flex items-center">
+                                  <ShieldCheck
+                                    className="size-4 shrink-0 text-[#123f32]"
+                                    aria-hidden="true"
+                                  />
+                                </span>
                               )}
                             </div>
                             <p className="text-xs text-[#71827a] font-mono truncate">
