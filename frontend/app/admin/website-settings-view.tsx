@@ -11,7 +11,6 @@ import {
   Globe,
   SlidersHorizontal,
   FileCode2,
-  CheckCircle2,
   Info,
   ShieldCheck,
   ShieldAlert,
@@ -87,10 +86,11 @@ const BRAND_ASSETS: BrandAssetInfo[] = [
 ];
 
 export default function WebsiteSettingsView({
-  overview: _overview,
+  overview,
 }: {
   overview?: AdminOverview;
-}) {
+} = {}) {
+  void overview;
   const [activeTab, setActiveTab] = useState<SettingsTab>("branding");
   const [copiedText, setCopiedText] = useState<string | null>(null);
 

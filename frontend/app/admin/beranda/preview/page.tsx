@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, Layers, AlertCircle } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { getMeApi, fetchBusinesses } from "@/lib/api";
 import { readHomepageStore } from "@/lib/homepage-storage";
 import { DEFAULT_HOMEPAGE_CONTENT } from "@/lib/homepage-defaults";
@@ -13,8 +13,6 @@ import { JourneySection } from "@/components/sections/journey-section";
 import { HowItWorksSection } from "@/components/sections/how-it-works-section";
 import { AiSection } from "@/components/sections/ai-section";
 import { FinalCtaSection } from "@/components/sections/final-cta-section";
-import { Container } from "@/components/ui/container";
-import { SECTION_IDS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 

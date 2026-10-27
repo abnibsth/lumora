@@ -64,14 +64,19 @@ function formatNumber(val: number): string {
   return new Intl.NumberFormat("id-ID").format(val);
 }
 
-export default function BusinessStoriesView({ overview }: BusinessStoriesViewProps) {
+const STORIES_PER_PAGE = 10;
+
+export default function BusinessStoriesView({
+  overview,
+}: BusinessStoriesViewProps = {}) {
+  const metrics = overview?.metrics;
+
   // Filters & Pagination State
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [milestoneFilter, setMilestoneFilter] = useState<"all" | "with_milestones" | "with_story">("all");
   const [page, setPage] = useState(1);
-  const limit = 10;
 
   // Data & Request State
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -86,7 +91,6 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
   const [milestoneSortAsc, setMilestoneSortAsc] = useState(true);
 
   // Debounce search input (350ms)
@@ -100,7 +104,8 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
 
   // Fetch businesses list with safe sequencing
   const loadBusinesses = useCallback(async () => {
-    const currentId = ++requestIdRef.current;
+    requestIdRef.current += 1;
+    const currentId = requestIdRef.current;
     setLoading(true);
     setError(null);
 
@@ -109,7 +114,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
         q: debouncedSearch.trim() || undefined,
         category: selectedCategory !== "Semua" ? selectedCategory : undefined,
         page,
-        limit,
+        limit: STORIES_PER_PAGE,
       });
 
       // Ignore stale response if a newer query was launched
@@ -129,7 +134,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
         setLoading(false);
       }
     }
-  }, [debouncedSearch, selectedCategory, page, limit]);
+  }, [debouncedSearch, selectedCategory, page]);
 
   useEffect(() => {
     loadBusinesses();
@@ -140,7 +145,6 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
     setSelectedBusiness(business);
     setDrawerOpen(true);
     setDetailLoading(true);
-    setDetailError(null);
 
     try {
       // Re-fetch by slug to guarantee latest full profile
@@ -194,7 +198,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
     };
   }, [businesses]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  const totalPages = Math.max(1, Math.ceil(totalCount / STORIES_PER_PAGE));
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -220,8 +224,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
 
   // Drawer milestones sorted by year
   const drawerMilestones = useMemo(() => {
-    if (!selectedBusiness?.milestones) return [];
-    const cleaned = cleanMilestones(selectedBusiness.milestones);
+    const cleaned = cleanMilestones(selectedBusiness?.milestones);
     return [...cleaned].sort((a, b) => {
       const yearA = a.year || 0;
       const yearB = b.year || 0;
@@ -278,8 +281,8 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
               <Building2 className="size-3.5 text-[#123f32]" />
             </div>
             <p className="mt-2 text-xl font-bold text-[#123f32]">
-              {overview?.metrics
-                ? formatNumber(overview.metrics.publishedBusinesses)
+              {metrics
+                ? formatNumber(metrics.publishedBusinesses)
                 : formatNumber(totalCount)}
             </p>
             <p className="text-[11px] text-[#71827a] mt-0.5">
@@ -633,7 +636,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
                             <p className="text-xs text-[#71827a] font-mono truncate">
                               /{b.slug}
                             </p>
-                            {b.foundedYear && b.foundedYear > 0 && (
+                            {Boolean(b.foundedYear && b.foundedYear > 0) && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-[#526059] mt-0.5">
                                 <Calendar className="size-3 text-[#123f32]/60" />
                                 Berdiri {b.foundedYear}
@@ -679,7 +682,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
                               &ldquo;{b.story}&rdquo;
                             </p>
                             <span className="inline-block text-[10px] text-[#71827a]">
-                              {b.story.length} karakter narasi
+                              {b.story?.length || 0} karakter narasi
                             </span>
                           </div>
                         ) : (
@@ -860,7 +863,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
                         {selectedBusiness.location}
                       </span>
                     )}
-                    {selectedBusiness.foundedYear && selectedBusiness.foundedYear > 0 && (
+                    {Boolean(selectedBusiness.foundedYear && selectedBusiness.foundedYear > 0) && (
                       <span className="inline-flex items-center gap-1 rounded-md border border-[#d8d8cf] bg-white px-2.5 py-1 text-xs text-[#526059]">
                         <Calendar className="size-3 text-[#123f32]" />
                         Tahun {selectedBusiness.foundedYear}
@@ -896,7 +899,7 @@ export default function BusinessStoriesView({ overview }: BusinessStoriesViewPro
                     </div>
                     {selectedBusiness.owner?.bio ? (
                       <p className="text-xs leading-relaxed text-[#526059] border-t border-[#f0eee6] pt-2">
-                        {selectedBusiness.owner.bio}
+                        {selectedBusiness.owner?.bio}
                       </p>
                     ) : (
                       <p className="text-xs italic text-[#71827a] border-t border-[#f0eee6] pt-2">

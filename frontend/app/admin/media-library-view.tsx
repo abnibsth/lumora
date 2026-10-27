@@ -11,7 +11,6 @@ import {
   Check,
   ExternalLink,
   Layers,
-  FileText,
   Video,
   Info,
   X,
@@ -49,10 +48,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default function MediaLibraryView({
-  overview: _overview,
+  overview,
 }: {
   overview?: AdminOverview;
-}) {
+} = {}) {
+  void overview;
   // Session uploads (media uploaded during current user session via uploadMediaApi)
   const [sessionUploads, setSessionUploads] = useState<MediaAsset[]>([]);
 

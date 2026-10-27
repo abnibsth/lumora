@@ -65,16 +65,19 @@ function formatNumber(val: number): string {
   return new Intl.NumberFormat("id-ID").format(val);
 }
 
+const PARTNERSHIPS_PER_PAGE = 10;
+
 export default function BusinessPartnershipsView({
   overview,
-}: BusinessPartnershipsViewProps) {
+}: BusinessPartnershipsViewProps = {}) {
+  const metrics = overview?.metrics;
+
   // Filters & Pagination State
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [selectedNeed, setSelectedNeed] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const limit = 10;
 
   // Data & Request State
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -101,7 +104,8 @@ export default function BusinessPartnershipsView({
 
   // Fetch businesses list with safe sequencing
   const loadBusinesses = useCallback(async () => {
-    const currentId = ++requestIdRef.current;
+    requestIdRef.current += 1;
+    const currentId = requestIdRef.current;
     setLoading(true);
     setError(null);
 
@@ -110,7 +114,7 @@ export default function BusinessPartnershipsView({
         q: debouncedSearch.trim() || undefined,
         category: selectedCategory !== "Semua" ? selectedCategory : undefined,
         page,
-        limit,
+        limit: PARTNERSHIPS_PER_PAGE,
       });
 
       // Ignore stale response if a newer query was launched
@@ -130,7 +134,7 @@ export default function BusinessPartnershipsView({
         setLoading(false);
       }
     }
-  }, [debouncedSearch, selectedCategory, page, limit]);
+  }, [debouncedSearch, selectedCategory, page]);
 
   useEffect(() => {
     loadBusinesses();
@@ -196,7 +200,7 @@ export default function BusinessPartnershipsView({
     };
   }, [businesses]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  const totalPages = Math.max(1, Math.ceil(totalCount / PARTNERSHIPS_PER_PAGE));
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -261,8 +265,8 @@ export default function BusinessPartnershipsView({
               <Handshake className="size-3.5 text-[#123f32]" />
             </div>
             <p className="mt-2 text-xl font-bold text-[#123f32]">
-              {overview?.metrics
-                ? formatNumber(overview.metrics.totalMitraUsers)
+              {metrics
+                ? formatNumber(metrics.totalMitraUsers)
                 : "—"}
             </p>
             <p className="text-[11px] text-[#71827a] mt-0.5">
@@ -277,8 +281,8 @@ export default function BusinessPartnershipsView({
               <Store className="size-3.5 text-emerald-700" />
             </div>
             <p className="mt-2 text-xl font-bold text-emerald-950">
-              {overview?.metrics
-                ? formatNumber(overview.metrics.publishedBusinesses)
+              {metrics
+                ? formatNumber(metrics.publishedBusinesses)
                 : formatNumber(totalCount)}
             </p>
             <p className="text-[11px] text-emerald-700/80 mt-0.5">
@@ -636,7 +640,7 @@ export default function BusinessPartnershipsView({
                             <p className="text-xs text-[#71827a] font-mono truncate">
                               /{b.slug}
                             </p>
-                            {b.foundedYear && b.foundedYear > 0 && (
+                            {Boolean(b.foundedYear && b.foundedYear > 0) && (
                               <span className="inline-flex items-center gap-1 text-[11px] text-[#526059] mt-0.5">
                                 <Calendar className="size-3 text-[#123f32]/60" />
                                 Berdiri {b.foundedYear}
@@ -855,13 +859,15 @@ export default function BusinessPartnershipsView({
                         {selectedBusiness.location}
                       </span>
                     )}
-                    {selectedBusiness.foundedYear &&
-                      selectedBusiness.foundedYear > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-[#d8d8cf] bg-white px-2.5 py-1 text-xs text-[#526059]">
-                          <Calendar className="size-3 text-[#123f32]" />
-                          Tahun {selectedBusiness.foundedYear}
-                        </span>
-                      )}
+                    {Boolean(
+                      selectedBusiness.foundedYear &&
+                        selectedBusiness.foundedYear > 0
+                    ) && (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-[#d8d8cf] bg-white px-2.5 py-1 text-xs text-[#526059]">
+                        <Calendar className="size-3 text-[#123f32]" />
+                        Tahun {selectedBusiness.foundedYear}
+                      </span>
+                    )}
                     {detailLoading && (
                       <span className="inline-flex items-center gap-1 text-[11px] text-[#71827a] animate-pulse">
                         <RefreshCw className="size-3 animate-spin" />
@@ -892,7 +898,7 @@ export default function BusinessPartnershipsView({
                     </div>
                     {selectedBusiness.owner?.bio ? (
                       <p className="text-xs leading-relaxed text-[#526059] border-t border-[#f0eee6] pt-2">
-                        {selectedBusiness.owner.bio}
+                        {selectedBusiness.owner?.bio}
                       </p>
                     ) : (
                       <p className="text-xs italic text-[#71827a] border-t border-[#f0eee6] pt-2">
