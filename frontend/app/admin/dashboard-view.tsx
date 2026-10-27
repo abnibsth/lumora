@@ -141,21 +141,13 @@ export default function DashboardView({ overview }: DashboardViewProps) {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#123f32]">
-            Dashboard Administrator
-          </h1>
-          <p className="mt-1 text-sm text-[#4a5550]">
-            Ikhtisar operasional dan data terkini CMS LUMORA berbasis data produksi.
-          </p>
-        </div>
-        <div className="mt-2 sm:mt-0 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#d8d8cf] bg-[#fbfaf6] px-3 py-1 text-xs font-medium text-[#123f32]">
-            <span className="size-2 rounded-full bg-[#b7df68]" />
-            Sistem Aktif (Read-Only)
-          </span>
-        </div>
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#123f32]">
+          Dashboard Administrator
+        </h1>
+        <p className="mt-1 text-sm text-[#4a5550]">
+          Ikhtisar operasional dan data terkini CMS LUMORA berbasis data produksi.
+        </p>
       </div>
 
       {/* 1. Four KPI Cards */}

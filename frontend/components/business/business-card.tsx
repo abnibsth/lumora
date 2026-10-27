@@ -2,19 +2,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { BookmarkButton } from "@/components/business/bookmark-button";
-import { businessAge } from "@/lib/business";
+import { businessAge, resolveBusinessCover } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
 export function BusinessCard({ business, saved, saving = false, onToggleSaved, editorial = false }: { business: Business; saved: boolean; saving?: boolean; onToggleSaved: () => void; editorial?: boolean }) {
+  const coverImage = resolveBusinessCover(business.slug, business.coverImage, business.name);
   return (
     <article className={editorial ? "group flex h-full min-w-0 flex-col overflow-hidden border-b border-line bg-surface pb-6" : "group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-lift transition-transform duration-200 supports-[hover:hover]:hover:-translate-y-1"}>
       <div className="relative aspect-[4/3] overflow-hidden bg-mint">
-        {business.coverImage ? (
+        {coverImage ? (
           <Image
-            src={business.coverImage}
+            src={coverImage}
             alt={`Suasana ${business.name}`}
             fill
+            unoptimized
             sizes="(min-width: 1280px) 30vw, (min-width: 768px) 46vw, 100vw"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.025]"
             style={{ objectPosition: business.coverPosition ?? "center" }}

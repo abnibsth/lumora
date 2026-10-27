@@ -30,6 +30,7 @@ import {
   BUSINESS_CATEGORIES,
   type Business,
 } from "@/types/business";
+import { resolveBusinessCover } from "@/lib/business";
 import {
   fetchBusinesses,
   fetchBusinessBySlug,
@@ -527,17 +528,21 @@ export default function BusinessManagementView({
                   <TableCell className="py-3.5 pl-6">
                     <div className="flex items-center gap-3">
                       <div className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-[#d8d8cf] bg-[#f5f2e9] flex items-center justify-center font-bold text-[#123f32]">
-                        {biz.coverImage ? (
-                          <Image
-                            src={biz.coverImage}
-                            alt=""
-                            fill
-                            className="object-cover"
-                            sizes="40px"
-                          />
-                        ) : (
-                          <span>{biz.name.slice(0, 1)}</span>
-                        )}
+                        {(() => {
+                          const coverUrl = resolveBusinessCover(biz.slug, biz.coverImage, biz.name);
+                          return coverUrl ? (
+                            <Image
+                              src={coverUrl}
+                              alt=""
+                              fill
+                              unoptimized
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          ) : (
+                            <span>{biz.name.slice(0, 1)}</span>
+                          );
+                        })()}
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-[#123f32] truncate">
@@ -735,17 +740,25 @@ export default function BusinessManagementView({
             ) : detailBusiness ? (
               <div className="space-y-6 text-xs text-[#14382f]">
                 {/* Cover Banner if available */}
-                {detailBusiness.coverImage && (
-                  <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-[#d8d8cf] shadow-2xs">
-                    <Image
-                      src={detailBusiness.coverImage}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="600px"
-                    />
-                  </div>
-                )}
+                {(() => {
+                  const coverUrl = resolveBusinessCover(
+                    detailBusiness.slug,
+                    detailBusiness.coverImage,
+                    detailBusiness.name
+                  );
+                  return coverUrl ? (
+                    <div className="relative h-44 w-full overflow-hidden rounded-2xl border border-[#d8d8cf] shadow-2xs">
+                      <Image
+                        src={coverUrl}
+                        alt=""
+                        fill
+                        unoptimized
+                        className="object-cover"
+                        sizes="600px"
+                      />
+                    </div>
+                  ) : null;
+                })()}
 
                 {/* Status Badges & Year */}
                 <div className="flex flex-wrap items-center gap-2">

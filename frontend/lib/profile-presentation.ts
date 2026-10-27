@@ -4,6 +4,7 @@ import type {
   BmcEntry,
   OwnedBusiness,
 } from "@/types/business";
+import { resolveBusinessCover } from "@/lib/business";
 
 /**
  * Validates financial metric strings (e.g. revenueLabel or growthLabel).
@@ -155,7 +156,12 @@ export function presentProfile(
     location: business.location?.trim() || undefined,
     foundedYearLabel: formatFoundedYear(business.foundedYear),
     description: business.description?.trim() || undefined,
-    coverImage: business.coverImage?.trim() || undefined,
+    coverImage:
+      resolveBusinessCover(
+        "slug" in business ? business.slug : undefined,
+        business.coverImage,
+        business.name
+      ) || undefined,
     coverPosition: business.coverPosition?.trim() || "center",
     logo: business.logo?.trim() || undefined,
     story: business.story?.trim() || undefined,

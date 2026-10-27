@@ -5,6 +5,7 @@ import type {
   OwnedBusiness,
 } from "@/types/business";
 import type { ApiErrorResponse, User } from "@/types/user";
+import { resolveBusinessCover } from "@/lib/business";
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -94,6 +95,10 @@ export async function fetchBusinesses(
 
   const data = (await res.json()) as BusinessListResponse;
   if (!Array.isArray(data.items)) throw new Error("Business list response is invalid");
+  data.items = data.items.map((item) => ({
+    ...item,
+    coverImage: resolveBusinessCover(item.slug, item.coverImage, item.name),
+  }));
   return data;
 }
 
@@ -103,7 +108,11 @@ export async function fetchBusinessBySlug(slug: string): Promise<Business | null
   const res = await fetch(url, { next: { revalidate: 60 } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Business detail request failed with status ${res.status}`);
-  return (await res.json()) as Business;
+  const item = (await res.json()) as Business;
+  if (item) {
+    item.coverImage = resolveBusinessCover(item.slug, item.coverImage, item.name);
+  }
+  return item;
 }
 
 export async function loginApi(params: {

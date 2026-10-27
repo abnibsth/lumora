@@ -9,9 +9,9 @@ import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
 const editorialExamples = [
-  { slug: "kopi-ruang-senja", name: "Kopi Ruang Senja", category: "F&B", location: "Bandung", coverImage: "/img/benner.png" },
-  { slug: "arunika-bakery", name: "Arunika Bakery", category: "F&B", location: "Yogyakarta", coverImage: "/img/benner.png" },
-  { slug: "nara-studio", name: "Nara Studio", category: "Kreatif", location: "Jakarta", coverImage: "/img/benner.png" },
+  { slug: "kopi-ruang-senja", name: "Kopi Ruang Senja", category: "F&B", location: "Bandung", coverImage: "/asset%20lumora/kopi%20ruang%20senja.jpg" },
+  { slug: "arunika-bakery", name: "Arunika Bakery", category: "F&B", location: "Bogor", coverImage: "/asset%20lumora/arunika%20bakery.jpg" },
+  { slug: "nara-studio", name: "Nara Studio", category: "Kreatif", location: "Jakarta", coverImage: "/asset%20lumora/nara%20studio.jpg" },
 ];
 const businesses = editorialExamples;
 

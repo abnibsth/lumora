@@ -16,7 +16,6 @@ import {
   Settings,
   ArrowUpRight,
   LogOut,
-  Search,
   Bell,
 } from "lucide-react";
 import {
@@ -258,10 +257,6 @@ export default function AdminShell({
 
               {/* Right actions */}
               <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-2 rounded-lg border border-[#d8d8cf] bg-[#f5f2e9] px-3 py-1.5 text-xs text-[#526059] md:flex">
-                  <Search className="size-3.5" />
-                  <span>Cari di CMS... (⌘K)</span>
-                </div>
                 <button
                   type="button"
                   aria-label="Notifikasi"
