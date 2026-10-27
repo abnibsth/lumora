@@ -41,7 +41,7 @@ export default function HomepageEditor() {
   const [adminState, setAdminState] = useState<HomepageAdminState | null>(null);
   const [content, setContent] = useState<HomepageContent>(DEFAULT_HOMEPAGE_CONTENT);
   const [originalContent, setOriginalContent] = useState<string>("");
-  const [isDirty, setIsDirty] = useState(false);
+  const isDirty = Boolean(originalContent && JSON.stringify(content) !== originalContent);
 
   // Accordion active sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -99,12 +99,7 @@ export default function HomepageEditor() {
     loadData();
   }, []);
 
-  // Track dirty status
-  useEffect(() => {
-    if (originalContent) {
-      setIsDirty(JSON.stringify(content) !== originalContent);
-    }
-  }, [content, originalContent]);
+
 
   function toggleSection(sectionKey: string) {
     setOpenSections((prev) => ({

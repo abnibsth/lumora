@@ -106,8 +106,10 @@ export default function BusinessStoriesView({
   const loadBusinesses = useCallback(async () => {
     requestIdRef.current += 1;
     const currentId = requestIdRef.current;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
 
     try {
       const res = await fetchBusinesses({

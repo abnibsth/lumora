@@ -96,12 +96,14 @@ export default function BusinessManagementView({
   const [detailError, setDetailError] = useState<string | null>(null);
 
   // Sync initialFilter prop if changed
-  useEffect(() => {
+  const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
+  if (initialFilter !== prevInitialFilter) {
+    setPrevInitialFilter(initialFilter);
     if (initialFilter === "unverified") {
       setVerificationFilter("unverified");
       setPage(1);
     }
-  }, [initialFilter]);
+  }
 
   // Debounce search input (350ms)
   useEffect(() => {
@@ -114,9 +116,12 @@ export default function BusinessManagementView({
 
   // Fetch businesses list with safe sequencing
   const loadBusinesses = useCallback(async () => {
-    const currentId = ++requestIdRef.current;
-    setLoading(true);
-    setError(null);
+    requestIdRef.current += 1;
+    const currentId = requestIdRef.current;
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
 
     try {
       const res = await fetchBusinesses({
