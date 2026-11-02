@@ -37,9 +37,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="id"
+      suppressHydrationWarning
       className={cn("h-full", "antialiased", poppins.variable, "font-sans", geist.variable)}
     >
-      <body className="min-h-full flex flex-col bg-background text-ink">
+      <body suppressHydrationWarning className="min-h-full flex flex-col bg-background text-ink">
         {children}
       </body>
     </html>

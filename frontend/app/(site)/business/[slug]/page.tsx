@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { fetchBusinessBySlug } from "@/lib/api";
 import { Container } from "@/components/ui/container";
 import { BusinessProfileView } from "@/components/business/business-profile-view";
@@ -35,15 +36,24 @@ export default async function BusinessProfilePage({
 
   return (
     <main className="min-h-screen bg-ivory">
-      {/* Top Breadcrumb Navigation */}
-      <div className="border-b border-line/60 bg-surface/50">
-        <Container className="py-3">
-          <Link
-            href={ROUTES.explore}
-            className="inline-flex min-h-10 items-center gap-2 text-xs sm:text-sm font-semibold text-forest hover:text-accent transition-colors"
-          >
-            <span aria-hidden="true">&larr;</span> Kembali ke Jelajahi Bisnis
-          </Link>
+      {/* Top Editorial Breadcrumb Navigation */}
+      <div className="border-b border-line/60 bg-surface/60 backdrop-blur-xs">
+        <Container className="py-2.5">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs sm:text-sm">
+            <Link
+              href={ROUTES.explore}
+              className="inline-flex min-h-11 items-center gap-1.5 font-medium text-muted hover:text-forest transition-colors rounded-lg focus-visible:outline-2 focus-visible:outline-forest"
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              <span>Jelajahi Bisnis</span>
+            </Link>
+            <span className="text-muted/40 select-none" aria-hidden="true">
+              /
+            </span>
+            <span className="font-semibold text-forest truncate max-w-[180px] sm:max-w-md">
+              {business.name}
+            </span>
+          </nav>
         </Container>
       </div>
 
@@ -56,4 +66,3 @@ export default async function BusinessProfilePage({
     </main>
   );
 }
-

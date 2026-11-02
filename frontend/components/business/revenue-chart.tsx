@@ -1,18 +1,9 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Revenue mini chart for the hero product preview.
- *
- * The caption names what the chart answers ("pendapatan N bulan terakhir")
- * rather than saying "overview" or "performance". A chart without a stated
- * question is texture, and it costs more attention than a sentence would.
- *
- * The bars are drawn as a flex row of divs rather than an SVG library, and the
- * whole figure carries one `role="img"` label describing the trend, so a screen
- * reader gets the shape of the data instead of six unlabelled rectangles.
- *
- * Colour: bars use --lumora-accent-strong, which measures 5.48:1 on the white
- * panel, above the 3:1 that WCAG 1.4.11 asks of a non-text graphic.
+ * Revenue Chart component displaying monthly performance trend.
+ * Designed with editorial elegance, accessible role="img" descriptions,
+ * month labels beneath bars, and responsive scaling.
  */
 export function RevenueChart({
   series,
@@ -40,6 +31,9 @@ export function RevenueChart({
   }
 
   const span = max - min || 1;
+  const latestValue = validSeries[validSeries.length - 1];
+  const firstValue = validSeries[0];
+  const isUpward = latestValue >= firstValue;
 
   const minFormatted = min.toLocaleString("id-ID", {
     minimumFractionDigits: 0,
@@ -49,36 +43,93 @@ export function RevenueChart({
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   });
+  const latestFormatted = latestValue.toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
 
-  const summary = `Pendapatan bulanan selama ${validSeries.length} bulan terakhir, bergerak dari Rp${minFormatted} juta menjadi Rp${maxFormatted} juta rupiah.`;
+  const summary = `Grafik pendapatan bulanan selama ${validSeries.length} bulan terakhir. Nilai awal Rp${firstValue} juta, bergerak ke Rp${latestFormatted} juta rupiah (terendah Rp${minFormatted} juta, tertinggi Rp${maxFormatted} juta).`;
 
   return (
-    <figure className={cn("m-0", className)}>
-      <figcaption className="text-xs font-medium text-muted">
-        Pendapatan {validSeries.length} bulan terakhir
-      </figcaption>
+    <figure className={cn("m-0 w-full", className)}>
+      <div className="flex items-center justify-between gap-2 border-b border-line/60 pb-2.5">
+        <figcaption className="text-xs font-semibold text-forest uppercase tracking-wider">
+          Tren Pendapatan {validSeries.length} Bulan Terakhir
+        </figcaption>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+            isUpward
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-amber-100 text-amber-800"
+          )}
+        >
+          {isUpward ? "Tren Positif" : "Stabil"}
+        </span>
+      </div>
 
+      {/* Bar container */}
       <div
         role="img"
         aria-label={summary}
-        className="mt-3 flex h-16 items-end gap-1.5"
+        className="mt-5 flex h-24 sm:h-28 items-end gap-2 sm:gap-3 px-1"
       >
         {validSeries.map((value, index) => {
-          // Keep every bar visible: the lowest still shows 25% of the height.
-          const height = 25 + ((value - min) / span) * 75;
+          // Keep lowest visible at 22% of height, max at 100%
+          const heightPercent = Math.max(
+            22,
+            Math.round(((value - min) / span) * 78 + 22)
+          );
+          const isLatest = index === validSeries.length - 1;
+          const valFormatted = value.toLocaleString("id-ID", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 1,
+          });
+
           return (
-            <span
+            <div
               key={index}
-              className="flex-1 rounded-[2px] bg-accent"
-              style={{ height: `${height}%` }}
-            />
+              className="group/bar relative flex flex-1 flex-col items-center h-full justify-end"
+            >
+              {/* Tooltip on hover/focus */}
+              <div className="pointer-events-none absolute -top-8 hidden group-hover/bar:flex z-10 whitespace-nowrap rounded-md bg-forest px-2 py-1 text-[10px] font-medium text-white shadow-md">
+                Bulan {index + 1}: Rp{valFormatted} jt
+              </div>
+
+              {/* Individual Bar */}
+              <span
+                tabIndex={0}
+                aria-label={`Bulan ${index + 1}: Rp${valFormatted} juta`}
+                className={cn(
+                  "w-full rounded-t-sm rounded-b-[1px] transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-forest",
+                  isLatest
+                    ? "bg-accent hover:bg-forest"
+                    : "bg-forest/80 hover:bg-accent"
+                )}
+                style={{ height: `${heightPercent}%` }}
+              />
+
+              {/* Month label beneath bar */}
+              <span className="mt-2 text-[10px] sm:text-[11px] font-medium text-muted text-center select-none">
+                <span className="sm:hidden">B{index + 1}</span>
+                <span className="hidden sm:inline">Bln {index + 1}</span>
+              </span>
+            </div>
           );
         })}
       </div>
 
-      <div className="mt-2 flex justify-between text-xs text-muted">
-        <span>Rp{minFormatted} jt</span>
-        <span>Rp{maxFormatted} jt</span>
+      {/* Legend & range summary */}
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-line/50 pt-2.5 text-[11px] text-muted">
+        <span className="font-medium">
+          Terendah: <strong className="text-forest">Rp{minFormatted} jt</strong>
+        </span>
+        <span className="font-medium">
+          Tertinggi: <strong className="text-forest">Rp{maxFormatted} jt</strong>
+        </span>
+        <span className="font-medium text-forest/90">
+          Terkini: <strong>Rp{latestFormatted} jt</strong>
+        </span>
       </div>
     </figure>
   );

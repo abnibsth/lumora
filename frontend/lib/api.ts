@@ -5,6 +5,7 @@ import type {
   OwnedBusiness,
 } from "@/types/business";
 import type { ApiErrorResponse, User } from "@/types/user";
+import type { PartnerProfile, UpsertPartnerProfileInput } from "@/types/partner";
 import { resolveBusinessCover } from "@/lib/business";
 
 export function getApiBaseUrl(): string {
@@ -337,9 +338,10 @@ export async function draftProfileApi(
   narrative: string,
 ): Promise<ApiActionResult & { draft?: AIDraftProfile }> {
   try {
-    const res = await fetch(`/api/ai/draft-profile`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/draft-profile`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ narrative }),
     });
     const data = (await res.json()) as AIDraftProfile | ApiErrorResponse;
@@ -465,6 +467,46 @@ export async function fetchAdminOverview(cookie?: string): Promise<
 
     const data = (await res.json()) as ApiErrorResponse;
     return { ok: false, ...getApiError(data, "Overview admin gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchPartnerProfile(cookie?: string): Promise<
+  ApiActionResult & { profile?: PartnerProfile }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/partner/profile`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { profile: PartnerProfile };
+      return { ok: true, profile: data.profile };
+    }
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Profil mitra gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function savePartnerProfile(
+  input: UpsertPartnerProfileInput,
+): Promise<ApiActionResult & { profile?: PartnerProfile }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/partner/profile`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json()) as { profile: PartnerProfile } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Profil mitra gagal disimpan.") };
+    }
+    return { ok: true, profile: (data as { profile: PartnerProfile }).profile };
   } catch {
     return { ok: false, error: "Gagal terhubung ke server backend." };
   }

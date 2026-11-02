@@ -47,8 +47,9 @@ export const footerColumns: FooterColumn[] = [
     ],
   },
   {
-    title: "Untuk Pemodal",
+    title: "Untuk Pemodal & Mitra",
     items: [
+      { label: "Daftar Akun Mitra", href: ROUTES.registerMitra },
       { label: "Discovery", href: ROUTES.explore },
       { label: "Profil Bisnis", href: `/#${SECTION_IDS.showcase}` },
       { label: "AI Discovery", href: `/#${SECTION_IDS.ai}` },

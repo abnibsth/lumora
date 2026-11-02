@@ -104,11 +104,13 @@ export function MobileNavPanel({
   loggingOut: boolean;
   onLogout: () => void;
 }) {
+  if (!open) return null;
+
   return (
     <div
       ref={panelRef}
       id="mobile-menu"
-      hidden={!open}
+      suppressHydrationWarning
       className={cn(
         "fixed inset-x-0 top-[4.5rem] z-40 max-h-[calc(100dvh-4.5rem)] min-h-[calc(100dvh-4.5rem)] overflow-y-auto border-t border-forest/10 bg-surface shadow-[0_18px_40px_rgba(15,61,46,0.08)] motion-safe:animate-[lumora-menu-in_220ms_ease-out] xl:hidden",
       )}

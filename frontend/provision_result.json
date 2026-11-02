@@ -1,0 +1,12 @@
+{
+  "status": 201,
+  "ok": true,
+  "data": {
+    "id": "989f25cd-0257-416c-9bb1-b045101fd8d7",
+    "name": "Mitra Strategis LUMORA",
+    "email": "mitra@lumora.id",
+    "role": "mitra",
+    "createdAt": "2026-11-02T15:20:31.12179Z",
+    "emailVerified": false
+  }
+}
