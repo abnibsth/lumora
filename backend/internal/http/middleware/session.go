@@ -75,6 +75,36 @@ func RequireVerified() gin.HandlerFunc {
 	}
 }
 
+func RequirePartner() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentUser(c)
+		if !ok {
+			abortWithError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+			return
+		}
+		if user.Role != domain.RoleMitra {
+			abortWithError(c, http.StatusForbidden, "forbidden", "Akses hanya untuk pengguna dengan peran mitra.")
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequireUMKM() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentUser(c)
+		if !ok {
+			abortWithError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+			return
+		}
+		if user.Role != domain.RoleUMKM {
+			abortWithError(c, http.StatusForbidden, "forbidden", "Akses hanya untuk akun pelaku UMKM.")
+			return
+		}
+		c.Next()
+	}
+}
+
 func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUser(c)

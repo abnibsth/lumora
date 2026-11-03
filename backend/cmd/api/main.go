@@ -108,6 +108,8 @@ func main() {
 	bookmarkHandler := handler.NewBookmarkHandler(bookmarkService)
 	mediaHandler := handler.NewMediaHandler(cfg.UploadDir)
 	adminHandler := handler.NewAdminHandler(service.NewAdminService(pool))
+	partnerService := service.NewPartnerService(pool)
+	partnerHandler := handler.NewPartnerHandler(partnerService)
 
 	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
 	// the default, "stub" is the offline one used for keyless runs and tests.
@@ -189,17 +191,17 @@ func main() {
 	// files and the health check must not pay a session lookup per request.
 	v1 := r.Group("/api/v1", middleware.AttachSession(authService))
 	v1.GET("/businesses", businessHandler.List)
-	v1.GET("/businesses/mine", middleware.RequireSession(), businessHandler.ListMine)
+	v1.GET("/businesses/mine", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.ListMine)
 	v1.GET("/businesses/:slug", businessHandler.Detail)
-	v1.POST("/businesses", middleware.RequireSession(), businessHandler.Create)
-	v1.PATCH("/businesses/:id", middleware.RequireSession(), businessHandler.Update)
+	v1.POST("/businesses", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Create)
+	v1.PATCH("/businesses/:id", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Update)
 	// Publish is a soft gate: an account may register, sign in and edit
 	// freely, but putting a listing in front of the public needs a verified
 	// address. Drafts stay editable, so the gate never strands unfinished work.
-	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireVerified(), businessHandler.Publish)
+	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireUMKM(), middleware.RequireVerified(), businessHandler.Publish)
 	// Archiving hides a profile rather than erasing it, so it needs no verified
 	// address: nothing new reaches the public, and the opposite is true.
-	v1.DELETE("/businesses/:id", middleware.RequireSession(), businessHandler.Archive)
+	v1.DELETE("/businesses/:id", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Archive)
 
 	// The global valve is mounted FIRST, and that order is load-bearing rather
 	// than stylistic. The limiter allocates a bucket per new key and only sweeps
@@ -269,12 +271,17 @@ func main() {
 	v1.POST("/ai/draft-profile",
 		middleware.RequireSession(),
 		middleware.RequireVerified(),
+		middleware.RequireUMKM(),
 		aiGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", middleware.DefaultDraftLimitMessage),
 		aiLimiter.Middleware(),
 		aiHandler.Draft)
 
 	admin := v1.Group("/admin", middleware.RequireSession(), middleware.RequireAdmin())
 	admin.GET("/overview", adminHandler.Overview)
+
+	partner := v1.Group("/partner", middleware.RequireSession(), middleware.RequirePartner())
+	partner.GET("/profile", partnerHandler.GetProfile)
+	partner.PUT("/profile", partnerHandler.UpsertProfile)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

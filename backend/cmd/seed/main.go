@@ -46,6 +46,7 @@ func main() {
 			logging.Fatal("check slug failed", "slug", business.Slug, "err", err)
 		}
 		if exists {
+			_, _ = tx.Exec(ctx, "UPDATE businesses SET cover_image = $1 WHERE slug = $2", business.CoverImage, business.Slug)
 			skipped++
 			continue
 		}
