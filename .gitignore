@@ -23,8 +23,8 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Editors
+# Editors & Tools
 .vscode/
 .idea/
-
 .codebuddy/
+.claude/

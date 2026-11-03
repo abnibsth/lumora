@@ -2,9 +2,11 @@
 
 **Digital Pitching + Business Discovery Platform untuk UMKM Indonesia.**
 
-LUMORA membantu pemilik UMKM menyusun cerita, perjalanan, data sederhana, dan model bisnisnya menjadi profil digital yang mudah dipahami. Calon mitra dapat menemukan, mempelajari, menyimpan, lalu memulai percakapan dengan bisnis yang relevan.
+LUMORA membantu pemilik usaha mikro, kecil, dan menengah (UMKM) menyusun cerita perjalanan usaha, metrik sederhana, dan Business Model Canvas (BMC) menjadi profil digital terstruktur. Calon mitra, distributor, atau investor dapat menemukan, mempelajari, menyimpan (bookmark), dan membuka peluang kolaborasi dengan bisnis yang relevan.
 
-> **Status:** backend **fase 1–11 selesai** dan berjalan di Railway. Frontend **sudah terintegrasi penuh** dengan backend untuk autentikasi, verifikasi email, dashboard pemilik, CRUD profil, upload media, AI draft, bookmark server-side, dan pengaturan akun. Seluruh data bisnis diambil langsung dari API backend.
+> **Status Saat Ini:**
+> - **Backend (Fase 1–12):** Selesai dan berjalan di platform Railway (Go 1.27 + PostgreSQL). Dilengkapi autentikasi sesi aman, soft gate verifikasi email (Resend), rate limiting token bucket in-memory, draf profil AI (Google Gemini), upload media, bookmark server-side, soft-delete arsip profil, cascade penghapusan akun, serta role dan endpoint analitik admin.
+> - **Frontend (Tahap 0–8):** Selesai dan terintegrasi penuh ke API backend (Next.js 16 App Router + React 19). Seluruh data dummy/mock lokal telah dihapus. Dilengkapi autentikasi terverifikasi, route guard `/dashboard` & `/admin`, form bertahap profil usaha, upload cover/logo, draf AI terintegrasi, bookmark server-side, pengaturan akun, CMS admin overview, dan unit test Vitest.
 
 ---
 
@@ -12,453 +14,373 @@ LUMORA membantu pemilik UMKM menyusun cerita, perjalanan, data sederhana, dan mo
 
 - [Tujuan Produk](#tujuan-produk)
 - [Struktur Repositori](#struktur-repositori)
-- [Fitur](#fitur)
-- [Flow Produk](#flow-produk)
-- [Route Frontend](#route-frontend)
-- [Teknologi](#teknologi)
-- [Menjalankan Proyek](#menjalankan-proyek)
-- [Arsitektur Backend](#arsitektur-backend)
-- [Arsitektur Frontend](#arsitektur-frontend)
-- [Data dan State](#data-dan-state)
+- [Fitur Utama](#fitur-utama)
+- [Flow & Alur Pengguna](#flow--alur-pengguna)
+- [Peta Route Frontend](#peta-route-frontend)
+- [Teknologi & Stack](#teknologi--stack)
+- [Panduan Menjalankan Proyek](#panduan-menjalankan-proyek)
+- [Arsitektur Sistem](#arsitektur-sistem)
+  - [Arsitektur Backend](#arsitektur-backend)
+  - [Arsitektur Frontend](#arsitektur-frontend)
+  - [Keamanan & Autentikasi](#keamanan--autentikasi)
+  - [AI Drafting & Media](#ai-drafting--media)
 - [Design System](#design-system)
-- [SEO dan Aksesibilitas](#seo-dan-aksesibilitas)
-- [Status dan Keterbatasan](#status-dan-keterbatasan)
-- [Referensi Dokumentasi](#referensi-dokumentasi)
+- [Status Fitur & Backlog Terbuka](#status-fitur--backlog-terbuka)
+- [Dokumentasi Terkait](#dokumentasi-terkait)
+
+---
 
 ## Tujuan Produk
 
-LUMORA menjembatani dua kebutuhan utama.
+LUMORA menjembatani dua kebutuhan utama dalam ekosistem bisnis lokal:
 
-### Untuk UMKM
+### 1. Untuk Pelaku UMKM
+- **Digital Storytelling:** Mengubah narasi mentah menjadi profil bisnis digital yang rapi dan menarik.
+- **Milestone Usaha:** Mendokumentasikan rekam jejak pertumbuhan usaha dari tahun ke tahun.
+- **Business Model Canvas (BMC):** Menyajikan sembilan blok model bisnis yang mudah ditinjau calon mitra.
+- **Kemitraan Terarah:** Menjelaskan secara spesifik kebutuhan modal, distribusi, kolaborasi produk, atau supplier.
+- **Bantuan AI Terukur:** Membantu penyusunan draf narasi tanpa pernah mengarang data finansial.
 
-- Menyusun informasi usaha secara bertahap.
-- Mengubah cerita sederhana menjadi profil terstruktur.
-- Mendokumentasikan milestone perjalanan usaha.
-- Menampilkan Business Model Canvas.
-- Menjelaskan kebutuhan kemitraan.
-- Membuat bisnis lebih mudah ditemukan.
+### 2. Untuk Calon Mitra & Investor
+- **Pencarian Relevan:** Menjelajahi UMKM berdasarkan kata kunci, 5 kategori kurasi (*F&B, Retail, Jasa, Kreatif, Fashion*), dan kota/lokasi.
+- **Konteks Mendalam:** Memahami latar belakang pendiri, cerita autentik, dan model bisnis, bukan sekadar ringkasan angka.
+- **Bookmark Antarperangkat:** Menyimpan profil bisnis potensial langsung ke akun.
+- **Jalur Kontak Langsung:** Memulai percakapan dengan pemilik bisnis melalui jalur komunikasi yang disediakan.
 
-### Untuk calon mitra
+> [!NOTE]
+> LUMORA **bukan** platform crowdfunding, payment gateway, escrow investasi, bursa efek/sekuritas, atau pengganti proses legal *due diligence*. Platform ini berfungsi sebagai discovery hub dan media kurasi profil bisnis awal.
 
-- Menjelajahi bisnis berdasarkan nama, kategori, kota, dan deskripsi.
-- Membaca konteks bisnis, bukan hanya angka.
-- Memahami perjalanan dan model bisnis UMKM.
-- Menyimpan profil menarik.
-- Menghubungi pemilik bisnis melalui jalur yang tersedia.
-
-LUMORA **bukan** crowdfunding, payment gateway, escrow, marketplace saham, pemberi rekomendasi investasi, atau pengganti legal due diligence.
+---
 
 ## Struktur Repositori
 
 ```text
 lumora/
-├── backend/     # REST API — Go + Postgres. Aktif dikembangkan, fase 1–11 selesai.
-├── frontend/    # Next.js 16 App Router — prototype antarmuka, masih mock data.
-├── docs/        # api.md (kontrak endpoint), fases.md (riwayat fase + backlog),
-│                # manual-test.md (smoke test + runbook produksi)
-└── README.md
+├── backend/                  # REST API — Go 1.27 + Gin + PostgreSQL
+│   ├── cmd/
+│   │   ├── api/              # Entrypoint server HTTP API (:8080)
+│   │   ├── migrate/          # Migrasi database goose (library)
+│   │   ├── seed/             # Seeder 9 profil bisnis demo
+│   │   └── provision-admin/  # CLI pembuatan akun administrator mandiri
+│   ├── internal/
+│   │   ├── ai/               # Provider draf AI (Google Gemini & Offline Stub)
+│   │   ├── auth/             # Hashing Argon2id & generator token aman
+│   │   ├── config/           # Validasi fail-fast environment variables
+│   │   ├── domain/           # Entitas domain & kontrak tipe data (1:1 Frontend)
+│   │   ├── email/            # Pengiriman email verifikasi (Resend HTTPS & Stub)
+│   │   ├── http/
+│   │   │   ├── handler/      # Handler HTTP Gin (Auth, Business, Media, AI, Admin)
+│   │   │   └── middleware/   # Sesi cookie, rate limiter, log request-id, role check
+│   │   ├── logging/          # Konfigurasi log terstruktur (log/slog JSON/Text)
+│   │   ├── service/          # Business logic, transaksi multi-tabel, guardrail
+│   │   └── store/            # Query SQL bertipe aman hasil generate sqlc
+│   ├── migrations/           # File migrasi SQL goose (0001 - 0006)
+│   ├── queries/              # Kueri SQL mentah untuk sqlc
+│   ├── uploads/              # Direktori penyimpanan media lokal publik (git-ignored)
+│   ├── Dockerfile            # Multi-stage build image produksi
+│   └── docker-compose.yml    # Orkestrasi lokal (Postgres + migrate + seed + api)
+│
+├── frontend/                 # Next.js 16 (App Router) + React 19 + TypeScript
+│   ├── app/
+│   │   ├── (site)/           # Route publik (Homepage, Explore, Detail, Login, Register, Legal)
+│   │   ├── dashboard/        # Workspace privat pemilik usaha (/dashboard)
+│   │   ├── admin/            # CMS Administrator (/admin & /admin/login)
+│   │   ├── globals.css       # Semantic tokens Tailwind 4 & typography
+│   │   └── layout.tsx        # Root layout, Inter & DM Serif font, metadata global
+│   ├── components/
+│   │   ├── auth/             # Form login, register, dan verifikasi email
+│   │   ├── business/         # BusinessCard, discovery explorer, BMC, timeline
+│   │   ├── dashboard/        # Editor profil bertahap, upload media, draf AI, akun
+│   │   ├── layout/           # Navbar responsif, mobile menu, footer, logo
+│   │   └── ui/               # Primitif UI (Button, Card, Sheet, Table, Badge, Dialog)
+│   ├── hooks/                # useBookmarks, useMobile, dll.
+│   ├── lib/                  # Client API (api.ts), redirect guard, constants
+│   ├── types/                # Kontrak TypeScript (business.ts, user.ts)
+│   └── vitest.config.ts      # Konfigurasi pengujian unit Vitest
+│
+├── docs/                     # Dokumentasi arsitektur & panduan teknis
+│   ├── api.md                # Kontrak resmi endpoint, envelope error, & checklist
+│   ├── fases.md              # Log riwayat fase backend 1–11 & technical backlog
+│   └── manual-test.md        # Panduan smoke test & runbook produksi Railway
+├── farhan.md                 # Log riwayat integrasi frontend-backend Tahap 0–8
+├── CODEBUDDY.md              # Petunjuk arsitektur & pedoman AI pair programmer
+└── README.md                 # Dokumentasi utama proyek (file ini)
 ```
 
-## Fitur
+---
 
-### Backend (sudah jalan)
+## Fitur Utama
 
-- **Katalog bisnis** — list publik dengan pencarian (`q`), filter kategori & kota, paginasi; detail per slug. Hanya profil `published` yang terlihat.
-- **Akun & sesi** — register, login, logout, `GET/PATCH/DELETE /auth/me`, ganti kata sandi. Sesi disimpan server-side, browser hanya membawa cookie `httpOnly`.
-- **CRUD profil bisnis** — buat (selalu mulai `draft`), edit sebagian, publish, arsip. Milestone dan Business Model Canvas tersimpan transaksional bersama profilnya.
-- **Bookmark per akun** — menggantikan `localStorage`, idempoten.
-- **Upload media** — cover dan logo; tipe file dicek dari isi byte, bukan ekstensi.
-- **Draf profil dengan AI** — narasi bebas masuk, draf profil terstruktur keluar. Tidak pernah mengarang angka finansial.
-- **Verifikasi email** — link sekali-pakai 24 jam, disimpan di DB hanya sebagai hash SHA-256.
-- **Rate limiting** — per akun/email plus valve global, untuk AI, login/register, dan endpoint verifikasi.
-- **Logging terstruktur** — `log/slog`, JSON di produksi, `X-Request-ID` per request.
+### 1. Katalog & Discovery UMKM
+- **Eksplorasi Publik:** Menampilkan seluruh profil UMKM berstatus `published`. Profil `draft` atau `archived` tidak pernah bocor ke publik.
+- **Pencarian Multiaspek:** Pencarian kata kunci (`q`) mencakup nama usaha, deskripsi, kategori, dan lokasi.
+- **Filter Kategori Terkurasi:** Mendukung 5 kategori resmi: *F&B, Retail, Jasa, Kreatif, Fashion*.
+- **Paginasi Efisien:** Limit dan offset dinamis dengan total hitungan yang akurat.
+- **Halaman Profil Komprehensif:** Cover usaha, logo, profil pendiri, cerita sejarah usaha, metrik kinerja (grafik 6 bulan), Business Model Canvas 9 blok, dan kebutuhan kemitraan.
 
-### Frontend (prototype)
+### 2. Autentikasi & Pengelolaan Akun
+- **Sesi Cookie HttpOnly:** Token sesi 32-byte acak disimpan dalam cookie `lumora_session` (`SameSite=Lax`, `Secure` di production). Tidak ada penyimpanan token rahasia di `localStorage`.
+- **Argon2id Password Hashing:** Menggunakan standar kriptografi Argon2id PHC. Dilengkapi penanganan *dummy verification* saat login gagal untuk mencegah *timing-attack enumeration*.
+- **Verifikasi Email:** Token 32-byte acak dengan TTL 24 jam. Database hanya menyimpan hash SHA-256 (bukan token mentah).
+- **Soft-Gate Publikasi:** Pengguna belum terverifikasi tetap dapat login, mengedit draf, dan mengunggah gambar. Verifikasi email hanya diwajibkan saat melakukan publikasi profil (`POST /publish`) dan pembuatan draf AI (`POST /ai/draft-profile`).
+- **Pengaturan Profil Akun:** Ubah nama akun, perbarui kata sandi (otomatis mencabut sesi perangkat lain), dan hapus akun permanen (cascade otomatis ke sesi, bookmark, profil bisnis, milestone, dan BMC).
 
-- Homepage editorial: hero, masalah UMKM, featured discovery, proses tiga tahap, pratinjau LUMORA AI, showcase profil, timeline, FAQ, CTA.
-- Discovery: pencarian nama/kategori/lokasi/deskripsi, filter lima kategori, empty state dinamis, grid editorial di `/explore`.
-- Profil bisnis: cover, identitas, cerita, pemilik, milestone, metrik contoh, grafik enam bulan, BMC, kebutuhan kemitraan.
-- Bookmark berbasis `localStorage`.
-- Pratinjau LUMORA AI dengan respons lokal — **tidak** memanggil model AI.
-- Halaman login/registrasi: UI dan validasi HTML saja.
+### 3. Ruang Kerja Pemilik Usaha (`/dashboard`)
+- **Daftar Profil Usaha Milik Sendiri:** Memantau semua draf dan profil yang telah dipublikasikan (`GET /businesses/mine`).
+- **Editor Profil Multi-langkah:** Input identitas usaha, narasi cerita, pendiri, model BMC, dan kebutuhan mitra.
+- **Upload Media Mandiri:** Unggah gambar logo dan cover usaha dengan validasi tipe byte langsung dari server.
+- **Bantuan Draf Profil AI:** Mengubah cerita usaha mentah menjadi draf profil terstruktur siap sunting.
+- **Manajemen Siklus Hidup:** Publikasi profil langsung ke katalog, pratinjau profil sebelum terbit, dan pengarsipan profil (*soft delete*).
 
-## Flow Produk
+### 4. Bookmark Berbasis Akun
+- **Sinkronisasi Server:** Menggantikan penyimpanan lokal perangkat. Profil tersimpan terikat pada akun pengguna dan sinkron di semua perangkat.
+- **Operasi Idempoten:** Penambahan (`POST`) dan penghapusan (`DELETE`) bookmark bersifat idempoten dan aman dipanggil berulang.
+- **Tab Tersimpan di Dashboard:** Pemilik akun dapat meninjau dan mengelola daftar profil UMKM yang disimpan langsung dari dashboard.
 
-### Flow utama
+### 5. CMS Administrator (`/admin`)
+- **Proteksi Role Admin:** Terisolasi ketat di level database (constraint `role IN ('umkm', 'mitra', 'admin')`) dan middleware backend (`RequireAdmin()`).
+- **Provisioning Mandiri CLI:** Akun admin tidak dapat dibuat melalui registrasi publik. Hanya dapat dibuat melalui utilitas CLI `cmd/provision-admin`.
+- **Analitik Operasional Real-time:** Dashboard analitik menampilkan metrik pengguna (total UMKM & mitra), total profil terbit, profil belum diverifikasi, grafik tren pendaftaran 6 bulan, dan 10 profil bisnis terbaru.
+
+---
+
+## Flow & Alur Pengguna
+
+### Flow Utama Platform
 
 ```mermaid
 flowchart LR
-    A[Pengunjung membuka LUMORA] --> B{Tujuan pengguna}
-    B -->|Mengenalkan bisnis| C[Flow UMKM]
-    B -->|Mencari bisnis| D[Flow Mitra]
-    C --> E[Profil bisnis dipublikasikan]
-    D --> F[Profil bisnis ditemukan]
-    E --> F
-    F --> G[Percakapan dimulai di luar platform]
+    A[Pengunjung Web] --> B{Peran / Tujuan}
+    B -->|Pelaku UMKM| C[Daftar / Masuk]
+    B -->|Calon Mitra| D[Eksplorasi Katalog]
+    C --> E[Susun Profil & BMC]
+    E --> F[Verifikasi Email]
+    F --> G[Publikasikan Profil]
+    G --> D
+    D --> H[Buka Detail Profil & BMC]
+    H --> I{Minat Kolaborasi?}
+    I -->|Simpan| J[Bookmark Akun]
+    I -->|Terhubung| K[Kontak Pemilik Langsung]
 ```
 
-### Flow UMKM
+---
 
-```mermaid
-flowchart TD
-    A[Homepage atau Untuk UMKM] --> B[Buat Profil]
-    B --> C[Isi data akun dan bisnis]
-    C --> D[Ceritakan usaha dan perjalanan]
-    D --> E[Susun profil dan Business Model Canvas]
-    E --> F[Periksa dan edit hasil]
-    F --> G[Publikasikan profil]
-    G --> H[Masuk discovery hub]
-    H --> I[Ditemukan calon mitra]
-    C -. form tersambung ke API backend .-> J[POST /businesses]
-```
+## Peta Route Frontend
 
-Endpoint di balik flow ini sudah tersedia di backend (register → `POST /businesses` → `PATCH` → `POST /publish`), dan form dashboard pemilik sudah tersambung ke sana.
+| Route | Halaman | Akses | Keterangan & Proteksi |
+|---|---|---|---|
+| `/` | Beranda Editorial | Publik | Hero, nilai produk, featured businesses live, FAQ, dan CTA. |
+| `/explore` | Katalog Discovery | Publik | Pencarian instan, filter kategori, status bookmark akun. |
+| `/business/[slug]` | Detail Profil Bisnis | Publik | Tampilan profil lengkap, BMC, milestone, dan aksi bookmark. |
+| `/login` | Halaman Masuk | Publik | Proteksi open-redirect (`?next=`), validasi sesi aktif. |
+| `/register` | Halaman Pendaftaran | Publik | Pilihan peran UMKM atau Mitra (`?role=umkm`). |
+| `/verify-email` | Konfirmasi Email | Publik (Token) | Menangkap token query dan mem-POST ke backend (mencegah prefetch scanner). |
+| `/dashboard` | Workspace Pemilik | Pengguna Aktif | Proteksi sesi server-side; kelola profil, upload media, draf AI, dan akun. |
+| `/admin/login` | Login Administrator | Publik | Validasi khusus akun dengan role `admin`. |
+| `/admin` | CMS Admin Overview | Administrator | Proteksi sesi + `role=admin`; metrik operasional dan pertumbuhan real-time. |
+| `/how-it-works` | Cara Kerja | Publik | Rewrite ke layout editorial bersama. |
+| `/for-business` | Panduan UMKM | Publik | Rewrite ke layout editorial bersama. |
+| `/for-partners` | Panduan Mitra | Publik | Rewrite ke layout editorial bersama. |
+| `/about` | Tentang Kami | Publik | Rewrite ke layout editorial bersama. |
+| `/kebijakan-privasi` | Kebijakan Privasi | Publik | Informasi kepatuhan dan privasi data pengguna. |
+| `/syarat-ketentuan` | Syarat & Ketentuan | Publik | Ketentuan layanan platform. |
 
-### Flow Mitra
+---
 
-```mermaid
-flowchart TD
-    A[Homepage atau Untuk Mitra] --> B[Jelajahi Bisnis]
-    B --> C[Cari nama, kategori, kota, atau deskripsi]
-    C --> D[Gunakan filter]
-    D --> E[Buka profil]
-    E --> F[Pelajari cerita dan pemilik]
-    F --> G[Lihat perjalanan, metrik, dan BMC]
-    G --> H{Tertarik?}
-    H -->|Belum siap| I[Simpan]
-    H -->|Siap berbicara| J[Hubungi pemilik]
-    I --> E
-    J --> K[Percakapan di luar platform]
-```
-
-### Flow discovery frontend
-
-```mermaid
-flowchart LR
-    A[GET /businesses] --> B[BusinessDiscoveryExplorer]
-    C[Input pencarian] --> B
-    D[Filter kategori] --> B
-    B --> E[Daftar hasil]
-    E --> F[BusinessCard]
-    F --> G[/business/slug]
-    F --> H[Bookmark]
-    H --> I[GET/POST/DELETE /bookmarks]
-```
-
-### Flow route editorial
-
-```mermaid
-flowchart TD
-    A[Route publik] --> B{Path}
-    B -->|/how-it-works| C[view=how-it-works]
-    B -->|/for-business| D[view=for-business]
-    B -->|/for-partners| E[view=for-partners]
-    B -->|/about| F[view=about]
-    C --> G[kebijakan-privasi/page.tsx]
-    D --> G
-    E --> G
-    F --> G
-    G --> H[Renderer memilih komposisi]
-```
-
-## Route Frontend
-
-| Route | Halaman | Status |
-|---|---|---|
-| `/` | Homepage | Server page + client island |
-| `/explore` | Discovery bisnis | Search, filter, bookmark lokal |
-| `/business/[slug]` | Profil bisnis | Static params dari data lokal |
-| `/how-it-works` | Cara Kerja | Rewrite ke renderer bersama |
-| `/for-business` | Untuk UMKM | Rewrite ke renderer bersama |
-| `/for-partners` | Untuk Mitra | Rewrite ke renderer bersama |
-| `/about` | Tentang | Rewrite ke renderer bersama |
-| `/login` | Masuk | UI saja |
-| `/register` | Registrasi | UI saja |
-| `/register?role=umkm` | Registrasi UMKM | UI dengan konteks role |
-| `/kebijakan-privasi` | Kebijakan Privasi | Placeholder |
-| `/syarat-ketentuan` | Syarat dan Ketentuan | Halaman legal |
-
-Empat route editorial diatur melalui `rewrites()` dalam `frontend/next.config.ts`, lalu dirender oleh `frontend/app/(site)/kebijakan-privasi/page.tsx` berdasarkan query internal `view`.
-
-## Teknologi
+## Teknologi & Stack
 
 ### Backend
-
-- Go 1.27, module `github.com/alfian/lumora/backend`.
-- Gin (HTTP), pgx/v5 (driver Postgres).
-- Postgres 16 di Docker Compose; produksi Railway berjalan di Postgres 18.6.
-- sqlc untuk query bertipe (schema dibaca dari `migrations/`), goose untuk migrasi.
-- argon2id untuk kata sandi, `log/slog` untuk logging.
-- Google Gemini sebagai provider AI, Resend (HTTPS API) sebagai pengirim email.
+- **Bahasa & Framework:** Go 1.27, Gin Web Framework.
+- **Basis Data & Driver:** PostgreSQL 16 (Lokal Docker Compose) / PostgreSQL 18.6 (Produksi Railway), driver `pgx/v5`.
+- **Query & Migrasi:** `sqlc` (type-safe SQL compiler), `goose` (database migration library terintegrasi).
+- **Keamanan Password:** `golang.org/x/crypto/argon2` (Argon2id PHC format).
+- **Penyedia AI:** Google Gemini REST API (`gemini-3.1-flash-lite` dengan structured output schema) & Offline Deterministic Stub.
+- **Penyedia Email:** Resend HTTPS API & Structured Logging Stub.
+- **Observabilitas:** `log/slog` (format JSON di produksi, Text di dev) dengan pelacakan `X-Request-ID`.
 
 ### Frontend
+- **Framework & Runtime:** Next.js 16 (App Router), React 19, Node.js 22 LTS.
+- **Styling & Desain:** Tailwind CSS 4 (`@tailwindcss/postcss`), Lucide React icons, Motion (Framer Motion).
+- **Tipografi & Aksen:** DM Serif Display (Heading Editorial), Inter (Interface & Body).
+- **Validasi & Pengujian:** TypeScript 5, ESLint 9, Vitest 3.
 
-- Next.js 16 App Router, React 19, TypeScript.
-- Tailwind CSS 4 via `@tailwindcss/postcss` dan `@import "tailwindcss"`.
-- Vanilla CSS hanya untuk semantic token, animasi kompleks, scrollbar, dan perilaku global.
-- `next/image` dan `next/font`; Inter untuk body/interface, DM Serif Display untuk heading editorial.
-- ESLint 9.
-- `localStorage` + `useSyncExternalStore` untuk bookmark.
+---
 
-## Menjalankan Proyek
+## Panduan Menjalankan Proyek
 
-### Backend (`cd backend`)
+### 1. Menjalankan Backend (`backend/`)
 
-Cara tercepat — satu perintah menyalakan Postgres, migrasi, seed, lalu API:
+#### Cara Cepat dengan Docker (Rekomendasi)
+Satu perintah untuk menjalankan PostgreSQL, migrasi database, seeder data demo, dan API server:
 
 ```bash
-docker compose up -d --build      # postgres → migrate → seed → api (:8080), idempoten
-curl http://localhost:8080/healthz   # {"status":"ok"}
-docker compose down               # data & upload tetap aman di volume
-docker compose down -v            # reset total (DB fresh; migrasi + seed jalan lagi)
+cd backend
+docker compose up -d --build
 ```
 
-Menjalankan di host (butuh Go terpasang, Postgres tetap dari Docker):
-
+Verifikasi kesehatan server:
 ```bash
-docker compose up -d --wait       # Postgres saja
-go run ./cmd/migrate              # terapkan migrasi goose
-go run ./cmd/seed                 # 9 profil demo (melewati slug yang sudah ada)
-go run ./cmd/api                  # http://localhost:8080
+curl http://localhost:8080/healthz
+# Respons: {"status":"ok"}
 ```
 
-`backend/.env` opsional di development — defaultnya menunjuk ke DB compose. `AI_PROVIDER` default `gemini` dan **menolak start** tanpa `GEMINI_API_KEY`; set `AI_PROVIDER=stub` untuk jalan tanpa kredensial. Semua variabel didokumentasikan di `backend/.env.example`.
+Menghentikan container:
+```bash
+docker compose down        # Volume data & uploads tetap tersimpan
+docker compose down -v     # Reset total database & volume
+```
+
+#### Menjalankan Manual di Mesin Host
+Pastikan PostgreSQL telah aktif (misal melalui Docker Compose: `docker compose up -d postgres`).
 
 ```bash
-# Test — tidak butuh database
+cd backend
+
+# Salin konfigurasi environment
+cp .env.example .env
+
+# Jalankan migrasi skema
+go run ./cmd/migrate
+
+# Masukkan 9 profil data seeder demo (idempoten)
+go run ./cmd/seed
+
+# Buat akun administrator pertama
+printf 'AdminPassword123!\n' | go run ./cmd/provision-admin -name "Admin Utama" -email "admin@lumora.local"
+
+# Nyalakan server API
+go run ./cmd/api
+```
+
+> [!TIP]
+> Secara default `AI_PROVIDER` disetel ke `gemini` yang membutuhkan `GEMINI_API_KEY`. Jika ingin menjalankan backend tanpa kredensial pihak ketiga, ubah di `.env`:
+> ```env
+> AI_PROVIDER=stub
+> EMAIL_PROVIDER=stub
+> ```
+
+#### Menjalankan Pengujian Backend
+```bash
+# Unit test lengkap (tanpa butuh database)
 go test ./... -count=1
-go test ./internal/service -run TestListReturnsTotalAndChildren -v
 
-# Integration test — memukul Postgres asli, auto-skip kalau DB mati
+# Integration test (menguji alur ke PostgreSQL asli, auto-cleanup)
 go test -tags integration ./internal/service -run Integration -v -count=1
 
-# Style gate (harus bersih)
+# Pemeriksaan format & static analysis
 gofmt -l . && go vet ./...
-
-# Regenerate internal/store setelah mengubah queries/*.sql
-sqlc generate
 ```
 
-Race detector dijalankan di container karena host tanpa gcc:
+---
+
+### 2. Menjalankan Frontend (`frontend/`)
 
 ```bash
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src golang:1.27 go test -race ./...
-```
+cd frontend
 
-### Frontend (`cd frontend`)
-
-```bash
+# Pasang dependensi
 npm install
-npm run dev      # http://localhost:3000
-npm run lint
+
+# Jalankan server pengembangan Next.js (:3000)
+npm run dev
+
+# Jalankan pemeriksaan unit test
+npm run test
+
+# Typecheck & Build produksi
+npm run typecheck
 npm run build
 npm run start
 ```
 
-## Arsitektur Backend
+---
 
-### Alur request
+## Arsitektur Sistem
 
-`cmd/api/main.go` adalah satu-satunya titik wiring: memuat config, membuka pool pgx, menyusun service dan handler, lalu mendaftarkan seluruh route.
+### Alur Request Backend
+
+Setiap request masuk melalui router utama di `cmd/api/main.go` dengan struktur layer independen:
 
 ```text
-cmd/api (wiring)  →  internal/http/handler  →  internal/service  →  internal/store (sqlc)
-                            ↓                        ↓
-                     internal/http/middleware   internal/domain (tipe + sentinel error)
+HTTP Request
+     │
+     ▼
+[Middleware Chain]
+  ├── AccessLog (Request-ID & latency)
+  ├── AttachSession (Memeriksa cookie lumora_session)
+  ├── RateLimiter (Katup Global -> Limiter Per-Kunci)
+  └── RequireSession / RequireVerified / RequireAdmin (Role/Auth Guard)
+     │
+     ▼
+[Handler Layer] (`internal/http/handler`)
+  └── Parsing HTTP JSON, validasi format, ekstraksi parameter
+     │
+     ▼
+[Service Layer] (`internal/service`)
+  └── Logika bisnis, transaksi atomik (`Transactor`), sanitasi draf
+     │
+     ▼
+[Store Layer] (`internal/store`)
+  └── Eksekusi kueri type-safe via sqlc ke PostgreSQL
 ```
 
-- **`internal/domain`** — tipe `Business`, `User`, dan draf AI plus sentinel error (`ErrNotFound`, `ErrForbidden`, `ErrInvalidCategory`, `ErrInvalidParameter`, `ErrAIUnavailable`). `domain.Business` mencerminkan `frontend/types/business.ts` field per field (JSON camelCase); kedua daftar kategori adalah kontrak — ubah bersamaan.
-- **`internal/store`** — **di-generate** sqlc dari `queries/*.sql` dengan `migrations/` sebagai schema. Jangan edit `*.sql.go` manual; ubah query lalu `sqlc generate`.
-- **`internal/service`** — logika bisnis. Tiap service mendeklarasikan interface repository sempit supaya bisa dikompilasi dan dites tanpa database. Penulisan multi-statement lewat `service.Transactor` agar kegagalan di tengah tidak meninggalkan bisnis tanpa milestone/BMC-nya.
-- **`internal/http/handler`** — hanya urusan HTTP. Handler mendeklarasikan interface service secara lokal supaya bisa dites dengan fake.
-- **`internal/config`** — semua env dibaca dan divalidasi di `Load()`; nilai tidak valid **menggagalkan startup**, bukan degradasi diam-diam.
-
-### Envelope error
-
-Setiap error memakai bentuk yang sama, dan kodenya terdokumentasi lengkap di `docs/api.md`:
-
+### Format Amplop Error Bersama
+Seluruh response error backend mengikuti satu standar seragam:
 ```json
-{ "error": { "code": "not_found", "message": "Profil bisnis tidak ditemukan." } }
+{
+  "error": {
+    "code": "invalid_credentials",
+    "message": "Email atau kata sandi salah."
+  }
+}
 ```
+Standar ini dipertahankan secara sinkron di seluruh handler backend dan diproses terstruktur oleh `frontend/lib/api.ts`.
 
-Setiap respons juga membawa header `X-Request-ID` yang di-generate server — sertakan saat melaporkan error, karena log memakai id yang sama.
-
-### Autentikasi & sesi
-
-- Token sesi di cookie `httpOnly` `lumora_session` (`SameSite=Lax`, `Secure` saat `APP_ENV=production`). **Tidak ada** header `Authorization`, **tidak ada** token di `localStorage`.
-- Kata sandi disimpan sebagai argon2id PHC string. Login menjalankan verifikasi argon2 dummy pada jalur "email tidak ditemukan" supaya waktu respons tidak membocorkan keberadaan akun.
-- Draft tidak pernah bocor ke list/detail publik. `DELETE /businesses/:id` **mengarsipkan**, bukan menghapus.
-- Menghapus akun adalah satu `DELETE FROM users`: sesi, token verifikasi, bookmark, dan seluruh bisnis miliknya ikut terhapus lewat `ON DELETE CASCADE`.
-- `RequireVerified()` adalah **soft gate**, hanya dipasang di dua endpoint yang menerbitkan konten atau berbiaya: `POST /businesses/:id/publish` dan `POST /ai/draft-profile`.
-
-### Rate limiting
-
-`internal/http/middleware/ratelimit.go` adalah token bucket in-memory — tanpa Redis, tanpa goroutine latar. Kuncinya **tidak pernah berbasis IP**: di belakang proxy Railway `ClientIP()` tidak bisa dipercaya, jadi kuncinya adalah user ID atau email di body request.
-
-Dua aturan yang menentukan saat menambah route terbatas:
-
-1. Valve global dipasang **sebelum** limiter per-kunci. Bucket hanya dialokasikan untuk kunci baru, jadi urutan terbalik membuat map tumbuh tanpa batas saat dibanjiri kunci berbeda.
-2. Angka batas datang dari env; **jendelanya konstanta di `cmd/api/main.go`**, supaya nama env dan durasinya tidak bisa melenceng.
-
-State reset tiap restart, dan skema ini mengasumsikan **satu instance** — volume Railway memang menghalangi replica.
-
-### AI drafting
-
-`internal/ai` punya dua implementasi `service.Drafter`: `gemini.go` (provider asli, default) dan `stub.go` (heuristik offline untuk run tanpa kredensial dan tes). Menambah provider = implement `service.Drafter`, tambah satu `case` di `cmd/api/main.go`, tambah satu nilai di `config.AIProviders`.
-
-`domain.DraftProfile` sengaja **tidak punya field finansial**, jadi aturan "AI tidak boleh mengarang angka" bersifat struktural, bukan konvensi. Kegagalan provider dinormalkan menjadi satu `503 ai_unavailable`.
-
-> Google men-retire nama model secara berkala. Kalau draf mulai membalas `503` terus, cek log API — baris `gemini: generateContent failed status=404` berarti nama modelnya basi dan bisa diganti lewat `GEMINI_MODEL` tanpa mengubah kode.
-
-### Verifikasi email
-
-Register membuat token 32 byte, menyimpan **hanya hash SHA-256**-nya, lalu mengirim link ke `FRONTEND_BASE_URL/verify-email?token=...`. Link sengaja menunjuk ke **frontend**, yang kemudian POST token ke API — banyak klien email dan security scanner men-prefetch URL GET, jadi verifikasi lewat GET bisa menghabiskan token sebelum user sempat klik.
-
-`internal/email` punya dua implementasi `service.VerificationSender`: `resend.go` (provider asli via API HTTPS) dan `stub.go` (menulis link ke log). Provider memakai **HTTPS, bukan SMTP**, karena Railway memblokir SMTP keluar di bawah plan Pro. Setiap kegagalan provider runtuh menjadi `domain.ErrEmailUnavailable` → `503 email_unavailable`.
-
-## Arsitektur Frontend
-
-### App Router
-
-- `app/layout.tsx`: metadata, favicon, font, bahasa, dan CSS global.
-- `app/(site)/layout.tsx`: navbar, main, dan footer publik.
-- `app/(site)/page.tsx`: susunan homepage.
-- `app/(site)/business/[slug]/page.tsx`: detail bisnis berdasarkan slug.
-
-### Komponen
-
-- `components/layout`: navbar, mobile navigation, logo, footer.
-- `components/business`: business card, discovery explorer, monogram, profile mockup, revenue chart.
-- `components/sections`: seluruh section homepage.
-- `components/ui`: button, badge, container, heading, accordion, list, journey line.
-
-Server Component dipakai secara default. Client Component hanya untuk navbar scroll state, mobile menu, discovery, bookmark, filter homepage, dan AI preview.
-
-## Data dan State
-
-### Backend
-
-Postgres, enam migrasi (`0001`–`0006`): `users`, `sessions`, `businesses`, `business_milestones`, `bmc_entries`, `bookmarks`, `email_verification_tokens`. Field bisnis 1:1 dengan `frontend/types/business.ts` (JSON camelCase). `cmd/seed` mengisi profil demo; profil seed punya `owner_user_id` NULL sehingga **tidak bisa diedit atau di-publish lewat API** — hanya profil yang dibuat via `POST /businesses` yang bisa dikelola. `cmd/provision-admin` membuat akun admin secara manual (role `admin` tidak bisa dibuat lewat registrasi publik).
-
-### Frontend
-
-`frontend/types/business.ts` adalah kontrak tipe bersama. Seluruh data bisnis di homepage, discovery, detail profil, chart, dan halaman editorial diambil dari API backend (`GET /businesses`, `GET /businesses/:slug`). Tidak ada lagi sumber data contoh lokal.
-
-Bookmark disimpan per akun di server melalui `GET/POST/DELETE /bookmarks`.
+---
 
 ## Design System
 
-Token utama berada di `frontend/app/globals.css`.
+Token desain didefinisikan secara semantik di `frontend/app/globals.css`:
 
-| Token | Nilai | Utility utama | Fungsi |
-|---|---:|---|---|
-| `--lumora-forest` | `#123f32` | `bg-forest`, `text-forest` | Primary dan bidang gelap |
-| `--lumora-deep-forest` | `#0b3027` | `bg-deep-forest` | Hover dan footer gelap |
-| `--lumora-lime` | `#b7df68` | `bg-lime` | Aksen |
-| `--lumora-ivory` | `#f5f2e9` | `bg-ivory` | Background halaman |
-| `--lumora-surface` | `#fbfaf6` | `bg-surface` | Surface dan input |
-| `--lumora-soft-green` | `#e7efe9` | `bg-soft-green` | Pergantian bidang halus |
-| `--lumora-border` | `#d8d8cf` | `border-soft` | Border dekoratif |
-| `--lumora-border-strong` | `#718079` | `border-line-strong` | Border kontrol |
-| `--lumora-text` | `#14382f` | `text-ink` | Teks utama |
-| `--lumora-muted` | `#66736d` | `text-muted` | Teks sekunder |
-| `--lumora-accent-strong` | `#245f45` | `text-accent` | Teks aksen yang kontras |
+| Token | Warna | Kelas Tailwind | Penggunaan |
+|---|---|---|---|
+| `--lumora-forest` | `#123f32` | `bg-forest`, `text-forest` | Warna utama, navigasi, dan tombol primer |
+| `--lumora-deep-forest` | `#0b3027` | `bg-deep-forest` | State hover dan footer gelap |
+| `--lumora-lime` | `#b7df68` | `bg-lime`, `text-forest` | Aksen visual, badge, dan highlight fitur |
+| `--lumora-ivory` | `#f5f2e9` | `bg-ivory` | Latar belakang halaman publik |
+| `--lumora-surface` | `#fbfaf6` | `bg-surface` | Permukaan kartu card dan elemen form |
+| `--lumora-border` | `#d8d8cf` | `border-line` | Garis pembatas kartu dan kontainer |
+| `--lumora-text` | `#14382f` | `text-ink` | Teks judul dan tipografi utama |
+| `--lumora-muted` | `#66736d` | `text-muted` | Teks sekunder, label, dan deskripsi |
 
-Prinsip visual:
+---
 
-- Editorial publication + business directory + product interface.
-- Warm off-white, forest green, dan lime terbatas.
-- Whitespace serta tipografi membentuk hierarchy.
-- DM Serif Display hanya untuk hero dan heading editorial terpilih; Inter untuk body, navigasi, form, filter, card UI, dan chatbot.
-- Tidak memakai glassmorphism atau estetika fintech/crypto.
-- Animasi hanya untuk entrance dan feedback interaksi.
-- `prefers-reduced-motion` dihormati.
+## Status Fitur & Backlog Terbuka
 
-## SEO dan Aksesibilitas
+### ✅ Fitur yang Telah Berfungsi Penuh
+1. **Discovery Publik:** Katalog live, pencarian kata kunci, filter kategori, detail slug dinamis, visualisasi BMC dan milestone.
+2. **Sistem Sesi & Autentikasi:** Register, login anti-timing oracle, logout, proteksi sesi `httpOnly`.
+3. **Soft-Gate Email Verification:** Token verifikasi aman SHA-256 via Resend HTTPS API.
+4. **CRUD Profil Usaha:** Buat draft, perbarui parsial (PATCH), publish dengan guardrail kelengkapan data.
+5. **Bookmark Server-Side:** Tersimpan per akun pengguna di database PostgreSQL.
+6. **Upload Media:** Pemeriksaan tipe konten berbasis sniffing byte file dan penyimpanan UUID lokal.
+7. **Draf Profil AI:** Ekstraksi terstruktur Google Gemini dengan pelindung anti-hallucination data finansial.
+8. **Pengelolaan Akun:** Ganti nama, ganti kata sandi (logout perangkat lain), dan hapus akun (cascade).
+9. **CMS Admin Overview:** Role constraint di database, otorisasi `RequireAdmin`, provisioning CLI mandiri, dan ringkasan metrik dashboard.
 
-- Metadata global dan spesifik halaman.
-- Template title `%s | LUMORA`.
-- Bahasa dokumen `id`.
-- Heading hierarchy dan elemen semantik.
-- Label dan ID pada form/control.
-- Accordion native `<details>`.
-- Focus-visible global.
-- Target sentuh minimal sekitar 44px.
-- Reduced-motion support.
-- `next/image` dengan responsive `sizes`.
-- Static params dan metadata dinamis profil.
-- Not-found untuk slug tidak tersedia.
+### ⏳ Backlog & Keterbatasan yang Masih Terbuka
+- **Alur Lupa / Reset Kata Sandi:** Belum tersedia alur token reset sekali pakai via email.
+- **Pemulihan Profil Arsip (Unarchive):** Operasi `DELETE` mengarsipkan profil bisnis (*soft-delete*); pemulihan saat ini memerlukan intervensi database langsung.
+- **Verifikasi Domain Resend:** Domain default `onboarding@resend.dev` hanya mengirim ke email pemilik akun Resend. Pengiriman ke publik memerlukan verifikasi domain operator di dashboard Resend.
+- **Skalabilitas Rate Limiter:** State rate limit saat ini disimpan *in-memory* (didesain untuk *single instance* Railway). Perlu migrasi ke Redis bila backend diperluas menjadi multi-replika.
+- **E2E Testing:** Pengujian saat ini mencakup unit test backend, integration test DB, dan unit test Vitest di frontend; pengujian end-to-end (Playwright) berada pada agenda berikutnya.
 
-## Status dan Keterbatasan
+---
 
-### Sudah selesai
+## Dokumentasi Terkait
 
-| Fase | Scope |
-|---|---|
-| 1 | Kontrak API, endpoint baca, seed 9 profil |
-| 2 | Auth — sesi cookie `httpOnly` |
-| 3 | Endpoint tulis profil (create / patch / publish) |
-| 4 | Bookmark per akun |
-| 5 | Upload media (`coverImage` / `logo`) |
-| 6 | AI draft profil |
-| 7 | Rate limiting endpoint AI (per akun + anggaran global) |
-| 8 | Rate limiting login/register (per email) |
-| 9 | Verifikasi email saat register |
-| 10 | Hapus profil (arsip) + kelola akun |
-| 11 | Provider email asli (Resend) |
-
-### Belum selesai
-
-**Backend:**
-
-- **Lupa / reset kata sandi** — belum ada. Provider email sudah tersedia, jadi penghalangnya adalah alur reset itu sendiri.
-- **Pulihkan profil yang diarsipkan** — `DELETE` hanya mengarsipkan; tidak ada endpoint untuk mengembalikannya.
-- **Sesi statis 30 hari** — tanpa refresh token.
-- **Klaim pemilik profil seed** — 9 profil demo tidak bisa dikelola via API.
-- **Domain Resend belum diverifikasi** — dengan `RESEND_FROM` default (`onboarding@resend.dev`), email hanya sampai ke pemilik akun Resend. Pengguna umum tidak menerima link verifikasi; ini konfigurasi dashboard, bukan bug kode.
-- **Rate limiter in-memory** — state reset saat restart dan mengasumsikan satu instance.
-
-**Frontend:**
-
-- `Hubungi Pemilik` masih memakai `mailto:`.
-- Dokumen kebijakan privasi masih placeholder.
-- E2E (Playwright) belum ada; baru ada unit test Vitest untuk helper API dan redirect.
-- CMS admin masih read-only (overview dari `GET /admin/overview`); belum ada aksi moderasi.
-
-### Selanjutnya
-
-1. Verifikasi domain di Resend supaya email sampai ke pengguna umum.
-2. Tambah test end-to-end dan accessibility.
-3. Aktifkan aksi moderasi admin (verifikasi profil) bila aturan produknya sudah jelas.
-4. Kerjakan backlog backend: reset kata sandi, pulihkan profil arsip, klaim pemilik seed, rotasi sesi.
-
-```mermaid
-flowchart LR
-    A[Next.js Frontend] --> B[Authentication]
-    A --> C[Business Profile API]
-    A --> D[Discovery API]
-    A --> E[AI Drafting Service]
-    B --> F[(User Database)]
-    C --> G[(Business Database)]
-    D --> G
-    E --> H[Guardrail dan Review]
-    H --> G
-```
-
-## Referensi Dokumentasi
-
-| Dokumen | Isi |
-|---|---|
-| `docs/api.md` | **Kontrak endpoint** — envelope error, tipe `Business`, tabel status/kode, checklist integrasi frontend |
-| `docs/fases.md` | Riwayat fase backend + backlog yang masih terbuka |
-| `docs/manual-test.md` | Smoke test tiap endpoint langkah demi langkah; bagian 10 adalah runbook produksi Railway |
-| `CODEBUDDY.md` | Panduan arsitektur dan gotcha untuk agent/AI coding |
-
-### Catatan pengembangan
-
-- `frontend/lib/constants.ts` adalah sumber route; `frontend/types/business.ts` adalah kontrak tipe.
-- Perbarui `BUSINESS_CATEGORIES` di frontend **dan** `domain.Categories` di backend bersamaan — keduanya satu kontrak.
-- Jangan edit `backend/internal/store/*.sql.go` manual; ubah `queries/*.sql` lalu `sqlc generate`.
-- Jangan commit `backend/.env` atau API key.
-- Pertahankan Server Component sebagai default di frontend; `"use client"` hanya saat butuh browser API, event, atau state.
-- Beri label jelas pada seluruh data contoh, dan jangan menghasilkan klaim risiko, rekomendasi, atau kelayakan investasi.
+- [Kontrak Resmi API (`docs/api.md`)](file:///d:/laragon/www/lumora-next/docs/api.md) — Daftar lengkap endpoint, struktur request/response, dan daftar kode error.
+- [Riwayat Fase Backend (`docs/fases.md`)](file:///d:/laragon/www/lumora-next/docs/fases.md) — Catatan arsitektur dan kronologi pengembangan backend fase 1–11.
+- [Riwayat Integrasi Frontend (`farhan.md`)](file:///d:/laragon/www/lumora-next/farhan.md) — Log tahapan integrasi autentikasi, dashboard, dan CMS admin tahap 0–8.
+- [Panduan Smoke Test & Runbook (`docs/manual-test.md`)](file:///d:/laragon/www/lumora-next/docs/manual-test.md) — Langkah pengujian manual lokal dan runbook produksi Railway.
+- [Pedoman AI Coding (`CODEBUDDY.md`)](file:///d:/laragon/www/lumora-next/CODEBUDDY.md) — Konvensi arsitektur dan batasan teknis untuk agen pengembang.

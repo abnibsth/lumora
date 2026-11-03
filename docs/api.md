@@ -714,6 +714,67 @@ Wajib login **dan** role `admin` (middleware `RequireAdmin`). Read-only; belum a
 
 ---
 
+## Endpoint Mitra (Phase 12)
+
+Workspace dan profil khusus akun dengan role `mitra`. Semua endpoint di bawah ini memerlukan sesi dan role `mitra` (`middleware.RequirePartner()`).
+
+### `GET /api/v1/partner/profile`
+
+Mengambil profil mitra dan preferensi kemitraan untuk akun yang sedang login.
+
+Respons jika profil sudah ada:
+```json
+{
+  "profile": {
+    "id": "uuid",
+    "userId": "uuid",
+    "companyName": "PT Mitra Ventura Nusantara",
+    "partnerType": "Strategic Business Partner",
+    "location": "Jakarta Selatan",
+    "operationalCoverage": "Jabodetabek & Nasional",
+    "interestedCategories": ["F&B", "Pertanian & Perkebunan"],
+    "partnershipTypes": ["B2B Supply", "Distribusi"],
+    "description": "Perusahaan distribusi retail dan kemitraan strategis.",
+    "shareContact": true,
+    "contactEmail": "partnership@mitra.co.id",
+    "contactPhone": "+628123456789",
+    "contactSocial": "@mitraofficial",
+    "searchRegion": "Jawa Barat, DKI Jakarta",
+    "collaborationTypes": ["Distribusi Produk", "Pemasok Bahan Baku"],
+    "partnershipNeeds": "Mencari UMKM pangan lokal dengan izin PIRT/BPOM.",
+    "businessCriteria": "Sudah beroperasi minimal 1 tahun dan memiliki kapasitas produksi stabil.",
+    "completeness": 85,
+    "createdAt": "2026-11-02T10:00:00Z",
+    "updatedAt": "2026-11-02T10:00:00Z"
+  }
+}
+```
+
+### `PUT /api/v1/partner/profile`
+
+Membuat atau memperbarui profil mitra dan preferensi kemitraan.
+
+Validasi:
+- `partnerType`: Salah satu dari:
+  - `Distributor`
+  - `Supplier`
+  - `Retailer / Reseller`
+  - `Investor potensial`
+  - `Mentor / Konsultan`
+  - `Institusi / Organisasi`
+  - `Strategic Business Partner`
+- `interestedCategories`: Kategori yang valid dari enum bisnis LUMORA.
+- `shareContact`: Boolean persetujuan pembagian kontak.
+
+| Hasil | Status | Body |
+|---|---|---|
+| Sukses | 200 | `{ "profile": PartnerProfile }` |
+| Validasi gagal | 400 | `validation_failed` |
+| Tanpa sesi | 401 | `unauthenticated` |
+| Role bukan `mitra` | 403 | `forbidden` |
+
+---
+
 ## Perintah berguna
 
 **Jalankan backend (Docker, cukup sekali paham):**
