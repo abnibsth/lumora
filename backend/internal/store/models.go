@@ -66,6 +66,47 @@ type EmailVerificationToken struct {
 	UsedAt    pgtype.Timestamptz
 }
 
+type HomepageContentRevision struct {
+	ID              pgtype.UUID
+	Content         []byte
+	PublishedAt     pgtype.Timestamptz
+	PublishedBy     pgtype.UUID
+	PublishedByName string
+	RestoredFrom    pgtype.UUID
+}
+
+type HomepageContentState struct {
+	Key                 string
+	DraftContent        []byte
+	LockVersion         int64
+	DraftUpdatedAt      pgtype.Timestamptz
+	DraftUpdatedBy      pgtype.UUID
+	DraftUpdatedByName  string
+	PublishedRevisionID pgtype.UUID
+}
+
+type PartnerProfile struct {
+	ID                   pgtype.UUID
+	UserID               pgtype.UUID
+	CompanyName          string
+	PartnerType          string
+	Location             string
+	OperationalCoverage  string
+	InterestedCategories []string
+	PartnershipTypes     []string
+	CollaborationTypes   []string
+	Description          string
+	PartnershipNeeds     string
+	SearchRegion         string
+	BusinessCriteria     string
+	ContactEmail         string
+	ContactPhone         string
+	ContactSocial        string
+	ShareContact         bool
+	CreatedAt            pgtype.Timestamptz
+	UpdatedAt            pgtype.Timestamptz
+}
+
 type Session struct {
 	Token     string
 	UserID    pgtype.UUID
