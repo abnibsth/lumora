@@ -28,7 +28,7 @@ export default function NotFound() {
                 Kembali ke beranda
               </Link>
               <Link
-                href={`#${SECTION_IDS.businesses}`}
+                href={`/#${SECTION_IDS.businesses}`}
                 className={buttonStyles({ variant: "secondary" })}
               >
                 Lihat contoh bisnis

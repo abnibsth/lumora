@@ -8,7 +8,9 @@ export function EmailVerificationNotice({ user }: { user: User }) {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "verified">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  if (user.emailVerified || status === "verified") return null;
+  // Hanya akun pelaku UMKM yang memerlukan verifikasi email untuk menerbitkan profil dan draf AI.
+  // Akun Mitra dan Admin tidak memerlukan verifikasi email.
+  if (user.role !== "umkm" || user.emailVerified || status === "verified") return null;
 
   async function handleResend() {
     setStatus("sending");

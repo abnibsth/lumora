@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
 import { fetchBusinesses } from "@/lib/api";
 import { businessAge, resolveBusinessCover } from "@/lib/business";
-import { ROUTES } from "@/lib/constants";
+import { ROUTES, SECTION_IDS } from "@/lib/constants";
 import { BUSINESS_CATEGORIES, type Business } from "@/types/business";
 
 export function PartnerExploreView({
@@ -85,7 +85,7 @@ export function PartnerExploreView({
         </div>
 
         <Link
-          href="/#katalog"
+          href={`/#${SECTION_IDS.businesses}`}
           className={buttonStyles({
             variant: "secondary",
             className: "gap-2 self-start sm:self-auto",

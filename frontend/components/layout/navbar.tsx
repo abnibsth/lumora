@@ -163,7 +163,7 @@ export function Navbar() {
         </Container>
       </motion.header>
 
-      {user && !user.emailVerified ? <EmailVerificationNotice user={user} /> : null}
+      {user && user.role === "umkm" && !user.emailVerified ? <EmailVerificationNotice user={user} /> : null}
 
       <MobileNavPanel
         open={open}

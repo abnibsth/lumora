@@ -32,12 +32,14 @@ function resolvePartnerView(raw: string | null): PartnerDashboardView {
 
 export function PartnerDashboard({
   user: initialUser,
+  initialView,
   initialProfile,
   initialBookmarks,
   recentBusinesses,
   defaultSidebarOpen = true,
 }: {
   user: User;
+  initialView?: string;
   initialProfile: PartnerProfile;
   initialBookmarks: Business[];
   recentBusinesses: Business[];
@@ -45,7 +47,7 @@ export function PartnerDashboard({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryView = searchParams.get("view");
+  const queryView = searchParams.get("view") || initialView || null;
 
   const [view, setView] = useState<PartnerDashboardView>(() =>
     resolvePartnerView(queryView),
@@ -117,9 +119,6 @@ export function PartnerDashboard({
       defaultSidebarOpen={defaultSidebarOpen}
     >
       <div className="space-y-6">
-        {!user.emailVerified ? (
-          <EmailVerificationNotice user={user} />
-        ) : null}
 
         {view === "dashboard" ? (
           <PartnerOverview
