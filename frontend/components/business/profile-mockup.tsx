@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { BusinessMonogram } from "@/components/business/business-monogram";
 import { JourneyNode } from "@/components/ui/journey-line";
 import { RevenueChart } from "@/components/business/revenue-chart";
-import { businessAge } from "@/lib/business";
+import { businessAge, formatSeekingLabel } from "@/lib/business";
 import { cn } from "@/lib/utils";
 import type { Business } from "@/types/business";
 
@@ -149,7 +149,7 @@ export function ProfileMockup({
             <div className="mt-3 flex flex-wrap gap-2">
               {business.seeking.map((need) => (
                 <Badge key={need} tone="mint">
-                  {need}
+                  {formatSeekingLabel(need)}
                 </Badge>
               ))}
             </div>

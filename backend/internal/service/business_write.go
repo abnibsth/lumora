@@ -52,7 +52,7 @@ func (s *BusinessService) Create(ctx context.Context, userID string, input domai
 			RevenueLabel:     input.RevenueLabel,
 			GrowthLabel:      input.GrowthLabel,
 			RevenueSeries:    nonNilFloats(input.RevenueSeries),
-			Seeking:          nonNilStrings(input.Seeking),
+			Seeking:          domain.NormalizeTaxonomySlice(input.Seeking),
 			SeekingObjective: input.SeekingObjective,
 			OwnerName:        input.Owner.Name,
 			OwnerRole:        input.Owner.Role,
@@ -172,7 +172,7 @@ func applyPatch(row store.Business, input domain.UpdateBusinessInput) store.Busi
 		merged.RevenueSeries = nonNilFloats(*input.RevenueSeries)
 	}
 	if input.Seeking != nil {
-		merged.Seeking = nonNilStrings(*input.Seeking)
+		merged.Seeking = domain.NormalizeTaxonomySlice(*input.Seeking)
 	}
 	if input.SeekingObjective != nil {
 		merged.SeekingObjective = clearEmpty(input.SeekingObjective)

@@ -21,6 +21,7 @@ import { BusinessMonogram } from "@/components/business/business-monogram";
 import { RevenueChart } from "@/components/business/revenue-chart";
 import { BusinessBmcCanvas } from "@/components/business/business-bmc-canvas";
 import { buttonStyles } from "@/components/ui/button";
+import { formatSeekingLabel } from "@/lib/business";
 import { cn } from "@/lib/utils";
 
 interface BusinessProfileViewProps {
@@ -662,7 +663,7 @@ export function BusinessProfileView({
                           className="inline-flex items-center gap-1.5 rounded-xl bg-soft-green px-3.5 py-2 text-xs sm:text-sm font-semibold text-forest shadow-2xs border border-forest/10"
                         >
                           <Handshake className="size-4 text-accent" />
-                          <span>{item}</span>
+                          <span>{formatSeekingLabel(item)}</span>
                         </li>
                       ))}
                     </ul>

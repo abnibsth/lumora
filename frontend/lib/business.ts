@@ -1,4 +1,5 @@
 import type { Business } from "@/types/business";
+import { MASTER_TAXONOMY_REGISTRY, type MasterTaxonomyID } from "@/types/partner";
 
 /**
  * Peta aset visual kurasi riil dari direktori `frontend/public/asset lumora/`
@@ -83,6 +84,19 @@ export function businessAge(foundedYear: number, now: Date = new Date()): string
 
 export function businessInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
+}
+
+/**
+ * Returns human-readable label for a Master Taxonomy identifier or legacy string.
+ */
+export function formatSeekingLabel(raw?: string): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  const meta = MASTER_TAXONOMY_REGISTRY[trimmed as MasterTaxonomyID];
+  if (meta) {
+    return meta.umkmSeekLabel;
+  }
+  return trimmed;
 }
 
 export type { Business };

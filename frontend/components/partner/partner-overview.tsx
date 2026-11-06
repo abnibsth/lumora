@@ -14,28 +14,38 @@ import {
   Sparkles,
   ArrowUpRight,
   BookmarkCheck,
+  SlidersHorizontal,
+  Target,
+  ShieldCheck,
 } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { businessAge, resolveBusinessCover } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
-import type { PartnerProfile, PartnerDashboardView } from "@/types/partner";
+import type {
+  PartnerProfile,
+  PartnerPreferences,
+  PartnerDashboardView,
+  BusinessMatchList,
+} from "@/types/partner";
 import type { User } from "@/types/user";
 
 export function PartnerOverview({
   user,
   profile,
+  preferences,
   bookmarks,
-  recentBusinesses,
+  matches,
   onNavigate,
   onToggleBookmark,
   pendingSlug,
 }: {
   user: User;
   profile: PartnerProfile;
+  preferences: PartnerPreferences;
   bookmarks: Business[];
-  recentBusinesses: Business[];
+  matches?: BusinessMatchList;
   onNavigate: (view: PartnerDashboardView) => void;
   onToggleBookmark: (slug: string) => Promise<void>;
   pendingSlug: string | null;
@@ -44,7 +54,8 @@ export function PartnerOverview({
   const isProfileComplete = completeness >= 80;
   const savedSlugs = new Set(bookmarks.map((b) => b.slug));
   const recentSaved = bookmarks.slice(0, 3);
-  const discoveryItems = recentBusinesses.slice(0, 6);
+  const matchedItems = matches?.items || [];
+  const hasPreferences = preferences.hasPreferences;
 
   return (
     <div className="mx-auto max-w-7xl space-y-8 pb-12">
@@ -76,14 +87,14 @@ export function PartnerOverview({
             </button>
             <button
               type="button"
-              onClick={() => onNavigate("profile")}
+              onClick={() => onNavigate("preferences")}
               className={buttonStyles({
                 variant: "secondary",
                 className: "gap-2",
               })}
             >
-              <Building2 className="size-4" />
-              <span>Lengkapi Profil Mitra</span>
+              <SlidersHorizontal className="size-4" />
+              <span>Atur Preferensi Kemitraan</span>
             </button>
           </div>
         </div>
@@ -119,12 +130,12 @@ export function PartnerOverview({
             </div>
           </div>
 
-          {/* Card 2: Kelengkapan Profil */}
+          {/* Card 2: Kelengkapan Profil Organisasi */}
           <div className="flex flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-xs transition-colors hover:border-forest/30">
             <div className="flex items-start justify-between">
               <div className="w-full mr-2">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted">
-                  Kelengkapan Profil
+                  Profil Organisasi
                 </p>
                 <div className="mt-2 flex items-baseline gap-2">
                   <p className="text-3xl font-bold tracking-tight text-forest">
@@ -151,25 +162,30 @@ export function PartnerOverview({
                 onClick={() => onNavigate("profile")}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
               >
-                <span>Perbarui profil mitra</span>
+                <span>Kelola profil publik</span>
                 <ArrowRight className="size-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Card 3: Kategori Diminati */}
+          {/* Card 3: Preferensi Kemitraan Status */}
           <div className="flex flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-xs transition-colors hover:border-forest/30">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-muted">
-                  Kategori Diminati
+                  Kriteria Matching
                 </p>
-                <p className="mt-2 text-3xl font-bold tracking-tight text-forest">
-                  {profile.interestedCategories.length}
+                <p className="mt-2 text-base font-bold text-forest">
+                  {hasPreferences ? "Aktif & Tersimpan" : "Belum Diatur"}
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  {hasPreferences
+                    ? `${preferences.targetCategories.length || "Semua"} Sektor · ${preferences.searchRegion || "Nasional"}`
+                    : "Atur kriteria untuk rekomendasi cerdas"}
                 </p>
               </div>
               <div className="flex size-10 items-center justify-center rounded-xl bg-soft-green text-forest">
-                <Compass className="size-5" />
+                <SlidersHorizontal className="size-5" />
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-line/60">
@@ -178,24 +194,19 @@ export function PartnerOverview({
                 onClick={() => onNavigate("preferences")}
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
               >
-                <span>Atur preferensi</span>
+                <span>Ubah preferensi</span>
                 <ArrowRight className="size-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Card 4: Permintaan Kolaborasi */}
+          {/* Card 4: Kemitraan Aktif */}
           <div className="flex flex-col justify-between rounded-2xl border border-line bg-surface p-5 shadow-xs transition-colors hover:border-forest/30">
             <div className="flex items-start justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted">
-                    Kolaborasi
-                  </p>
-                  <span className="rounded bg-soft-green px-1.5 py-0.5 text-[9px] font-semibold text-forest">
-                    Segera Hadir
-                  </span>
-                </div>
+                <p className="text-xs font-medium uppercase tracking-wider text-muted">
+                  Kemitraan Terbuka
+                </p>
                 <p className="mt-2 text-3xl font-bold tracking-tight text-forest">
                   0
                 </p>
@@ -213,7 +224,7 @@ export function PartnerOverview({
         </div>
       </section>
 
-      {/* Profil Incomplete Reminder */}
+      {/* Profile Incomplete Reminder */}
       {!isProfileComplete ? (
         <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-forest/20 bg-soft-green/50 p-5">
           <div className="flex items-start gap-3.5">
@@ -244,7 +255,199 @@ export function PartnerOverview({
         </section>
       ) : null}
 
-      {/* Quick Saved Businesses */}
+      {/* Section 1: Rekomendasi Cerdas (Smart Partner Matching) */}
+      <section className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent">
+              <Sparkles className="size-3.5" />
+              <span>Smart Partner Matching</span>
+            </div>
+            <h2 className="font-display text-xl font-semibold text-forest sm:text-2xl mt-1">
+              Rekomendasi UMKM untuk Kemitraan Anda
+            </h2>
+            <p className="mt-0.5 text-sm text-muted">
+              Dihitung berdasarkan keselarasan sektor, bentuk kolaborasi Master Taxonomy, dan wilayah target Anda.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate("explore")}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest hover:underline self-start sm:self-auto"
+          >
+            <span>Buka Katalog Eksplorasi</span>
+            <ArrowRight className="size-4" />
+          </button>
+        </div>
+
+        {!hasPreferences ? (
+          /* Empty State: Preferences Not Set */
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-forest/30 bg-surface py-12 px-6 text-center">
+            <div className="flex size-14 items-center justify-center rounded-full bg-soft-green text-forest">
+              <Target className="size-7" />
+            </div>
+            <h3 className="mt-4 font-display text-lg font-semibold text-forest">
+              Preferensi Kemitraan Belum Diatur
+            </h3>
+            <p className="mt-1.5 max-w-md text-xs sm:text-sm text-muted leading-relaxed">
+              Atur sektor bisnis, wilayah fokus, dan bentuk kolaborasi yang Anda cari agar algoritma matching LUMORA dapat menghitung kecocokan dan menampilkan rekomendasi yang presisi.
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigate("preferences")}
+              className={buttonStyles({
+                variant: "primary",
+                className: "mt-5 gap-2 shadow-xs",
+              })}
+            >
+              <SlidersHorizontal className="size-4" />
+              <span>Atur Preferensi Sekarang</span>
+            </button>
+          </div>
+        ) : matchedItems.length === 0 ? (
+          /* Empty State: No Matches */
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface py-12 px-6 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-soft-green text-forest">
+              <Compass className="size-6" />
+            </div>
+            <h3 className="mt-3 text-base font-semibold text-forest">
+              Belum Ada UMKM yang Sesuai dengan Kriteria Ketat Anda
+            </h3>
+            <p className="mt-1 max-w-md text-xs text-muted">
+              Coba perluas wilayah pencarian atau nonaktifkan pembatasan wilayah ketat pada menu Preferensi Kemitraan.
+            </p>
+            <button
+              type="button"
+              onClick={() => onNavigate("preferences")}
+              className={buttonStyles({
+                variant: "secondary",
+                size: "sm",
+                className: "mt-4",
+              })}
+            >
+              Sesuaikan Preferensi
+            </button>
+          </div>
+        ) : (
+          /* Matched Results Grid */
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {matchedItems.map((match) => {
+              const biz = match.business;
+              const cover = resolveBusinessCover(biz.slug, biz.coverImage, biz.name);
+              const isSaved = savedSlugs.has(biz.slug);
+              const isPending = pendingSlug === biz.slug;
+
+              return (
+                <article
+                  key={biz.id}
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xs transition-all hover:border-forest/40 hover:shadow-sm"
+                >
+                  <div className="relative aspect-[16/9] w-full overflow-hidden bg-mint">
+                    {cover ? (
+                      <Image
+                        src={cover}
+                        alt={`Cover ${biz.name}`}
+                        fill
+                        unoptimized
+                        sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : null}
+                    <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3">
+                      <div className="flex items-center gap-1.5">
+                        <Badge tone="demo">{biz.category}</Badge>
+                        <span className="rounded-full bg-forest px-2.5 py-0.5 text-[11px] font-bold text-lime shadow-xs">
+                          {match.matchScore}% Cocok
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onToggleBookmark(biz.slug)}
+                        disabled={isPending}
+                        aria-label={isSaved ? `Hapus bookmark ${biz.name}` : `Simpan ${biz.name}`}
+                        className="flex size-8 items-center justify-center rounded-lg bg-surface/90 text-forest backdrop-blur-xs transition-colors hover:bg-surface"
+                      >
+                        <Bookmark
+                          className={`size-4 ${isSaved ? "fill-forest text-forest" : "text-forest"}`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4 sm:p-5">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="size-3" />
+                        {biz.location}
+                      </span>
+                      <span>·</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="size-3" />
+                        {businessAge(biz.foundedYear)}
+                      </span>
+                      {biz.verified && (
+                        <>
+                          <span>·</span>
+                          <span className="inline-flex items-center gap-0.5 text-forest font-semibold">
+                            <ShieldCheck className="size-3" />
+                            Terverifikasi
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <h3 className="mt-2 font-display text-lg font-semibold text-forest">
+                      {biz.name}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted leading-relaxed">
+                      {biz.description}
+                    </p>
+
+                    {/* Match Reasons Badges */}
+                    {match.reasons && match.reasons.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-line/60 bg-soft-green/30 p-2 space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-forest/70">
+                          Alasan Kecocokan:
+                        </p>
+                        <div className="space-y-0.5">
+                          {match.reasons.slice(0, 2).map((r, idx) => (
+                            <p key={idx} className="text-[11px] text-forest flex items-start gap-1">
+                              <span className="text-forest font-bold">✓</span>
+                              <span>{r.label}: {r.detail}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between">
+                      <Link
+                        href={ROUTES.business(biz.slug)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
+                      >
+                        <span>Lihat BMC & Cerita</span>
+                        <ArrowUpRight className="size-3.5" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => onToggleBookmark(biz.slug)}
+                        disabled={isPending}
+                        className={`text-[11px] font-semibold transition-colors ${
+                          isSaved ? "text-forest underline" : "text-muted hover:text-forest"
+                        }`}
+                      >
+                        {isPending ? "Memproses..." : isSaved ? "Tersimpan" : "+ Simpan"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Section 2: Quick Saved Businesses */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -363,115 +566,6 @@ export function PartnerOverview({
           </div>
         )}
       </section>
-
-      {/* Discovery Section: Published UMKM */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="font-display text-xl font-semibold text-forest sm:text-2xl">
-              Rekomendasi UMKM Terbaru
-            </h2>
-            <p className="mt-0.5 text-sm text-muted">
-              Pilihan bisnis terverifikasi yang siap membuka peluang kemitraan strategis.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigate("explore")}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest hover:underline self-start sm:self-auto"
-          >
-            <span>Buka Eksplorasi Lengkap</span>
-            <ArrowRight className="size-4" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {discoveryItems.map((biz) => {
-            const cover = resolveBusinessCover(biz.slug, biz.coverImage, biz.name);
-            const isSaved = savedSlugs.has(biz.slug);
-            const isPending = pendingSlug === biz.slug;
-
-            return (
-              <article
-                key={biz.id}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-xs transition-all hover:border-forest/40 hover:shadow-sm"
-              >
-                <div className="relative aspect-[16/9] w-full overflow-hidden bg-mint">
-                  {cover ? (
-                    <Image
-                      src={cover}
-                      alt={`Cover ${biz.name}`}
-                      fill
-                      unoptimized
-                      sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                      className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-                  ) : null}
-                  <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3">
-                    <Badge tone="demo">{biz.category}</Badge>
-                    <button
-                      type="button"
-                      onClick={() => onToggleBookmark(biz.slug)}
-                      disabled={isPending}
-                      aria-label={isSaved ? `Hapus bookmark ${biz.name}` : `Simpan ${biz.name}`}
-                      className="flex size-8 items-center justify-center rounded-lg bg-surface/90 text-forest backdrop-blur-xs transition-colors hover:bg-surface"
-                    >
-                      <Bookmark
-                        className={`size-4 ${isSaved ? "fill-forest text-forest" : "text-forest"}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-1 flex-col p-4 sm:p-5">
-                  <div className="flex items-center gap-2 text-xs font-medium text-muted">
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="size-3" />
-                      {biz.location}
-                    </span>
-                    <span>·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="size-3" />
-                      {businessAge(biz.foundedYear)}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-2 font-display text-lg font-semibold text-forest">
-                    {biz.name}
-                  </h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted leading-relaxed">
-                    {biz.description}
-                  </p>
-
-                  {biz.seeking && biz.seeking.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {biz.seeking.slice(0, 2).map((item) => (
-                        <span
-                          key={item}
-                          className="rounded-md bg-soft-green/70 px-2 py-0.5 text-[10px] font-medium text-forest"
-                        >
-                          Mencari {item}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 pt-3 border-t border-line/60 flex items-center justify-between">
-                    <Link
-                      href={ROUTES.business(biz.slug)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
-                    >
-                      <span>Lihat Detail & Pitch</span>
-                      <ArrowUpRight className="size-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }
-

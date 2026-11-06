@@ -282,6 +282,9 @@ func main() {
 	partner := v1.Group("/partner", middleware.RequireSession(), middleware.RequirePartner())
 	partner.GET("/profile", partnerHandler.GetProfile)
 	partner.PUT("/profile", partnerHandler.UpsertProfile)
+	partner.GET("/preferences", partnerHandler.GetPreferences)
+	partner.PUT("/preferences", partnerHandler.UpsertPreferences)
+	partner.GET("/matches", partnerHandler.GetMatches)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

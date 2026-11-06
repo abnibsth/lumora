@@ -36,7 +36,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp18,4 jt/bln",
     growthLabel: "+23% / 6 bulan",
     revenueSeries: [12.1, 13.4, 14.2, 15.8, 16.9, 18.4],
-    seeking: ["Mitra Ekspansi"],
+    seeking: ["BUSINESS_EXPANSION"],
     seekingObjective: "Membuka cabang kedua di Bandung dengan tetap menjaga karakter kedai komunitas.",
     owner: {
       name: "Raka Pradana",
@@ -61,7 +61,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp14,8 jt/bln",
     growthLabel: "+16% / 6 bulan",
     revenueSeries: [10.2, 10.8, 11.7, 12.6, 13.4, 14.8],
-    seeking: ["Mitra Distribusi"],
+    seeking: ["PRODUCT_DISTRIBUTION"],
     seekingObjective: "Menjangkau pelanggan di luar Bogor melalui titik titip jual yang terkurasi.",
     owner: {
       name: "Nadia Permata",
@@ -86,7 +86,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp22,7 jt/bln",
     growthLabel: "+12% / 6 bulan",
     revenueSeries: [18.1, 18.7, 19.6, 20.4, 21.2, 22.7],
-    seeking: ["Mitra Produksi"],
+    seeking: ["PRODUCTION_PARTNERSHIP"],
     seekingObjective: "Meningkatkan kapasitas pesanan tanpa beralih ke produksi massal.",
     owner: {
       name: "Nara Ayuningtyas",
@@ -111,7 +111,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp17,2 jt/bln",
     growthLabel: "+19% / 6 bulan",
     revenueSeries: [12.9, 13.7, 14.5, 15.2, 16.1, 17.2],
-    seeking: ["Mitra Retail"],
+    seeking: ["RETAIL_CONSIGNMENT"],
     seekingObjective: "Menempatkan koleksi di toko rumah dan gaya hidup di kota besar.",
     owner: {
       name: "Bagas Wicaksono",
@@ -136,7 +136,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp20,5 jt/bln",
     growthLabel: "+21% / 6 bulan",
     revenueSeries: [14.3, 15.1, 16.4, 17.6, 18.9, 20.5],
-    seeking: ["Mitra Operasional"],
+    seeking: ["OPERATIONAL_MENTORING"],
     seekingObjective: "Menata dapur produksi agar mampu melayani lebih banyak pesanan rutin.",
     owner: {
       name: "Yuni Kartika",
@@ -161,7 +161,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp16,1 jt/bln",
     growthLabel: "+14% / 6 bulan",
     revenueSeries: [12.8, 13.2, 13.8, 14.6, 15.3, 16.1],
-    seeking: ["Mitra Distribusi"],
+    seeking: ["PRODUCT_DISTRIBUTION"],
     seekingObjective: "Membangun jalur penjualan yang stabil di luar Bali.",
     owner: {
       name: "Putu Sari",
@@ -186,7 +186,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp13,6 jt/bln",
     growthLabel: "+10% / 6 bulan",
     revenueSeries: [11.2, 11.5, 12, 12.4, 13, 13.6],
-    seeking: ["Mitra Teknologi"],
+    seeking: ["TECHNOLOGY_INTEGRATION"],
     seekingObjective: "Merapikan inventori dan pesanan agar operasional harian lebih ringan.",
     owner: {
       name: "Dita Maharani",
@@ -211,7 +211,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp25,4 jt/bln",
     growthLabel: "+8% / 6 bulan",
     revenueSeries: [22, 22.8, 23.1, 23.9, 24.6, 25.4],
-    seeking: ["Mitra Peralatan"],
+    seeking: ["EQUIPMENT_TOOL_SUPPLY"],
     seekingObjective: "Menambah dua titik servis dan alat diagnostik dasar.",
     owner: {
       name: "Agus Setiawan",
@@ -236,7 +236,7 @@ export const CURATED_BUSINESSES: Business[] = [
     revenueLabel: "Rp19,3 jt/bln",
     growthLabel: "+17% / 6 bulan",
     revenueSeries: [14.9, 15.5, 16.2, 17.4, 18.1, 19.3],
-    seeking: ["Mitra Proyek"],
+    seeking: ["MARKETING_CO_BRANDING"],
     seekingObjective: "Bekerja dengan pendamping UMKM untuk menangani kelompok usaha secara berkala.",
     owner: {
       name: "Mira Anindya",

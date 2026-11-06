@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
-import { businessAge, resolveBusinessCover } from "@/lib/business";
+import { businessAge, resolveBusinessCover, formatSeekingLabel } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import { BUSINESS_CATEGORIES, type Business } from "@/types/business";
 import type { PartnerDashboardView } from "@/types/partner";
@@ -241,7 +241,7 @@ export function PartnerSavedView({
                           key={need}
                           className="rounded-md bg-soft-green/80 px-2 py-0.5 text-[10px] font-medium text-forest"
                         >
-                          Mencari {need}
+                          Mencari {formatSeekingLabel(need)}
                         </span>
                       ))}
                     </div>

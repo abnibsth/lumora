@@ -3,36 +3,27 @@
 import { useState } from "react";
 import {
   Building2,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Info,
   Mail,
   Phone,
   Globe,
-  Sparkles,
+  Handshake,
+  Image as ImageIcon,
+  ShieldCheck,
 } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
 import { savePartnerProfile } from "@/lib/api";
-import { BUSINESS_CATEGORIES, type BusinessCategory } from "@/types/business";
 import {
   PARTNER_TYPES,
+  MASTER_TAXONOMY_LIST,
+  MASTER_TAXONOMY_REGISTRY,
   type PartnerType,
   type PartnerProfile,
+  type MasterTaxonomyID,
 } from "@/types/partner";
 import type { User } from "@/types/user";
-
-const COMMON_PARTNERSHIP_TYPES = [
-  "B2B Supply",
-  "Distribusi Produk",
-  "Konsinyasi / Titip Jual",
-  "Reseller & Agen",
-  "Kemitraan Lisensi",
-  "Pendanaan & Modal Usaha",
-  "Mentoring Operasional",
-  "Kolaborasi Pemasaran",
-];
 
 export function PartnerProfileView({
   user,
@@ -54,17 +45,14 @@ export function PartnerProfileView({
   const [partnerType, setPartnerType] = useState<PartnerType | "">(
     profile.partnerType || "",
   );
+  const [logo, setLogo] = useState(profile.logo || "");
   const [location, setLocation] = useState(profile.location || "");
   const [operationalCoverage, setOperationalCoverage] = useState(
     profile.operationalCoverage || "",
   );
-  const [interestedCategories, setInterestedCategories] = useState<BusinessCategory[]>(
-    profile.interestedCategories || [],
+  const [offeredCollaborations, setOfferedCollaborations] = useState<MasterTaxonomyID[]>(
+    profile.offeredCollaborations || [],
   );
-  const [partnershipTypes, setPartnershipTypes] = useState<string[]>(
-    profile.partnershipTypes || [],
-  );
-  const [customTypeInput, setCustomTypeInput] = useState("");
   const [description, setDescription] = useState(profile.description || "");
   const [shareContact, setShareContact] = useState(profile.shareContact || false);
   const [contactEmail, setContactEmail] = useState(profile.contactEmail || "");
@@ -75,27 +63,12 @@ export function PartnerProfileView({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function toggleCategory(category: BusinessCategory) {
-    setInterestedCategories((current) =>
-      current.includes(category)
-        ? current.filter((c) => c !== category)
-        : [...current, category],
+  function toggleOfferedCollaboration(id: MasterTaxonomyID) {
+    setOfferedCollaborations((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
     );
-  }
-
-  function togglePartnershipType(type: string) {
-    setPartnershipTypes((current) =>
-      current.includes(type)
-        ? current.filter((t) => t !== type)
-        : [...current, type],
-    );
-  }
-
-  function addCustomPartnershipType() {
-    const trimmed = customTypeInput.trim();
-    if (!trimmed || partnershipTypes.includes(trimmed)) return;
-    setPartnershipTypes((current) => [...current, trimmed]);
-    setCustomTypeInput("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -105,18 +78,17 @@ export function PartnerProfileView({
     setError(null);
 
     const result = await savePartnerProfile({
-      ...profile,
       companyName,
       partnerType,
+      logo,
       location,
       operationalCoverage,
-      interestedCategories,
-      partnershipTypes,
       description,
-      shareContact,
+      offeredCollaborations,
       contactEmail,
       contactPhone,
       contactSocial,
+      shareContact,
     });
 
     setSaving(false);
@@ -134,7 +106,7 @@ export function PartnerProfileView({
   const completeness = profile.completeness || 0;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 pb-12">
+    <div className="mx-auto max-w-[1160px] space-y-8 pb-12">
       {/* Header */}
       <div>
         <div className="inline-flex items-center gap-2 rounded-full border border-forest/15 bg-soft-green/60 px-3 py-0.5 text-xs font-semibold text-forest">
@@ -145,32 +117,32 @@ export function PartnerProfileView({
           Kelola Profil Mitra
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Profil ini menjadi representasi identitas organisasi atau institusi Anda di hadapan para
-          pemilik UMKM pada platform LUMORA.
+          Profil ini menjadi representasi resmi organisasi dan layanan yang Anda tawarkan kepada pelaku UMKM di platform LUMORA.
         </p>
       </div>
 
       {/* Completeness Card */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5 shadow-xs">
-        <div className="space-y-1.5 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-              Kelengkapan Profil Anda
-            </span>
-            <span className="font-display text-lg font-bold text-forest">
-              {completeness}%
-            </span>
+      <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5 flex-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                Kelengkapan Profil Organisasi
+              </span>
+              <span className="font-display text-lg font-bold text-forest">
+                {completeness}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-soft-green">
+              <div
+                className="h-full rounded-full bg-forest transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(0, completeness))}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-muted">
+              Profil yang lengkap mempermudah verifikasi dan meningkatkan kredibilitas organisasi Anda di hadapan pelaku UMKM.
+            </p>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-soft-green">
-            <div
-              className="h-full rounded-full bg-forest transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.max(0, completeness))}%` }}
-            />
-          </div>
-          <p className="text-[11px] text-muted">
-            Profil yang lengkap mempermudah validasi saat proses kolaborasi dan membangun kepercayaan
-            UMKM.
-          </p>
         </div>
       </div>
 
@@ -196,58 +168,32 @@ export function PartnerProfileView({
       ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Section 1: Akun & Identitas Organisasi */}
-        <div className="space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-xs">
-          <h2 className="font-display text-lg font-semibold text-forest border-b border-line/60 pb-3">
-            1. Identitas Akun & Organisasi
-          </h2>
-
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-semibold text-forest">
-                Nama Pengguna Terdaftar
-              </label>
-              <input
-                type="text"
-                disabled
-                value={user.name}
-                className="mt-1.5 block w-full rounded-xl border border-line bg-soft-green/30 px-3.5 py-2.5 text-sm text-forest/70 cursor-not-allowed"
-              />
-              <span className="mt-1 block text-[11px] text-muted">
-                Dapat diubah melalui menu Pengaturan Akun.
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-forest">
-                Email Akun
-              </label>
-              <input
-                type="email"
-                disabled
-                value={user.email}
-                className="mt-1.5 block w-full rounded-xl border border-line bg-soft-green/30 px-3.5 py-2.5 text-sm text-forest/70 cursor-not-allowed"
-              />
-              <span className="mt-1 block text-[11px] text-muted">
-                Email utama akun LUMORA Anda.
-              </span>
-            </div>
+        {/* Section 1: Identitas & Legalitas Organisasi */}
+        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
+          <div className="border-b border-line/60 pb-3">
+            <h2 className="font-display text-lg font-semibold text-forest">
+              1. Identitas Organisasi
+            </h2>
+            <p className="text-xs text-muted mt-0.5">
+              Informasi dasar identitas institusi, perusahaan, atau organisasi kemitraan.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <label
                 htmlFor="companyName"
                 className="block text-xs font-semibold text-forest"
               >
-                Nama Organisasi / Perusahaan
+                Nama Resmi Organisasi / Perusahaan
               </label>
               <input
                 id="companyName"
                 type="text"
+                required
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Contoh: PT Mitra Distribusi Niaga"
+                placeholder="Contoh: PT Distribusi Nusantara Berjaya"
                 className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               />
             </div>
@@ -273,9 +219,7 @@ export function PartnerProfileView({
                 ))}
               </select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <label
                 htmlFor="location"
@@ -298,7 +242,7 @@ export function PartnerProfileView({
                 htmlFor="operationalCoverage"
                 className="block text-xs font-semibold text-forest"
               >
-                Jangkauan Operasional
+                Jangkauan Wilayah Operasional
               </label>
               <input
                 id="operationalCoverage"
@@ -309,205 +253,200 @@ export function PartnerProfileView({
                 className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               />
             </div>
-          </div>
 
-          <div>
-            <label
-              htmlFor="description"
-              className="block text-xs font-semibold text-forest"
-            >
-              Deskripsi Singkat Organisasi & Kemitraan
-            </label>
-            <textarea
-              id="description"
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ceritakan latar belakang organisasi, portofolio bisnis, atau nilai tambah yang Anda tawarkan kepada UMKM binaan/mitra..."
-              className="mt-1.5 block w-full rounded-xl border border-line bg-white p-3.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest leading-relaxed"
-            />
-          </div>
-        </div>
-
-        {/* Section 2: Kategori & Kemitraan yang Diminati */}
-        <div className="space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-xs">
-          <h2 className="font-display text-lg font-semibold text-forest border-b border-line/60 pb-3">
-            2. Fokus Kemitraan
-          </h2>
-
-          <div>
-            <label className="block text-xs font-semibold text-forest mb-2">
-              Kategori UMKM yang Diminati
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {BUSINESS_CATEGORIES.map((cat) => {
-                const isSelected = interestedCategories.includes(cat);
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleCategory(cat)}
-                    className={`rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
-                      isSelected
-                        ? "bg-forest text-lime shadow-xs"
-                        : "border border-line bg-white text-forest hover:bg-soft-green/50"
-                    }`}
-                  >
-                    {isSelected ? `✓ ${cat}` : cat}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-[11px] text-muted">
-              Pilih satu atau lebih kategori UMKM yang sesuai dengan cakupan bisnis Anda.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-forest mb-2">
-              Bentuk Kemitraan yang Dicari
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {COMMON_PARTNERSHIP_TYPES.map((pt) => {
-                const isSelected = partnershipTypes.includes(pt);
-                return (
-                  <button
-                    key={pt}
-                    type="button"
-                    onClick={() => togglePartnershipType(pt)}
-                    className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all ${
-                      isSelected
-                        ? "bg-soft-green border border-forest/30 text-forest font-semibold"
-                        : "border border-line bg-white text-muted hover:border-forest/30 hover:text-forest"
-                    }`}
-                  >
-                    {isSelected ? `✓ ${pt}` : pt}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom type input */}
-            <div className="mt-3 flex items-center gap-2 max-w-md">
-              <input
-                type="text"
-                value={customTypeInput}
-                onChange={(e) => setCustomTypeInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addCustomPartnershipType();
-                  }
-                }}
-                placeholder="Tambah jenis kemitraan lain..."
-                className="flex-1 rounded-xl border border-line bg-white px-3 py-1.5 text-xs text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
-              />
-              <button
-                type="button"
-                onClick={addCustomPartnershipType}
-                className={buttonStyles({
-                  variant: "secondary",
-                  size: "sm",
-                })}
+            <div className="md:col-span-2">
+              <label
+                htmlFor="logo"
+                className="block text-xs font-semibold text-forest"
               >
-                Tambah
-              </button>
+                URL Logo Organisasi (Opsional)
+              </label>
+              <div className="mt-1.5 flex items-center gap-3">
+                <input
+                  id="logo"
+                  type="text"
+                  value={logo}
+                  onChange={(e) => setLogo(e.target.value)}
+                  placeholder="https://example.com/logo.png atau /uploads/..."
+                  className="block flex-1 rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                />
+                {logo ? (
+                  <div className="size-10 overflow-hidden rounded-lg border border-line bg-white p-1">
+                    <img
+                      src={logo}
+                      alt="Logo preview"
+                      className="size-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex size-10 items-center justify-center rounded-lg border border-dashed border-line bg-soft-green/30 text-muted">
+                    <ImageIcon className="size-4" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <label
+                htmlFor="description"
+                className="block text-xs font-semibold text-forest"
+              >
+                Deskripsi Profil Organisasi & Kapabilitas Kemitraan
+              </label>
+              <textarea
+                id="description"
+                rows={4}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Ceritakan latar belakang organisasi, pengalaman industri, portofolio, dan nilai tambah yang Anda tawarkan kepada pelaku UMKM..."
+                className="mt-1.5 block w-full rounded-xl border border-line bg-white p-3.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest leading-relaxed"
+              />
             </div>
           </div>
         </div>
 
-        {/* Section 3: Informasi Kontak & Kebijakan Privasi */}
-        <div className="space-y-5 rounded-2xl border border-line bg-surface p-6 shadow-xs">
+        {/* Section 2: Bentuk Kemitraan yang DITAWARKAN ke UMKM */}
+        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
           <div className="border-b border-line/60 pb-3">
-            <h2 className="font-display text-lg font-semibold text-forest">
-              3. Informasi Kontak & Kebijakan Privasi
-            </h2>
-            <p className="mt-1 text-xs text-muted">
-              LUMORA menjaga privasi data Anda. Informasi kontak ini tidak akan dipublikasikan secara
-              terbuka tanpa persetujuan eksplisit Anda.
+            <div className="flex items-center gap-2">
+              <Handshake className="size-4 text-forest" />
+              <h2 className="font-display text-lg font-semibold text-forest">
+                2. Layanan & Bentuk Kemitraan yang Ditawarkan
+              </h2>
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              Pilih bentuk kerjasama, kapabilitas, atau fasilitas yang organisasi Anda sediakan untuk pelaku UMKM (Vektor 1).
             </p>
           </div>
 
-          {/* Privacy Consent Box */}
-          <div className="rounded-xl border border-forest/20 bg-soft-green/40 p-4">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={shareContact}
-                onChange={(e) => setShareContact(e.target.checked)}
-                className="mt-0.5 size-4 rounded border-line text-forest focus:ring-forest accent-forest"
-              />
-              <div>
-                <span className="text-xs font-semibold text-forest flex items-center gap-1.5">
-                  <ShieldCheck className="size-4 text-forest" />
-                  Bagikan informasi kontak resmi kepada UMKM mitra
-                </span>
-                <p className="mt-1 text-[11px] text-muted leading-relaxed">
-                  Dengan mengaktifkan opsi ini, nomor telepon/WhatsApp, email kemitraan, dan media
-                  sosial organisasi Anda dapat diakses oleh UMKM yang menerima inisiasi kolaborasi dari Anda.
-                </p>
-              </div>
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {MASTER_TAXONOMY_LIST.map((taxID) => {
+              const meta = MASTER_TAXONOMY_REGISTRY[taxID];
+              const isSelected = offeredCollaborations.includes(taxID);
+              return (
+                <button
+                  key={taxID}
+                  type="button"
+                  onClick={() => toggleOfferedCollaboration(taxID)}
+                  className={`flex flex-col text-left p-3.5 rounded-xl border transition-all ${
+                    isSelected
+                      ? "border-forest bg-forest text-lime shadow-xs"
+                      : "border-line bg-white text-forest hover:border-forest/40 hover:bg-soft-green/30"
+                  }`}
+                >
+                  <span className="text-xs font-semibold">
+                    {isSelected ? `✓ ${meta.partnerOfferLabel}` : meta.partnerOfferLabel}
+                  </span>
+                  <span className={`text-[11px] mt-1 line-clamp-2 ${isSelected ? "text-white/80" : "text-muted"}`}>
+                    {meta.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-muted">
+            Layanan yang Anda pilih akan tampil pada profil publik organisasi dan memudahkan UMKM menemukan Anda.
+          </p>
+        </div>
+
+        {/* Section 3: Kontak Resmi & Kebijakan Privasi */}
+        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
+          <div className="border-b border-line/60 pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-forest" />
+              <h2 className="font-display text-lg font-semibold text-forest">
+                3. Kontak Resmi & Pengaturan Privasi
+              </h2>
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              Tentukan saluran komunikasi resmi dan atur izin pembagian kontak ke pelaku UMKM.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <label
                 htmlFor="contactEmail"
-                className="block text-xs font-semibold text-forest flex items-center gap-1.5"
+                className="block text-xs font-semibold text-forest"
               >
-                <Mail className="size-3.5 text-muted" />
-                Email Kemitraan Resmi
+                Email Resmi Kemitraan
               </label>
-              <input
-                id="contactEmail"
-                type="email"
-                value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
-                placeholder="partnership@organisasi.co.id"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
-              />
+              <div className="relative mt-1.5">
+                <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+                <input
+                  id="contactEmail"
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="partnership@perusahaan.co.id"
+                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                />
+              </div>
             </div>
 
             <div>
               <label
                 htmlFor="contactPhone"
-                className="block text-xs font-semibold text-forest flex items-center gap-1.5"
+                className="block text-xs font-semibold text-forest"
               >
-                <Phone className="size-3.5 text-muted" />
-                No. Telepon / WhatsApp
+                Nomor Telepon / WhatsApp Bisnis
               </label>
-              <input
-                id="contactPhone"
-                type="tel"
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="+62 812 3456 7890"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
-              />
+              <div className="relative mt-1.5">
+                <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+                <input
+                  id="contactPhone"
+                  type="tel"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="+62 812 3456 7890"
+                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                />
+              </div>
             </div>
 
-            <div>
+            <div className="md:col-span-2">
               <label
                 htmlFor="contactSocial"
-                className="block text-xs font-semibold text-forest flex items-center gap-1.5"
+                className="block text-xs font-semibold text-forest"
               >
-                <Globe className="size-3.5 text-muted" />
-                Website / Akun LinkedIn
+                Tautan Profil LinkedIn, Situs Web, atau Media Sosial
               </label>
-              <input
-                id="contactSocial"
-                type="text"
-                value={contactSocial}
-                onChange={(e) => setContactSocial(e.target.value)}
-                placeholder="https://perusahaan.co.id"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
-              />
+              <div className="relative mt-1.5">
+                <Globe className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+                <input
+                  id="contactSocial"
+                  type="text"
+                  value={contactSocial}
+                  onChange={(e) => setContactSocial(e.target.value)}
+                  placeholder="https://linkedin.com/company/... atau https://perusahaan.co.id"
+                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* Privacy Consent Box */}
+          <div className="rounded-xl border border-forest/20 bg-soft-green/30 p-4">
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={shareContact}
+                onChange={(e) => setShareContact(e.target.checked)}
+                className="mt-1 size-4 rounded border-line text-forest focus:ring-forest accent-forest"
+              />
+              <div className="text-xs">
+                <span className="font-semibold text-forest">
+                  Izinkan pemilik UMKM terdaftar melihat email dan nomor kontak resmi ini
+                </span>
+                <p className="mt-0.5 text-muted">
+                  Bila opsi ini tidak dicentang, email dan nomor telepon Anda akan dirahasiakan dan tidak ditampilkan ke UMKM. Tautan website publik tetap dapat dilihat.
+                </p>
+              </div>
+            </label>
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* Submit Actions */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="submit"
@@ -515,19 +454,16 @@ export function PartnerProfileView({
             className={buttonStyles({
               variant: "primary",
               size: "lg",
-              className: "min-w-44 gap-2",
+              className: "min-w-44 gap-2 shadow-xs",
             })}
           >
             {saving ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
-                <span>Menyimpan Profil...</span>
+                <span>Menyimpan...</span>
               </>
             ) : (
-              <>
-                <Sparkles className="size-4" />
-                <span>Simpan Perubahan</span>
-              </>
+              <span>Simpan Profil Mitra</span>
             )}
           </button>
         </div>

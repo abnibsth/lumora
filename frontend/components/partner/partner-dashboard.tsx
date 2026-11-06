@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { EmailVerificationNotice } from "@/components/auth/email-verification-notice";
 import { AccountSettings } from "@/components/dashboard/account-settings";
 import { PartnerShell } from "./partner-shell";
 import { PartnerOverview } from "./partner-overview";
@@ -10,10 +9,20 @@ import { PartnerExploreView } from "./partner-explore-view";
 import { PartnerSavedView } from "./partner-saved-view";
 import { PartnerProfileView } from "./partner-profile-view";
 import { PartnerPreferencesView } from "./partner-preferences-view";
-import { addBookmarkApi, fetchBookmarks, logoutApi, removeBookmarkApi } from "@/lib/api";
+import {
+  addBookmarkApi,
+  fetchBookmarks,
+  logoutApi,
+  removeBookmarkApi,
+} from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
-import type { PartnerDashboardView, PartnerProfile } from "@/types/partner";
+import type {
+  PartnerDashboardView,
+  PartnerProfile,
+  PartnerPreferences,
+  BusinessMatchList,
+} from "@/types/partner";
 import type { User } from "@/types/user";
 
 function resolvePartnerView(raw: string | null): PartnerDashboardView {
@@ -34,6 +43,8 @@ export function PartnerDashboard({
   user: initialUser,
   initialView,
   initialProfile,
+  initialPreferences,
+  initialMatches,
   initialBookmarks,
   recentBusinesses,
   defaultSidebarOpen = true,
@@ -41,6 +52,8 @@ export function PartnerDashboard({
   user: User;
   initialView?: string;
   initialProfile: PartnerProfile;
+  initialPreferences: PartnerPreferences;
+  initialMatches?: BusinessMatchList;
   initialBookmarks: Business[];
   recentBusinesses: Business[];
   defaultSidebarOpen?: boolean;
@@ -54,6 +67,8 @@ export function PartnerDashboard({
   );
   const [user, setUser] = useState<User>(initialUser);
   const [profile, setProfile] = useState<PartnerProfile>(initialProfile);
+  const [preferences, setPreferences] = useState<PartnerPreferences>(initialPreferences);
+  const [matches, setMatches] = useState<BusinessMatchList | undefined>(initialMatches);
   const [bookmarks, setBookmarks] = useState<Business[]>(initialBookmarks);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [logoutPending, setLogoutPending] = useState(false);
@@ -86,12 +101,10 @@ export function PartnerDashboard({
       const result = await addBookmarkApi(slug);
       setPendingSlug(null);
       if (result.ok) {
-        // Try to find full business details from recentBusinesses
         const target = recentBusinesses.find((b) => b.slug === slug);
         if (target) {
           setBookmarks((current) => [target, ...current]);
         } else {
-          // Re-fetch bookmark list from backend
           const fresh = await fetchBookmarks();
           if (fresh.ok && fresh.data) {
             setBookmarks(fresh.data.items);
@@ -119,13 +132,13 @@ export function PartnerDashboard({
       defaultSidebarOpen={defaultSidebarOpen}
     >
       <div className="space-y-6">
-
         {view === "dashboard" ? (
           <PartnerOverview
             user={user}
             profile={profile}
+            preferences={preferences}
             bookmarks={bookmarks}
-            recentBusinesses={recentBusinesses}
+            matches={matches}
             onNavigate={handleViewChange}
             onToggleBookmark={handleToggleBookmark}
             pendingSlug={pendingSlug}
@@ -138,6 +151,7 @@ export function PartnerDashboard({
             savedSlugs={new Set(bookmarks.map((b) => b.slug))}
             onToggleBookmark={handleToggleBookmark}
             pendingSlug={pendingSlug}
+            preferences={preferences}
           />
         ) : null}
 
@@ -160,8 +174,10 @@ export function PartnerDashboard({
 
         {view === "preferences" ? (
           <PartnerPreferencesView
-            initialProfile={profile}
-            onProfileUpdated={(updated) => setProfile(updated)}
+            initialPreferences={preferences}
+            onPreferencesUpdated={(updated) => {
+              setPreferences(updated);
+            }}
           />
         ) : null}
 
@@ -182,4 +198,3 @@ export function PartnerDashboard({
     </PartnerShell>
   );
 }
-

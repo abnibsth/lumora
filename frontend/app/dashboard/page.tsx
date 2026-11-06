@@ -7,30 +7,43 @@ import {
   fetchBusinesses,
   fetchMyBusinesses,
   fetchPartnerProfile,
+  fetchPartnerPreferences,
+  fetchPartnerMatches,
   getMeApi,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
-import type { PartnerProfile } from "@/types/partner";
+import type { PartnerProfile, PartnerPreferences } from "@/types/partner";
 
 const emptyPartnerProfile: PartnerProfile = {
   id: "",
   userId: "",
   companyName: "",
   partnerType: "",
+  logo: "",
   location: "",
   operationalCoverage: "",
-  interestedCategories: [],
-  partnershipTypes: [],
   description: "",
+  offeredCollaborations: [],
   shareContact: false,
   contactEmail: "",
   contactPhone: "",
   contactSocial: "",
-  searchRegion: "",
-  collaborationTypes: [],
-  partnershipNeeds: "",
-  businessCriteria: "",
   completeness: 0,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const emptyPartnerPreferences: PartnerPreferences = {
+  id: "",
+  userId: "",
+  partnerProfileId: "",
+  targetCategories: [],
+  searchRegion: "",
+  strictRegionMatch: false,
+  seekingCollaborations: [],
+  specificNeeds: "",
+  qualificationCriteria: "",
+  hasPreferences: false,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -59,13 +72,18 @@ export default async function Page({
 
   // Partner role workspace
   if (user.role === "mitra") {
-    const [partnerRes, bookmarksRes, recentBizRes] = await Promise.all([
-      fetchPartnerProfile(cookie),
-      fetchBookmarks(cookie),
-      fetchBusinesses({ limit: 12 }),
-    ]);
+    const [partnerRes, prefRes, matchesRes, bookmarksRes, recentBizRes] =
+      await Promise.all([
+        fetchPartnerProfile(cookie),
+        fetchPartnerPreferences(cookie),
+        fetchPartnerMatches({ limit: 6 }, cookie),
+        fetchBookmarks(cookie),
+        fetchBusinesses({ limit: 12 }),
+      ]);
 
     const profile = partnerRes.profile || emptyPartnerProfile;
+    const preferences = prefRes.preferences || emptyPartnerPreferences;
+    const matches = matchesRes.data;
     const bookmarks = bookmarksRes.data?.items || [];
     const recentBusinesses = recentBizRes.items || [];
 
@@ -74,6 +92,8 @@ export default async function Page({
         user={user}
         initialView={initialView}
         initialProfile={profile}
+        initialPreferences={preferences}
+        initialMatches={matches}
         initialBookmarks={bookmarks}
         recentBusinesses={recentBusinesses}
         defaultSidebarOpen={cookieStore.get("sidebar_state")?.value !== "false"}

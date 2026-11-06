@@ -5,7 +5,13 @@ import type {
   OwnedBusiness,
 } from "@/types/business";
 import type { ApiErrorResponse, User } from "@/types/user";
-import type { PartnerProfile, UpsertPartnerProfileInput } from "@/types/partner";
+import type {
+  PartnerProfile,
+  UpsertPartnerProfileInput,
+  PartnerPreferences,
+  UpsertPartnerPreferencesInput,
+  BusinessMatchList,
+} from "@/types/partner";
 import { resolveBusinessCover } from "@/lib/business";
 import { CURATED_BUSINESSES, getCuratedBusinessBySlug } from "@/data/curated-businesses";
 
@@ -561,6 +567,85 @@ export async function savePartnerProfile(
       return { ok: false, ...getApiError(data, "Profil mitra gagal disimpan.") };
     }
     return { ok: true, profile: (data as { profile: PartnerProfile }).profile };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchPartnerPreferences(cookie?: string): Promise<
+  ApiActionResult & { preferences?: PartnerPreferences }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/partner/preferences`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { preferences: PartnerPreferences };
+      return { ok: true, preferences: data.preferences };
+    }
+    const data = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(data, "Preferensi kemitraan gagal dimuat.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function savePartnerPreferences(
+  input: UpsertPartnerPreferencesInput,
+): Promise<ApiActionResult & { preferences?: PartnerPreferences }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/partner/preferences`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(input),
+    });
+    const data = (await res.json()) as { preferences: PartnerPreferences } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Preferensi kemitraan gagal disimpan.") };
+    }
+    return { ok: true, preferences: (data as { preferences: PartnerPreferences }).preferences };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchPartnerMatches(
+  params?: { page?: number; limit?: number },
+  cookie?: string,
+): Promise<ApiActionResult & { data?: BusinessMatchList }> {
+  try {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/partner/matches${qs ? `?${qs}` : ""}`, {
+      credentials: "include",
+      cache: "no-store",
+      headers: cookie ? { Cookie: cookie } : undefined,
+    });
+    if (res.ok) {
+      const data = (await res.json()) as BusinessMatchList;
+      if (Array.isArray(data.items)) {
+        data.items = data.items.map((item) => ({
+          ...item,
+          business: {
+            ...item.business,
+            coverImage: resolveBusinessCover(
+              item.business.slug,
+              item.business.coverImage,
+              item.business.name,
+            ),
+          },
+        }));
+      }
+      return { ok: true, data };
+    }
+    const errData = (await res.json()) as ApiErrorResponse;
+    return { ok: false, ...getApiError(errData, "Rekomendasi kemitraan gagal dimuat.") };
   } catch {
     return { ok: false, error: "Gagal terhubung ke server backend." };
   }

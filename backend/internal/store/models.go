@@ -85,26 +85,42 @@ type HomepageContentState struct {
 	PublishedRevisionID pgtype.UUID
 }
 
+type PartnerPreference struct {
+	ID                    pgtype.UUID
+	UserID                pgtype.UUID
+	PartnerProfileID      pgtype.UUID
+	TargetCategories      []string
+	SearchRegion          string
+	StrictRegionMatch     bool
+	SeekingCollaborations []string
+	SpecificNeeds         string
+	QualificationCriteria string
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+}
+
 type PartnerProfile struct {
-	ID                   pgtype.UUID
-	UserID               pgtype.UUID
-	CompanyName          string
-	PartnerType          string
-	Location             string
-	OperationalCoverage  string
-	InterestedCategories []string
-	PartnershipTypes     []string
-	CollaborationTypes   []string
-	Description          string
-	PartnershipNeeds     string
-	SearchRegion         string
-	BusinessCriteria     string
-	ContactEmail         string
-	ContactPhone         string
-	ContactSocial        string
-	ShareContact         bool
-	CreatedAt            pgtype.Timestamptz
-	UpdatedAt            pgtype.Timestamptz
+	ID                    pgtype.UUID
+	UserID                pgtype.UUID
+	CompanyName           string
+	PartnerType           string
+	Location              string
+	OperationalCoverage   string
+	InterestedCategories  []string
+	PartnershipTypes      []string
+	CollaborationTypes    []string
+	Description           string
+	PartnershipNeeds      string
+	SearchRegion          string
+	BusinessCriteria      string
+	ContactEmail          string
+	ContactPhone          string
+	ContactSocial         string
+	ShareContact          bool
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+	Logo                  string
+	OfferedCollaborations []string
 }
 
 type Session struct {

@@ -13,6 +13,8 @@ import {
   ArrowUpRight,
   Loader2,
   SlidersHorizontal,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
@@ -20,23 +22,55 @@ import { fetchBusinesses } from "@/lib/api";
 import { businessAge, resolveBusinessCover } from "@/lib/business";
 import { ROUTES, SECTION_IDS } from "@/lib/constants";
 import { BUSINESS_CATEGORIES, type Business } from "@/types/business";
+import type { PartnerPreferences } from "@/types/partner";
 
 export function PartnerExploreView({
   initialBusinesses,
   savedSlugs,
   onToggleBookmark,
   pendingSlug,
+  preferences,
 }: {
   initialBusinesses: Business[];
   savedSlugs: Set<string>;
   onToggleBookmark: (slug: string) => Promise<void>;
   pendingSlug: string | null;
+  preferences?: PartnerPreferences;
 }) {
   const [businesses, setBusinesses] = useState<Business[]>(initialBusinesses);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Semua");
   const [loading, setLoading] = useState(false);
   const [isPendingTransition, startTransition] = useTransition();
+  const [preferenceApplied, setPreferenceApplied] = useState(false);
+
+  const hasPreferences = preferences && preferences.hasPreferences;
+
+  function applyPreferencesFilter() {
+    if (!preferences || !hasPreferences) return;
+
+    // Apply first target category if configured
+    if (preferences.targetCategories && preferences.targetCategories.length > 0) {
+      setSelectedCategory(preferences.targetCategories[0]);
+    } else {
+      setSelectedCategory("Semua");
+    }
+
+    // Apply search region as query if configured
+    if (preferences.searchRegion) {
+      setSearchQuery(preferences.searchRegion);
+    } else {
+      setSearchQuery("");
+    }
+
+    setPreferenceApplied(true);
+  }
+
+  function resetFilter() {
+    setSearchQuery("");
+    setSelectedCategory("Semua");
+    setPreferenceApplied(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -84,17 +118,65 @@ export function PartnerExploreView({
           </p>
         </div>
 
-        <Link
-          href={`/#${SECTION_IDS.businesses}`}
-          className={buttonStyles({
-            variant: "secondary",
-            className: "gap-2 self-start sm:self-auto",
-          })}
-        >
-          <span>Buka di Halaman Publik</span>
-          <ArrowUpRight className="size-4" />
-        </Link>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {hasPreferences ? (
+            <button
+              type="button"
+              onClick={applyPreferencesFilter}
+              className={buttonStyles({
+                variant: preferenceApplied ? "primary" : "secondary",
+                className: "gap-2 shadow-xs",
+              })}
+            >
+              <Sparkles className="size-4" />
+              <span>{preferenceApplied ? "Preferensi Diterapkan" : "Terapkan Preferensi Saya"}</span>
+            </button>
+          ) : (
+            <Link
+              href="/dashboard?view=preferences"
+              className={buttonStyles({
+                variant: "ghost",
+                className: "gap-1.5 text-xs text-muted hover:text-forest",
+              })}
+            >
+              <SlidersHorizontal className="size-3.5" />
+              <span>Atur Preferensi</span>
+            </Link>
+          )}
+
+          <Link
+            href={`/#${SECTION_IDS.businesses}`}
+            className={buttonStyles({
+              variant: "secondary",
+              className: "gap-2",
+            })}
+          >
+            <span>Buka di Halaman Publik</span>
+            <ArrowUpRight className="size-4" />
+          </Link>
+        </div>
       </div>
+
+      {/* Applied Preference Indicator Pill */}
+      {preferenceApplied && (
+        <div className="flex items-center justify-between rounded-xl border border-forest/20 bg-soft-green/50 px-4 py-2.5 text-xs text-forest">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-3.5 text-forest" />
+            <span>
+              Menyaring berdasarkan preferensi tersimpan: <strong>{selectedCategory}</strong>
+              {searchQuery ? ` · Wilayah &quot;${searchQuery}&quot;` : ""}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={resetFilter}
+            className="inline-flex items-center gap-1 font-semibold text-forest hover:underline"
+          >
+            <X className="size-3.5" />
+            <span>Reset ke Semua</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-4 shadow-xs">
@@ -103,7 +185,10 @@ export function PartnerExploreView({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPreferenceApplied(false);
+            }}
             placeholder="Cari nama bisnis, kota, atau kata kunci..."
             className="w-full rounded-xl border border-line bg-white pl-10 pr-4 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
           />
@@ -112,7 +197,10 @@ export function PartnerExploreView({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
           <button
             type="button"
-            onClick={() => setSelectedCategory("Semua")}
+            onClick={() => {
+              setSelectedCategory("Semua");
+              setPreferenceApplied(false);
+            }}
             className={`rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
               selectedCategory === "Semua"
                 ? "bg-forest text-lime shadow-xs"
@@ -125,7 +213,10 @@ export function PartnerExploreView({
             <button
               key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                setSelectedCategory(cat);
+                setPreferenceApplied(false);
+              }}
               className={`rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedCategory === cat
                   ? "bg-forest text-lime shadow-xs"
@@ -158,10 +249,7 @@ export function PartnerExploreView({
           </p>
           <button
             type="button"
-            onClick={() => {
-              setSearchQuery("");
-              setSelectedCategory("Semua");
-            }}
+            onClick={resetFilter}
             className={buttonStyles({
               variant: "secondary",
               size: "sm",
@@ -277,4 +365,3 @@ export function PartnerExploreView({
     </div>
   );
 }
-

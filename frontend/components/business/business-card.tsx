@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { BookmarkButton } from "@/components/business/bookmark-button";
-import { businessAge, resolveBusinessCover } from "@/lib/business";
+import { businessAge, resolveBusinessCover, formatSeekingLabel } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 
@@ -35,7 +35,11 @@ export function BusinessCard({ business, saved, saving = false, onToggleSaved, e
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
           {!editorial && business.growthLabel ? <span className="text-xs font-semibold text-accent">{business.growthLabel}</span> : null}
-          {business.seeking?.map((need) => <Badge key={need} tone="mint">{editorial ? `Sedang mencari · ${need}` : `Mencari ${need}`}</Badge>)}
+          {business.seeking?.map((need) => (
+            <Badge key={need} tone="mint">
+              {editorial ? `Sedang mencari · ${formatSeekingLabel(need)}` : `Mencari ${formatSeekingLabel(need)}`}
+            </Badge>
+          ))}
         </div>
 
         <Link href={ROUTES.business(business.slug)} className="mt-6 inline-flex min-h-11 items-center gap-2 self-start border-b-2 border-green text-sm font-semibold text-forest transition-colors hover:border-forest">
