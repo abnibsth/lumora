@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Store, BookOpen, PanelsTopLeft, Handshake, Sparkles, ChartNoAxesCombined, Settings, X, ArrowUpRight } from "lucide-react";
+import { LayoutDashboard, Store, BookOpen, PanelsTopLeft, Handshake, Sparkles, Send, MessageSquare, Settings, X, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
@@ -10,7 +10,7 @@ import styles from "./workspace.module.css";
 
 const groups = [
   { label: "Menu utama", items: [{ label: "Dashboard", view: "overview", icon: LayoutDashboard }, { label: "Profil Bisnis", view: "profiles", icon: Store }, { label: "Cerita Usaha", view: "story", icon: BookOpen }, { label: "Business Model Canvas", view: "canvas", icon: PanelsTopLeft }] },
-  { label: "Pengembangan bisnis", items: [{ label: "Peluang & Mitra", view: "saved", icon: Handshake }, { label: "Lumora AI", view: "ai", icon: Sparkles }, { label: "Analitik Profil", view: null, icon: ChartNoAxesCombined }] },
+  { label: "Kemitraan & Kolaborasi", items: [{ label: "Peluang & Mitra", view: "saved", icon: Handshake }, { label: "Permintaan Kolaborasi", view: "requests", icon: Send }, { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare }, { label: "Lumora AI", view: "ai", icon: Sparkles }] },
   { label: "Akun", items: [{ label: "Pengaturan Akun", view: "settings", icon: Settings }] },
 ] as const;
 

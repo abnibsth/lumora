@@ -57,6 +57,8 @@ const titles: Record<PartnerDashboardView, string> = {
   saved: "Bisnis Tersimpan",
   profile: "Profil Mitra",
   preferences: "Preferensi Kemitraan",
+  requests: "Permintaan Kolaborasi",
+  inbox: "Inbox & Pesan",
   settings: "Pengaturan Akun",
 };
 
@@ -100,27 +102,17 @@ function PartnerSidebar({
       ],
     },
     {
-      label: "Kemitraan",
+      label: "Kemitraan & Komunikasi",
       items: [
         { label: "Profil Mitra", view: "profile", icon: Building2 },
         { label: "Preferensi Kemitraan", view: "preferences", icon: SlidersHorizontal },
+        { label: "Permintaan Kolaborasi", view: "requests", icon: Handshake },
+        { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare },
       ],
     },
     {
       label: "Pengembangan (Mendatang)",
       items: [
-        {
-          label: "Permintaan Kolaborasi",
-          view: null,
-          icon: Handshake,
-          badge: "Segera Hadir",
-        },
-        {
-          label: "Inbox / Pesan",
-          view: null,
-          icon: MessageSquare,
-          badge: "Segera Hadir",
-        },
         {
           label: "Riwayat Kemitraan",
           view: null,
@@ -459,7 +451,7 @@ export function PartnerShell({
             <main
               id="workspace-main"
               tabIndex={-1}
-              className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 focus:outline-none"
+              className="flex-1 px-4 py-4 sm:px-6 sm:py-5 lg:px-8 focus:outline-none"
             >
               {children}
             </main>

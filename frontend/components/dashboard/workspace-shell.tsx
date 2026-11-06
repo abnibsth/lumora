@@ -13,7 +13,7 @@ import type { User } from "@/types/user";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import styles from "./workspace.module.css";
 
-const titles: Record<WorkspaceView, string> = { overview: "Dashboard", profiles: "Profil Bisnis", story: "Cerita Usaha", canvas: "Business Model Canvas", saved: "Peluang & Mitra", ai: "Lumora AI", settings: "Pengaturan Akun" };
+const titles: Record<WorkspaceView, string> = { overview: "Dashboard", profiles: "Profil Bisnis", story: "Cerita Usaha", canvas: "Business Model Canvas", saved: "Peluang & Mitra", requests: "Permintaan Kolaborasi", inbox: "Inbox & Pesan", ai: "Lumora AI", settings: "Pengaturan Akun" };
 
 function WorkspaceHeader({ user, view, onViewChange, onLogout, logoutPending }: Omit<ShellProps, "children" | "defaultSidebarOpen">) {
   const { toggleSidebar, open, isMobile, openMobile } = useSidebar();

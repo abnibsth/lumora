@@ -106,51 +106,47 @@ export function PartnerProfileView({
   const completeness = profile.completeness || 0;
 
   return (
-    <div className="mx-auto max-w-[1160px] space-y-8 pb-12">
-      {/* Header */}
-      <div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-forest/15 bg-soft-green/60 px-3 py-0.5 text-xs font-semibold text-forest">
-          <Building2 className="size-3.5" />
+    <div className="mx-auto max-w-[1160px] space-y-4 sm:space-y-5 pb-8">
+      {/* Compact Page Header */}
+      <div className="space-y-1">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-forest/15 bg-soft-green/60 px-2.5 py-0.5 text-[11px] font-semibold text-forest">
+          <Building2 className="size-3" />
           <span>Profil Organisasi Mitra</span>
         </div>
-        <h1 className="mt-2 font-display text-2xl font-semibold text-forest sm:text-3xl">
+        <h1 className="font-display text-xl sm:text-2xl font-semibold text-forest tracking-tight">
           Kelola Profil Mitra
         </h1>
-        <p className="mt-1 text-sm text-muted">
-          Profil ini menjadi representasi resmi organisasi dan layanan yang Anda tawarkan kepada pelaku UMKM di platform LUMORA.
+        <p className="text-xs sm:text-sm text-muted">
+          Representasi resmi identitas organisasi dan layanan yang Anda tawarkan kepada pelaku UMKM di LUMORA.
         </p>
       </div>
 
-      {/* Completeness Card */}
-      <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5 flex-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                Kelengkapan Profil Organisasi
-              </span>
-              <span className="font-display text-lg font-bold text-forest">
-                {completeness}%
-              </span>
+      {/* Compact Completeness Progress Card */}
+      <div className="rounded-xl border border-line bg-surface p-3.5 sm:p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex-1 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-forest">Kelengkapan Profil Organisasi</span>
+              <span className="font-bold text-forest">{completeness}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-soft-green">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-soft-green">
               <div
                 className="h-full rounded-full bg-forest transition-all duration-500"
                 style={{ width: `${Math.min(100, Math.max(0, completeness))}%` }}
               />
             </div>
-            <p className="text-[11px] text-muted">
-              Profil yang lengkap mempermudah verifikasi dan meningkatkan kredibilitas organisasi Anda di hadapan pelaku UMKM.
-            </p>
           </div>
+          <span className="text-[11px] text-muted shrink-0 sm:pl-4">
+            Profil lengkap membangun kredibilitas saat berkolaborasi dengan UMKM.
+          </span>
         </div>
       </div>
 
-      {/* Feedback Messages */}
+      {/* Feedback Alerts */}
       {message ? (
         <div
           role="status"
-          className="flex items-center gap-2.5 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900"
+          className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-emerald-900"
         >
           <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
           <span>{message}</span>
@@ -160,26 +156,26 @@ export function PartnerProfileView({
       {error ? (
         <div
           role="alert"
-          className="flex items-center gap-2.5 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-900"
+          className="flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-red-900"
         >
           <AlertCircle className="size-4 shrink-0 text-red-600" />
           <span>{error}</span>
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Section 1: Identitas & Legalitas Organisasi */}
-        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
-          <div className="border-b border-line/60 pb-3">
-            <h2 className="font-display text-lg font-semibold text-forest">
+      <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+        {/* Card 1: Identitas & Legalitas Organisasi */}
+        <div className="rounded-xl border border-line bg-surface p-4 sm:p-5 shadow-2xs space-y-3.5">
+          <div className="border-b border-line/60 pb-2.5">
+            <h2 className="font-display text-base font-semibold text-forest">
               1. Identitas Organisasi
             </h2>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-[11px] sm:text-xs text-muted mt-0.5">
               Informasi dasar identitas institusi, perusahaan, atau organisasi kemitraan.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:gap-3.5 md:grid-cols-2">
             <div>
               <label
                 htmlFor="companyName"
@@ -194,7 +190,7 @@ export function PartnerProfileView({
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Contoh: PT Distribusi Nusantara Berjaya"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                className="mt-1 block h-10 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               />
             </div>
 
@@ -209,7 +205,7 @@ export function PartnerProfileView({
                 id="partnerType"
                 value={partnerType}
                 onChange={(e) => setPartnerType(e.target.value as PartnerType)}
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                className="mt-1 block h-10 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               >
                 <option value="">Pilih Jenis Mitra...</option>
                 {PARTNER_TYPES.map((type) => (
@@ -233,7 +229,7 @@ export function PartnerProfileView({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Contoh: Jakarta Selatan, DKI Jakarta"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                className="mt-1 block h-10 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               />
             </div>
 
@@ -249,8 +245,8 @@ export function PartnerProfileView({
                 type="text"
                 value={operationalCoverage}
                 onChange={(e) => setOperationalCoverage(e.target.value)}
-                placeholder="Contoh: Jabodetabek, Jawa & Bali, atau Seluruh Indonesia"
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                placeholder="Contoh: Jabodetabek, Jawa & Bali, atau Nasional"
+                className="mt-1 block h-10 w-full rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
               />
             </div>
 
@@ -261,17 +257,17 @@ export function PartnerProfileView({
               >
                 URL Logo Organisasi (Opsional)
               </label>
-              <div className="mt-1.5 flex items-center gap-3">
+              <div className="mt-1 flex items-center gap-2.5">
                 <input
                   id="logo"
                   type="text"
                   value={logo}
                   onChange={(e) => setLogo(e.target.value)}
                   placeholder="https://example.com/logo.png atau /uploads/..."
-                  className="block flex-1 rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                  className="block h-10 flex-1 rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
                 />
                 {logo ? (
-                  <div className="size-10 overflow-hidden rounded-lg border border-line bg-white p-1">
+                  <div className="size-10 shrink-0 overflow-hidden rounded-lg border border-line bg-white p-1">
                     <img
                       src={logo}
                       alt="Logo preview"
@@ -279,7 +275,7 @@ export function PartnerProfileView({
                     />
                   </div>
                 ) : (
-                  <div className="flex size-10 items-center justify-center rounded-lg border border-dashed border-line bg-soft-green/30 text-muted">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-dashed border-line bg-soft-green/30 text-muted">
                     <ImageIcon className="size-4" />
                   </div>
                 )}
@@ -295,31 +291,31 @@ export function PartnerProfileView({
               </label>
               <textarea
                 id="description"
-                rows={4}
+                rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ceritakan latar belakang organisasi, pengalaman industri, portofolio, dan nilai tambah yang Anda tawarkan kepada pelaku UMKM..."
-                className="mt-1.5 block w-full rounded-xl border border-line bg-white p-3.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest leading-relaxed"
+                placeholder="Ceritakan latar belakang organisasi, portofolio, dan nilai tambah yang Anda tawarkan kepada pelaku UMKM..."
+                className="mt-1 block w-full rounded-lg border border-line bg-white p-3 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest leading-relaxed"
               />
             </div>
           </div>
         </div>
 
-        {/* Section 2: Bentuk Kemitraan yang DITAWARKAN ke UMKM */}
-        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
-          <div className="border-b border-line/60 pb-3">
-            <div className="flex items-center gap-2">
+        {/* Card 2: Layanan & Bentuk Kemitraan yang Ditawarkan */}
+        <div className="rounded-xl border border-line bg-surface p-4 sm:p-5 shadow-2xs space-y-3.5">
+          <div className="border-b border-line/60 pb-2.5">
+            <div className="flex items-center gap-1.5">
               <Handshake className="size-4 text-forest" />
-              <h2 className="font-display text-lg font-semibold text-forest">
+              <h2 className="font-display text-base font-semibold text-forest">
                 2. Layanan & Bentuk Kemitraan yang Ditawarkan
               </h2>
             </div>
-            <p className="text-xs text-muted mt-0.5">
-              Pilih bentuk kerjasama, kapabilitas, atau fasilitas yang organisasi Anda sediakan untuk pelaku UMKM (Vektor 1).
+            <p className="text-[11px] sm:text-xs text-muted mt-0.5">
+              Pilih kapabilitas atau fasilitas yang organisasi Anda sediakan untuk UMKM (Vektor 1).
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
             {MASTER_TAXONOMY_LIST.map((taxID) => {
               const meta = MASTER_TAXONOMY_REGISTRY[taxID];
               const isSelected = offeredCollaborations.includes(taxID);
@@ -328,42 +324,43 @@ export function PartnerProfileView({
                   key={taxID}
                   type="button"
                   onClick={() => toggleOfferedCollaboration(taxID)}
-                  className={`flex flex-col text-left p-3.5 rounded-xl border transition-all ${
+                  className={`flex flex-col text-left p-2.5 sm:p-3 rounded-lg border transition-all ${
                     isSelected
-                      ? "border-forest bg-forest text-lime shadow-xs"
+                      ? "border-forest bg-forest text-lime shadow-2xs"
                       : "border-line bg-white text-forest hover:border-forest/40 hover:bg-soft-green/30"
                   }`}
                 >
-                  <span className="text-xs font-semibold">
+                  <span className="text-xs font-semibold leading-snug">
                     {isSelected ? `✓ ${meta.partnerOfferLabel}` : meta.partnerOfferLabel}
                   </span>
-                  <span className={`text-[11px] mt-1 line-clamp-2 ${isSelected ? "text-white/80" : "text-muted"}`}>
+                  <span
+                    className={`text-[10.5px] mt-1 line-clamp-1 leading-normal ${
+                      isSelected ? "text-white/80" : "text-muted"
+                    }`}
+                  >
                     {meta.description}
                   </span>
                 </button>
               );
             })}
           </div>
-          <p className="text-[11px] text-muted">
-            Layanan yang Anda pilih akan tampil pada profil publik organisasi dan memudahkan UMKM menemukan Anda.
-          </p>
         </div>
 
-        {/* Section 3: Kontak Resmi & Kebijakan Privasi */}
-        <div className="rounded-2xl border border-line bg-surface p-6 shadow-xs space-y-6">
-          <div className="border-b border-line/60 pb-3">
-            <div className="flex items-center gap-2">
+        {/* Card 3: Kontak Resmi & Kebijakan Privasi */}
+        <div className="rounded-xl border border-line bg-surface p-4 sm:p-5 shadow-2xs space-y-3.5">
+          <div className="border-b border-line/60 pb-2.5">
+            <div className="flex items-center gap-1.5">
               <ShieldCheck className="size-4 text-forest" />
-              <h2 className="font-display text-lg font-semibold text-forest">
+              <h2 className="font-display text-base font-semibold text-forest">
                 3. Kontak Resmi & Pengaturan Privasi
               </h2>
             </div>
-            <p className="text-xs text-muted mt-0.5">
+            <p className="text-[11px] sm:text-xs text-muted mt-0.5">
               Tentukan saluran komunikasi resmi dan atur izin pembagian kontak ke pelaku UMKM.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:gap-3.5 md:grid-cols-2">
             <div>
               <label
                 htmlFor="contactEmail"
@@ -371,15 +368,15 @@ export function PartnerProfileView({
               >
                 Email Resmi Kemitraan
               </label>
-              <div className="relative mt-1.5">
-                <Mail className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <div className="relative mt-1">
+                <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
                 <input
                   id="contactEmail"
                   type="email"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
                   placeholder="partnership@perusahaan.co.id"
-                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                  className="block h-10 w-full rounded-lg border border-line bg-white pl-9 pr-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
                 />
               </div>
             </div>
@@ -391,15 +388,15 @@ export function PartnerProfileView({
               >
                 Nomor Telepon / WhatsApp Bisnis
               </label>
-              <div className="relative mt-1.5">
-                <Phone className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <div className="relative mt-1">
+                <Phone className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
                 <input
                   id="contactPhone"
                   type="tel"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
                   placeholder="+62 812 3456 7890"
-                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                  className="block h-10 w-full rounded-lg border border-line bg-white pl-9 pr-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
                 />
               </div>
             </div>
@@ -411,35 +408,35 @@ export function PartnerProfileView({
               >
                 Tautan Profil LinkedIn, Situs Web, atau Media Sosial
               </label>
-              <div className="relative mt-1.5">
-                <Globe className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <div className="relative mt-1">
+                <Globe className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
                 <input
                   id="contactSocial"
                   type="text"
                   value={contactSocial}
                   onChange={(e) => setContactSocial(e.target.value)}
                   placeholder="https://linkedin.com/company/... atau https://perusahaan.co.id"
-                  className="block w-full rounded-xl border border-line bg-white pl-10 pr-3.5 py-2.5 text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
+                  className="block h-10 w-full rounded-lg border border-line bg-white pl-9 pr-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
                 />
               </div>
             </div>
           </div>
 
           {/* Privacy Consent Box */}
-          <div className="rounded-xl border border-forest/20 bg-soft-green/30 p-4">
-            <label className="flex items-start gap-3 cursor-pointer select-none">
+          <div className="rounded-lg border border-forest/15 bg-soft-green/30 p-3 sm:p-3.5">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={shareContact}
                 onChange={(e) => setShareContact(e.target.checked)}
-                className="mt-1 size-4 rounded border-line text-forest focus:ring-forest accent-forest"
+                className="mt-0.5 size-4 rounded border-line text-forest focus:ring-forest accent-forest shrink-0"
               />
               <div className="text-xs">
                 <span className="font-semibold text-forest">
                   Izinkan pemilik UMKM terdaftar melihat email dan nomor kontak resmi ini
                 </span>
-                <p className="mt-0.5 text-muted">
-                  Bila opsi ini tidak dicentang, email dan nomor telepon Anda akan dirahasiakan dan tidak ditampilkan ke UMKM. Tautan website publik tetap dapat dilihat.
+                <p className="mt-0.5 text-muted leading-relaxed">
+                  Bila tidak dicentang, email dan telepon Anda dirahasiakan dari UMKM. Tautan website publik tetap dapat dilihat.
                 </p>
               </div>
             </label>
@@ -447,19 +444,19 @@ export function PartnerProfileView({
         </div>
 
         {/* Submit Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end pt-1">
           <button
             type="submit"
             disabled={saving}
             className={buttonStyles({
               variant: "primary",
-              size: "lg",
-              className: "min-w-44 gap-2 shadow-xs",
+              size: "default",
+              className: "min-w-40 gap-2 shadow-2xs font-semibold",
             })}
           >
             {saving ? (
               <>
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-3.5 animate-spin" />
                 <span>Menyimpan...</span>
               </>
             ) : (

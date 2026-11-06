@@ -13,6 +13,8 @@ import { BusinessEditor } from "./business-editor";
 import { useBusinessEditor } from "./use-business-editor";
 import { WorkspaceConfirmation } from "./workspace-confirmation";
 import { BusinessProfilePreview } from "./business-profile-preview";
+import { PartnerRequestsView } from "@/components/partner/partner-requests-view";
+import { PartnerInboxView } from "@/components/partner/partner-inbox-view";
 import { previewFromForm, SECTION_FOR_STEP, type ProfileError } from "@/lib/profile-management";
 import { BUSINESS_VIEWS, scopedPatch, validateWorkspace, viewForField, resolveOwnedSelection, type BusinessWorkspace } from "@/lib/workspace-management";
 import { WorkspaceDomainEditor } from "./workspace-domain-editor";
@@ -62,6 +64,11 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
   const [preview, setPreview] = useState<{ business: OwnedBusiness; unsaved: boolean } | null>(null);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
   const [validationErrors, setValidationErrors] = useState<ProfileError[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(undefined);
+  const handleOpenConversation = (convId?: string) => {
+    if (convId) setSelectedConversationId(convId);
+    changeView("inbox");
+  };
   const busy = loading || saving || acting || editor.busy;
   const currentUrl = useRef<string | null>(null);
   const invalidBusiness = !!urlBusiness && !urlProfile && editor.editing?.id !== urlBusiness;
@@ -310,6 +317,16 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
         )
       ) : null}
     </div>
+    {view === "requests" ? (
+      <div className="w-full min-w-0">
+        <PartnerRequestsView user={accountUser} onNavigateToInbox={handleOpenConversation} />
+      </div>
+    ) : null}
+    {view === "inbox" ? (
+      <div className="w-full min-w-0">
+        <PartnerInboxView user={accountUser} initialConversationId={selectedConversationId} />
+      </div>
+    ) : null}
     <div hidden={view !== "settings"}><h1 className="text-2xl font-semibold text-forest">Pengaturan Akun</h1><AccountSettings user={accountUser} onUserChange={setAccountUser} /></div>
     {preview ? <BusinessProfilePreview business={preview.business} unsaved={preview.unsaved} onClose={() => setPreview(null)} /> : null}
     {editor.pendingDiscard ? <WorkspaceConfirmation title="Buang perubahan yang belum disimpan?" description="Perubahan pada editor akan hilang. Profil yang sudah tersimpan tidak berubah." confirmLabel="Buang perubahan" cancelLabel="Lanjutkan mengedit" onConfirm={editor.acceptDiscard} onCancel={editor.cancelDiscard} /> : null}

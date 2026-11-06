@@ -58,6 +58,50 @@ type BusinessMilestone struct {
 	Position    int32
 }
 
+type CollaborationRequest struct {
+	ID                pgtype.UUID
+	SenderUserID      pgtype.UUID
+	SenderRole        string
+	ReceiverUserID    pgtype.UUID
+	ReceiverRole      string
+	BusinessID        pgtype.UUID
+	PartnerProfileID  pgtype.UUID
+	Direction         string
+	CollaborationType string
+	Title             string
+	Message           string
+	ProposalDetail    string
+	Status            string
+	RespondedAt       pgtype.Timestamptz
+	ExpiresAt         pgtype.Timestamptz
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+}
+
+type CollaborationRequestEvent struct {
+	ID          pgtype.UUID
+	RequestID   pgtype.UUID
+	ActorUserID pgtype.UUID
+	FromStatus  string
+	ToStatus    string
+	Reason      string
+	CreatedAt   pgtype.Timestamptz
+}
+
+type Conversation struct {
+	ID                     pgtype.UUID
+	CollaborationRequestID pgtype.UUID
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+}
+
+type ConversationParticipant struct {
+	ID             pgtype.UUID
+	ConversationID pgtype.UUID
+	UserID         pgtype.UUID
+	JoinedAt       pgtype.Timestamptz
+}
+
 type EmailVerificationToken struct {
 	TokenHash string
 	UserID    pgtype.UUID
@@ -83,6 +127,15 @@ type HomepageContentState struct {
 	DraftUpdatedBy      pgtype.UUID
 	DraftUpdatedByName  string
 	PublishedRevisionID pgtype.UUID
+}
+
+type Message struct {
+	ID             pgtype.UUID
+	ConversationID pgtype.UUID
+	SenderID       pgtype.UUID
+	Content        string
+	ReadAt         pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
 }
 
 type PartnerPreference struct {

@@ -15,14 +15,17 @@ import {
   SlidersHorizontal,
   Sparkles,
   X,
+  Handshake,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
+import { CollaborationModal } from "@/components/collaboration/collaboration-modal";
 import { fetchBusinesses } from "@/lib/api";
 import { businessAge, resolveBusinessCover } from "@/lib/business";
 import { ROUTES, SECTION_IDS } from "@/lib/constants";
 import { BUSINESS_CATEGORIES, type Business } from "@/types/business";
 import type { PartnerPreferences } from "@/types/partner";
+import type { User } from "@/types/user";
 
 export function PartnerExploreView({
   initialBusinesses,
@@ -30,12 +33,14 @@ export function PartnerExploreView({
   onToggleBookmark,
   pendingSlug,
   preferences,
+  user,
 }: {
   initialBusinesses: Business[];
   savedSlugs: Set<string>;
   onToggleBookmark: (slug: string) => Promise<void>;
   pendingSlug: string | null;
   preferences?: PartnerPreferences;
+  user?: User;
 }) {
   const [businesses, setBusinesses] = useState<Business[]>(initialBusinesses);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +48,8 @@ export function PartnerExploreView({
   const [loading, setLoading] = useState(false);
   const [isPendingTransition, startTransition] = useTransition();
   const [preferenceApplied, setPreferenceApplied] = useState(false);
+  const [collabModalOpen, setCollabModalOpen] = useState(false);
+  const [selectedBiz, setSelectedBiz] = useState<Business | null>(null);
 
   const hasPreferences = preferences && preferences.hasPreferences;
 
@@ -101,7 +108,7 @@ export function PartnerExploreView({
   }, [searchQuery, selectedCategory]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-12">
+    <div className="mx-auto max-w-7xl space-y-4 sm:space-y-5 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -337,30 +344,58 @@ export function PartnerExploreView({
                     ))}
                   </div>
 
-                  <div className="mt-5 pt-3 border-t border-line/60 flex items-center justify-between">
-                    <Link
-                      href={ROUTES.business(biz.slug)}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
-                    >
-                      <span>Lihat BMC & Cerita</span>
-                      <ArrowUpRight className="size-3.5" />
-                    </Link>
+                  <div className="mt-4 pt-2.5 border-t border-line/60 flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={() => onToggleBookmark(biz.slug)}
-                      disabled={isPending}
-                      className={`text-[11px] font-semibold transition-colors ${
-                        isSaved ? "text-forest underline" : "text-muted hover:text-forest"
-                      }`}
+                      onClick={() => {
+                        setSelectedBiz(biz);
+                        setCollabModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
                     >
-                      {isPending ? "Memproses..." : isSaved ? "Tersimpan" : "+ Simpan"}
+                      <Handshake className="size-3.5" />
+                      <span>Ajukan Kolaborasi</span>
                     </button>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        href={ROUTES.business(biz.slug)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-forest hover:underline"
+                      >
+                        <span>Detail</span>
+                        <ArrowUpRight className="size-3" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => onToggleBookmark(biz.slug)}
+                        disabled={isPending}
+                        className={`text-[11px] font-semibold transition-colors ${
+                          isSaved ? "text-forest underline" : "text-muted hover:text-forest"
+                        }`}
+                      >
+                        {isPending ? "..." : isSaved ? "Tersimpan" : "+ Simpan"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
             );
           })}
         </div>
+      )}
+
+      {/* Collaboration Modal Dialog */}
+      {selectedBiz && user && (
+        <CollaborationModal
+          open={collabModalOpen}
+          onOpenChange={setCollabModalOpen}
+          targetUser={{
+            id: selectedBiz.id,
+            name: selectedBiz.owner.name,
+            role: "umkm",
+          }}
+          business={selectedBiz}
+          currentUser={user}
+        />
       )}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   MapPin,
   Calendar,
@@ -16,12 +17,15 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { Business, OwnedBusiness } from "@/types/business";
+import type { User } from "@/types/user";
 import { presentProfile } from "@/lib/profile-presentation";
 import { BusinessMonogram } from "@/components/business/business-monogram";
 import { RevenueChart } from "@/components/business/revenue-chart";
 import { BusinessBmcCanvas } from "@/components/business/business-bmc-canvas";
+import { CollaborationModal } from "@/components/collaboration/collaboration-modal";
 import { buttonStyles } from "@/components/ui/button";
 import { formatSeekingLabel } from "@/lib/business";
+import { getMeApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface BusinessProfileViewProps {
@@ -48,6 +52,18 @@ export function BusinessProfileView({
   actionSlot,
 }: BusinessProfileViewProps) {
   const profile = presentProfile(business);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [collabModalOpen, setCollabModalOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getMeApi().then((u) => {
+      if (active && u) setCurrentUser(u);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Dynamic sections check for anchor navigation
   const navSections = useMemo(
@@ -682,11 +698,56 @@ export function BusinessProfileView({
                     </p>
                   </div>
                 )}
+
+                {/* Collaboration Proposal Action Button */}
+                <div className="pt-2">
+                  {currentUser ? (
+                    <button
+                      type="button"
+                      onClick={() => setCollabModalOpen(true)}
+                      className={buttonStyles({
+                        variant: "primary",
+                        size: "lg",
+                        className: "gap-2 shadow-2xs font-semibold",
+                      })}
+                    >
+                      <Handshake className="size-4" />
+                      <span>Ajukan Kolaborasi Kemitraan</span>
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/login?next=/business/${business.slug}`}
+                      className={buttonStyles({
+                        variant: "primary",
+                        size: "lg",
+                        className: "gap-2 shadow-2xs font-semibold",
+                      })}
+                    >
+                      <Handshake className="size-4" />
+                      <span>Masuk untuk Ajukan Kolaborasi</span>
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           </section>
         )}
       </div>
+
+      {/* Collaboration Proposal Modal */}
+      {currentUser && (
+        <CollaborationModal
+          open={collabModalOpen}
+          onOpenChange={setCollabModalOpen}
+          targetUser={{
+            id: business.id,
+            name: profile.ownerName || business.name,
+            role: "umkm",
+          }}
+          business={business}
+          currentUser={currentUser}
+        />
+      )}
 
       {/* FOOTER DISCLAIMER */}
       <footer

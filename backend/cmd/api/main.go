@@ -110,6 +110,8 @@ func main() {
 	adminHandler := handler.NewAdminHandler(service.NewAdminService(pool))
 	partnerService := service.NewPartnerService(pool)
 	partnerHandler := handler.NewPartnerHandler(partnerService)
+	collabService := service.NewCollaborationService(pool)
+	collabHandler := handler.NewCollaborationHandler(collabService)
 
 	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
 	// the default, "stub" is the offline one used for keyless runs and tests.
@@ -285,6 +287,21 @@ func main() {
 	partner.GET("/preferences", partnerHandler.GetPreferences)
 	partner.PUT("/preferences", partnerHandler.UpsertPreferences)
 	partner.GET("/matches", partnerHandler.GetMatches)
+
+	// Collaboration requests (bidirectional: Mitra <-> UMKM)
+	v1.POST("/collaborations", middleware.RequireSession(), collabHandler.Create)
+	v1.GET("/collaborations/inbox", middleware.RequireSession(), collabHandler.ListIncoming)
+	v1.GET("/collaborations/outbox", middleware.RequireSession(), collabHandler.ListOutgoing)
+	v1.GET("/collaborations/stats", middleware.RequireSession(), collabHandler.GetStats)
+	v1.GET("/collaborations/:id", middleware.RequireSession(), collabHandler.GetDetail)
+	v1.POST("/collaborations/:id/accept", middleware.RequireSession(), collabHandler.Accept)
+	v1.POST("/collaborations/:id/reject", middleware.RequireSession(), collabHandler.Reject)
+	v1.POST("/collaborations/:id/withdraw", middleware.RequireSession(), collabHandler.Withdraw)
+
+	// Inbox conversations & messages (unlocked when collaboration is accepted)
+	v1.GET("/inbox/conversations", middleware.RequireSession(), collabHandler.ListConversations)
+	v1.GET("/inbox/conversations/:id/messages", middleware.RequireSession(), collabHandler.GetMessages)
+	v1.POST("/inbox/conversations/:id/messages", middleware.RequireSession(), collabHandler.SendMessage)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

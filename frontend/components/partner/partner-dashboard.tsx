@@ -9,6 +9,8 @@ import { PartnerExploreView } from "./partner-explore-view";
 import { PartnerSavedView } from "./partner-saved-view";
 import { PartnerProfileView } from "./partner-profile-view";
 import { PartnerPreferencesView } from "./partner-preferences-view";
+import { PartnerRequestsView } from "./partner-requests-view";
+import { PartnerInboxView } from "./partner-inbox-view";
 import {
   addBookmarkApi,
   fetchBookmarks,
@@ -31,6 +33,8 @@ function resolvePartnerView(raw: string | null): PartnerDashboardView {
     case "saved":
     case "profile":
     case "preferences":
+    case "requests":
+    case "inbox":
     case "settings":
       return raw;
     case "dashboard":
@@ -69,6 +73,14 @@ export function PartnerDashboard({
   const [profile, setProfile] = useState<PartnerProfile>(initialProfile);
   const [preferences, setPreferences] = useState<PartnerPreferences>(initialPreferences);
   const [matches, setMatches] = useState<BusinessMatchList | undefined>(initialMatches);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(undefined);
+
+  function handleOpenConversation(convId?: string) {
+    if (convId) {
+      setSelectedConversationId(convId);
+    }
+    handleViewChange("inbox");
+  }
   const [bookmarks, setBookmarks] = useState<Business[]>(initialBookmarks);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [logoutPending, setLogoutPending] = useState(false);
@@ -131,7 +143,7 @@ export function PartnerDashboard({
       savedCount={bookmarks.length}
       defaultSidebarOpen={defaultSidebarOpen}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-5">
         {view === "dashboard" ? (
           <PartnerOverview
             user={user}
@@ -152,6 +164,7 @@ export function PartnerDashboard({
             onToggleBookmark={handleToggleBookmark}
             pendingSlug={pendingSlug}
             preferences={preferences}
+            user={user}
           />
         ) : null}
 
@@ -178,6 +191,20 @@ export function PartnerDashboard({
             onPreferencesUpdated={(updated) => {
               setPreferences(updated);
             }}
+          />
+        ) : null}
+
+        {view === "requests" ? (
+          <PartnerRequestsView
+            user={user}
+            onNavigateToInbox={handleOpenConversation}
+          />
+        ) : null}
+
+        {view === "inbox" ? (
+          <PartnerInboxView
+            user={user}
+            initialConversationId={selectedConversationId}
           />
         ) : null}
 
