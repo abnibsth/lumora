@@ -26,31 +26,52 @@ import { ROUTES, SITE } from "@/lib/constants";
 export function Logo({
   className,
   tone = "dark",
+  href,
+  onClick,
 }: {
   className?: string;
   tone?: "dark" | "light";
+  href?: string;
+  onClick?: () => void;
 }) {
+  const content = (
+    <Image
+      src={tone === "light" ? "/img/logo-light.png" : "/img/logo-nav.png"}
+      alt={SITE.name}
+      width={1501}
+      height={422}
+      loading="eager"
+      sizes="(min-width: 640px) 128px, 100px"
+      className="h-7 w-auto object-contain sm:h-8"
+    />
+  );
+
+  if (onClick && !href) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="LUMORA"
+        className={cn(
+          "inline-flex items-center shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-forest cursor-pointer",
+          className,
+        )}
+      >
+        {content}
+      </button>
+    );
+  }
+
   return (
     <Link
-      href={ROUTES.home}
+      href={href ?? ROUTES.home}
+      onClick={onClick}
       className={cn(
-        "inline-flex min-h-11 shrink-0 items-center rounded-lg",
+        "inline-flex min-h-10 shrink-0 items-center rounded-lg focus-visible:outline-2 focus-visible:outline-forest",
         className,
       )}
     >
-      <Image
-        src={tone === "light" ? "/img/logo-light.png" : "/img/logo-nav.png"}
-        alt={SITE.name}
-        width={1501}
-        height={422}
-        loading="eager"
-        // Without this, next/image assumes the logo renders at its full 1501px
-        // intrinsic width and the browser downloads the 1920px variant for a
-        // 128px display. The values below are the real rendered widths: 28px tall
-        // on phones and 36px from sm up, at this art's 3.56 aspect ratio.
-        sizes="(min-width: 640px) 128px, 100px"
-        className="h-7 w-auto sm:h-9"
-      />
+      {content}
     </Link>
   );
 }

@@ -18,7 +18,10 @@ type fakeCollabService struct {
 	request       domain.CollaborationRequest
 	incomingList  domain.CollaborationRequestList
 	outgoingList  domain.CollaborationRequestList
+	historyList   domain.CollaborationRequestList
 	stats         domain.CollaborationStats
+	historyStats  domain.CollaborationHistoryStats
+	historyDetail domain.CollaborationHistoryDetail
 	conversations []domain.Conversation
 	messages      domain.MessageList
 	sentMessage   domain.Message
@@ -75,6 +78,40 @@ func (f *fakeCollabService) WithdrawRequest(_ context.Context, userID, requestID
 	return f.request, f.err
 }
 
+func (f *fakeCollabService) StartPartnership(_ context.Context, userID, requestID string) (domain.CollaborationRequest, error) {
+	f.gotUserID = userID
+	f.gotReqID = requestID
+	return f.request, f.err
+}
+
+func (f *fakeCollabService) CompletePartnership(_ context.Context, userID, requestID, _ string) (domain.CollaborationRequest, error) {
+	f.gotUserID = userID
+	f.gotReqID = requestID
+	return f.request, f.err
+}
+
+func (f *fakeCollabService) CancelPartnership(_ context.Context, userID, requestID, _ string) (domain.CollaborationRequest, error) {
+	f.gotUserID = userID
+	f.gotReqID = requestID
+	return f.request, f.err
+}
+
+func (f *fakeCollabService) ListHistory(_ context.Context, userID, _, _, _, _ string, _, _ int) (domain.CollaborationRequestList, error) {
+	f.gotUserID = userID
+	return f.historyList, f.err
+}
+
+func (f *fakeCollabService) GetHistoryStats(_ context.Context, userID string) (domain.CollaborationHistoryStats, error) {
+	f.gotUserID = userID
+	return f.historyStats, f.err
+}
+
+func (f *fakeCollabService) GetHistoryDetail(_ context.Context, userID, requestID string) (domain.CollaborationHistoryDetail, error) {
+	f.gotUserID = userID
+	f.gotReqID = requestID
+	return f.historyDetail, f.err
+}
+
 func (f *fakeCollabService) ListConversations(_ context.Context, userID string) ([]domain.Conversation, error) {
 	f.gotUserID = userID
 	return f.conversations, f.err
@@ -103,6 +140,12 @@ func newCollabTestRouter(svc CollabService, auth *fakeAuthService) *gin.Engine {
 	v1.GET("/collaborations/inbox", middleware.RequireSession(), h.ListIncoming)
 	v1.GET("/collaborations/outbox", middleware.RequireSession(), h.ListOutgoing)
 	v1.GET("/collaborations/stats", middleware.RequireSession(), h.GetStats)
+	v1.GET("/collaborations/history", middleware.RequireSession(), h.ListHistory)
+	v1.GET("/collaborations/history/stats", middleware.RequireSession(), h.GetHistoryStats)
+	v1.GET("/collaborations/history/:id", middleware.RequireSession(), h.GetHistoryDetail)
+	v1.POST("/collaborations/:id/start", middleware.RequireSession(), h.Start)
+	v1.POST("/collaborations/:id/complete", middleware.RequireSession(), h.Complete)
+	v1.POST("/collaborations/:id/cancel", middleware.RequireSession(), h.Cancel)
 	v1.GET("/collaborations/:id", middleware.RequireSession(), h.GetDetail)
 	v1.POST("/collaborations/:id/accept", middleware.RequireSession(), h.Accept)
 	v1.POST("/collaborations/:id/reject", middleware.RequireSession(), h.Reject)
@@ -149,12 +192,12 @@ func TestCollabCreate_Success(t *testing.T) {
 	}
 }
 
-func TestCollabListIncoming_Success(t *testing.T) {
+func TestCollabListHistory_Success(t *testing.T) {
 	auth := partnerSessionAuth(domain.RoleMitra)
 	svc := &fakeCollabService{
-		incomingList: domain.CollaborationRequestList{
+		historyList: domain.CollaborationRequestList{
 			Items: []domain.CollaborationRequest{
-				{ID: "req-1", Title: "Ajakan Kerjasama"},
+				{ID: "req-1", Title: "Kemitraan Berlangsung", Status: domain.CollabStatusInProgress},
 			},
 			Total: 1,
 			Page:  1,
@@ -163,7 +206,28 @@ func TestCollabListIncoming_Success(t *testing.T) {
 	}
 	router := newCollabTestRouter(svc, auth)
 	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, sessionRequest(http.MethodGet, "/api/v1/collaborations/inbox", ""))
+	router.ServeHTTP(recorder, sessionRequest(http.MethodGet, "/api/v1/collaborations/history?status=in_progress", ""))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", recorder.Code)
+	}
+}
+
+func TestCollabHistoryDetail_Success(t *testing.T) {
+	auth := partnerSessionAuth(domain.RoleMitra)
+	svc := &fakeCollabService{
+		historyDetail: domain.CollaborationHistoryDetail{
+			Request: domain.CollaborationRequest{ID: "req-1", Title: "Kemitraan Selesai", Status: domain.CollabStatusCompleted},
+			Events: []domain.CollaborationEvent{
+				{ID: "ev-1", FromStatus: "pending", ToStatus: "accepted"},
+				{ID: "ev-2", FromStatus: "accepted", ToStatus: "in_progress"},
+				{ID: "ev-3", FromStatus: "in_progress", ToStatus: "completed"},
+			},
+		},
+	}
+	router := newCollabTestRouter(svc, auth)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, sessionRequest(http.MethodGet, "/api/v1/collaborations/history/req-1", ""))
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
@@ -240,4 +304,3 @@ func TestCollabDetail_NotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404", recorder.Code)
 	}
 }
-

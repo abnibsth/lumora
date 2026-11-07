@@ -110,7 +110,9 @@ func main() {
 	adminHandler := handler.NewAdminHandler(service.NewAdminService(pool))
 	partnerService := service.NewPartnerService(pool)
 	partnerHandler := handler.NewPartnerHandler(partnerService)
-	collabService := service.NewCollaborationService(pool)
+	notifService := service.NewNotificationService(pool)
+	notifHandler := handler.NewNotificationHandler(notifService)
+	collabService := service.NewCollaborationService(pool, notifService)
 	collabHandler := handler.NewCollaborationHandler(collabService)
 
 	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
@@ -293,10 +295,24 @@ func main() {
 	v1.GET("/collaborations/inbox", middleware.RequireSession(), collabHandler.ListIncoming)
 	v1.GET("/collaborations/outbox", middleware.RequireSession(), collabHandler.ListOutgoing)
 	v1.GET("/collaborations/stats", middleware.RequireSession(), collabHandler.GetStats)
+	v1.GET("/collaborations/history", middleware.RequireSession(), collabHandler.ListHistory)
+	v1.GET("/collaborations/history/stats", middleware.RequireSession(), collabHandler.GetHistoryStats)
+	v1.GET("/collaborations/history/:id", middleware.RequireSession(), collabHandler.GetHistoryDetail)
+	v1.POST("/collaborations/:id/start", middleware.RequireSession(), collabHandler.Start)
+	v1.POST("/collaborations/:id/complete", middleware.RequireSession(), collabHandler.Complete)
+	v1.POST("/collaborations/:id/cancel", middleware.RequireSession(), collabHandler.Cancel)
 	v1.GET("/collaborations/:id", middleware.RequireSession(), collabHandler.GetDetail)
 	v1.POST("/collaborations/:id/accept", middleware.RequireSession(), collabHandler.Accept)
 	v1.POST("/collaborations/:id/reject", middleware.RequireSession(), collabHandler.Reject)
 	v1.POST("/collaborations/:id/withdraw", middleware.RequireSession(), collabHandler.Withdraw)
+
+	// Notifications
+	v1.GET("/notifications", middleware.RequireSession(), notifHandler.List)
+	v1.GET("/notifications/unread-count", middleware.RequireSession(), notifHandler.UnreadCount)
+	v1.PATCH("/notifications/read-all", middleware.RequireSession(), notifHandler.MarkAllRead)
+	v1.POST("/notifications/read-all", middleware.RequireSession(), notifHandler.MarkAllRead)
+	v1.PATCH("/notifications/:id/read", middleware.RequireSession(), notifHandler.MarkRead)
+	v1.POST("/notifications/:id/read", middleware.RequireSession(), notifHandler.MarkRead)
 
 	// Inbox conversations & messages (unlocked when collaboration is accepted)
 	v1.GET("/inbox/conversations", middleware.RequireSession(), collabHandler.ListConversations)

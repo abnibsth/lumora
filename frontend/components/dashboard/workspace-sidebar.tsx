@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Store, BookOpen, PanelsTopLeft, Handshake, Sparkles, Send, MessageSquare, Settings, X, ArrowUpRight } from "lucide-react";
+import { LayoutDashboard, Store, BookOpen, PanelsTopLeft, Handshake, Sparkles, Send, MessageSquare, History, Bell, Settings, X, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
@@ -10,7 +10,7 @@ import styles from "./workspace.module.css";
 
 const groups = [
   { label: "Menu utama", items: [{ label: "Dashboard", view: "overview", icon: LayoutDashboard }, { label: "Profil Bisnis", view: "profiles", icon: Store }, { label: "Cerita Usaha", view: "story", icon: BookOpen }, { label: "Business Model Canvas", view: "canvas", icon: PanelsTopLeft }] },
-  { label: "Kemitraan & Kolaborasi", items: [{ label: "Peluang & Mitra", view: "saved", icon: Handshake }, { label: "Permintaan Kolaborasi", view: "requests", icon: Send }, { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare }, { label: "Lumora AI", view: "ai", icon: Sparkles }] },
+  { label: "Kemitraan & Kolaborasi", items: [{ label: "Peluang & Mitra", view: "saved", icon: Handshake }, { label: "Permintaan Kolaborasi", view: "requests", icon: Send }, { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare }, { label: "Riwayat Kemitraan", view: "history", icon: History }, { label: "Notifikasi", view: "notifications", icon: Bell }, { label: "Lumora AI", view: "ai", icon: Sparkles }] },
   { label: "Akun", items: [{ label: "Pengaturan Akun", view: "settings", icon: Settings }] },
 ] as const;
 
@@ -20,16 +20,21 @@ export function WorkspaceSidebar({ view, onNavigate }: { view: WorkspaceView; on
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <div className={`${styles.navigation} flex h-full min-h-0 flex-col`}>
-        <SidebarHeader className={collapsed ? "items-center px-3 py-4" : "p-4"}>
-          <div className={collapsed ? "flex w-full justify-center" : "flex items-center justify-between rounded-lg bg-ivory p-3"}>
+        <SidebarHeader className={collapsed ? "items-center px-3 py-4" : "p-3 sm:p-4"}>
+          <div className={collapsed ? "flex w-full justify-center" : "flex items-center justify-between rounded-xl bg-ivory px-3.5 py-2"}>
             {collapsed ? (
-              <Link href="/" aria-label="LUMORA — beranda" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-ivory">
+              <button type="button" onClick={() => onNavigate("overview")} aria-label="LUMORA — beranda" className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-ivory focus-visible:outline-2 focus-visible:outline-forest">
                 <Image src="/img/logo-symbol.png" alt="" width={301} height={422} loading="eager" sizes="26px" className="h-9 w-auto object-contain" />
-              </Link>
-            ) : <Logo />}
-            {isMobile ? <button type="button" aria-label="Tutup navigasi" className="flex size-11 items-center justify-center text-forest" onClick={() => setOpenMobile(false)}><X className="size-5" /></button> : null}
+              </button>
+            ) : (
+              <Logo onClick={() => { onNavigate("overview"); if (isMobile) setOpenMobile(false); }} />
+            )}
+            {isMobile ? (
+              <button type="button" aria-label="Tutup navigasi" className="flex size-8 shrink-0 items-center justify-center rounded-lg text-forest hover:bg-forest/10 transition-colors ml-2" onClick={() => setOpenMobile(false)}>
+                <X className="size-4" />
+              </button>
+            ) : null}
           </div>
-          {!collapsed ? <p className="px-2 pt-2 text-xs tracking-wide text-white/75">Business Workspace</p> : null}
         </SidebarHeader>
         <SidebarContent className={`gap-3 ${collapsed ? "px-3" : "px-2"}`}>
           <nav aria-label="Navigasi workspace">
@@ -50,7 +55,7 @@ export function WorkspaceSidebar({ view, onNavigate }: { view: WorkspaceView; on
             ))}
           </nav>
         </SidebarContent>
-        <SidebarFooter className="border-t border-white/15 p-3">
+        <SidebarFooter className="border-t border-white/15 p-3 pb-8 sm:pb-3">
           <SidebarMenuButton asChild size="lg" className={`${styles.menuButton} min-h-11 text-white hover:bg-white/10 ${collapsed ? "justify-center" : ""}`}><Link href="/" aria-label="Lihat website"><ArrowUpRight aria-hidden="true" />{!collapsed ? <span>Lihat website</span> : null}</Link></SidebarMenuButton>
         </SidebarFooter>
       </div>

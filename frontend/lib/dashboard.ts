@@ -1,6 +1,6 @@
 import type { BmcEntry, BusinessMilestone, BusinessWriteInput, OwnedBusiness, AIDraftProfile } from "@/types/business";
 
-export const WORKSPACE_VIEWS = ["overview", "profiles", "story", "canvas", "saved", "requests", "inbox", "ai", "settings"] as const;
+export const WORKSPACE_VIEWS = ["overview", "profiles", "story", "canvas", "saved", "requests", "inbox", "history", "notifications", "ai", "settings"] as const;
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 export type EditorSection = "identity" | "location" | "details" | "story" | "owner" | "media" | "canvas" | "partners" | "ai";
 export const BMC_LABELS = ["Mitra Utama", "Aktivitas Utama", "Sumber Daya Utama", "Proposisi Nilai", "Hubungan Pelanggan", "Saluran", "Segmen Pelanggan", "Struktur Biaya", "Sumber Pendapatan"] as const;

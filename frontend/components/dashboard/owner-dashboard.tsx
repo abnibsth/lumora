@@ -15,6 +15,8 @@ import { WorkspaceConfirmation } from "./workspace-confirmation";
 import { BusinessProfilePreview } from "./business-profile-preview";
 import { PartnerRequestsView } from "@/components/partner/partner-requests-view";
 import { PartnerInboxView } from "@/components/partner/partner-inbox-view";
+import { PartnerHistoryView } from "@/components/partner/partner-history-view";
+import { PartnerNotificationsView } from "@/components/partner/partner-notifications-view";
 import { previewFromForm, SECTION_FOR_STEP, type ProfileError } from "@/lib/profile-management";
 import { BUSINESS_VIEWS, scopedPatch, validateWorkspace, viewForField, resolveOwnedSelection, type BusinessWorkspace } from "@/lib/workspace-management";
 import { WorkspaceDomainEditor } from "./workspace-domain-editor";
@@ -325,6 +327,24 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     {view === "inbox" ? (
       <div className="w-full min-w-0">
         <PartnerInboxView user={accountUser} initialConversationId={selectedConversationId} />
+      </div>
+    ) : null}
+    {view === "history" ? (
+      <div className="w-full min-w-0">
+        <PartnerHistoryView
+          user={accountUser}
+          onNavigateToInbox={handleOpenConversation}
+          onNavigateToRequests={() => changeView("requests")}
+        />
+      </div>
+    ) : null}
+    {view === "notifications" ? (
+      <div className="w-full min-w-0">
+        <PartnerNotificationsView
+          user={accountUser}
+          onNavigate={(v) => changeView(v as WorkspaceView)}
+          onNavigateToInbox={handleOpenConversation}
+        />
       </div>
     ) : null}
     <div hidden={view !== "settings"}><h1 className="text-2xl font-semibold text-forest">Pengaturan Akun</h1><AccountSettings user={accountUser} onUserChange={setAccountUser} /></div>

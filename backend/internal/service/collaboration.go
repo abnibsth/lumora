@@ -21,11 +21,12 @@ type CollabDB interface {
 }
 
 type CollaborationService struct {
-	db CollabDB
+	db       CollabDB
+	notifSvc *NotificationService
 }
 
-func NewCollaborationService(db CollabDB) *CollaborationService {
-	return &CollaborationService{db: db}
+func NewCollaborationService(db CollabDB, notifSvc *NotificationService) *CollaborationService {
+	return &CollaborationService{db: db, notifSvc: notifSvc}
 }
 
 // -----------------------------------------------------------------------------
@@ -128,27 +129,6 @@ func (s *CollaborationService) CreateRequest(ctx context.Context, sender domain.
 	if err != nil {
 		return domain.CollaborationRequest{}, fmt.Errorf("check receiver: %w", err)
 	}
-		if err != nil {
-			return domain.CollaborationRequest{}, fmt.Errorf("check partner profile: %w", err)
-		}
-		partnerProfileID = &pID
-
-		// Auto-resolve sender's published business
-		if in.BusinessID != "" {
-			var bOwnerID string
-			err := s.db.QueryRow(ctx, "SELECT owner_user_id FROM businesses WHERE id = $1 AND status = 'published'", in.BusinessID).Scan(&bOwnerID)
-			if err == nil && bOwnerID == sender.ID {
-				businessID = &in.BusinessID
-			}
-		}
-		if businessID == nil {
-			var bID string
-			err := s.db.QueryRow(ctx, "SELECT id FROM businesses WHERE owner_user_id = $1 AND status = 'published' ORDER BY created_at DESC LIMIT 1", sender.ID).Scan(&bID)
-			if err == nil && bID != "" {
-				businessID = &bID
-			}
-		}
-	}
 
 	// Check for active pending request
 	var pendingExists bool
@@ -209,6 +189,15 @@ func (s *CollaborationService) CreateRequest(ctx context.Context, sender domain.
 		reqID, sender.ID)
 	if err != nil {
 		return domain.CollaborationRequest{}, fmt.Errorf("insert event: %w", err)
+	}
+
+	// Trigger Notification to Receiver
+	if s.notifSvc != nil {
+		_ = s.notifSvc.Create(ctx, tx, in.ReceiverUserID, &sender.ID,
+			domain.NotifTypeCollabCreated,
+			"Pengajuan Kolaborasi Baru",
+			fmt.Sprintf("%s mengirimkan pengajuan kolaborasi: \"%s\"", sender.Name, in.Title),
+			domain.NotifTargetCollab, reqID)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -428,12 +417,12 @@ func (s *CollaborationService) AcceptRequest(ctx context.Context, userID, reques
 	}
 	defer tx.Rollback(ctx)
 
-	var senderID, receiverID, status string
+	var senderID, receiverID, status, title string
 	err = tx.QueryRow(ctx, `
-		SELECT sender_user_id, receiver_user_id, status
+		SELECT sender_user_id, receiver_user_id, status, title
 		FROM collaboration_requests
 		WHERE id = $1
-		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status)
+		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status, &title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.CollaborationRequest{}, domain.ErrNotFound
 	}
@@ -496,6 +485,17 @@ func (s *CollaborationService) AcceptRequest(ctx context.Context, userID, reques
 		return domain.CollaborationRequest{}, fmt.Errorf("initial message: %w", err)
 	}
 
+	// Trigger Notification to Sender
+	if s.notifSvc != nil {
+		var receiverName string
+		_ = tx.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&receiverName)
+		_ = s.notifSvc.Create(ctx, tx, senderID, &userID,
+			domain.NotifTypeCollabAccepted,
+			"Pengajuan Kolaborasi Diterima",
+			fmt.Sprintf("Pengajuan kolaborasi \"%s\" telah disetujui oleh %s. Ruang percakapan Inbox kini telah dibuka.", title, receiverName),
+			domain.NotifTargetConversation, convID)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return domain.CollaborationRequest{}, fmt.Errorf("commit tx: %w", err)
 	}
@@ -510,12 +510,12 @@ func (s *CollaborationService) RejectRequest(ctx context.Context, userID, reques
 	}
 	defer tx.Rollback(ctx)
 
-	var receiverID, status string
+	var senderID, receiverID, status, title string
 	err = tx.QueryRow(ctx, `
-		SELECT receiver_user_id, status
+		SELECT sender_user_id, receiver_user_id, status, title
 		FROM collaboration_requests
 		WHERE id = $1
-		FOR UPDATE`, requestID).Scan(&receiverID, &status)
+		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status, &title)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.CollaborationRequest{}, domain.ErrNotFound
 	}
@@ -545,6 +545,17 @@ func (s *CollaborationService) RejectRequest(ctx context.Context, userID, reques
 		requestID, userID, strings.TrimSpace(reason))
 	if err != nil {
 		return domain.CollaborationRequest{}, fmt.Errorf("insert event: %w", err)
+	}
+
+	// Trigger Notification to Sender
+	if s.notifSvc != nil {
+		var receiverName string
+		_ = tx.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&receiverName)
+		_ = s.notifSvc.Create(ctx, tx, senderID, &userID,
+			domain.NotifTypeCollabRejected,
+			"Pengajuan Kolaborasi Ditolak",
+			fmt.Sprintf("Pengajuan kolaborasi \"%s\" ditolak oleh %s.", title, receiverName),
+			domain.NotifTargetCollab, requestID)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -606,7 +617,411 @@ func (s *CollaborationService) WithdrawRequest(ctx context.Context, userID, requ
 }
 
 // -----------------------------------------------------------------------------
-// 5. INBOX & MESSAGING
+// 5. PARTNERSHIP PROGRESS LIFECYCLE (Start, Complete, Cancel)
+// -----------------------------------------------------------------------------
+
+func (s *CollaborationService) StartPartnership(ctx context.Context, userID, requestID string) (domain.CollaborationRequest, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var senderID, receiverID, status, title string
+	err = tx.QueryRow(ctx, `
+		SELECT sender_user_id, receiver_user_id, status, title
+		FROM collaboration_requests
+		WHERE id = $1
+		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status, &title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("lock request: %w", err)
+	}
+
+	if senderID != userID && receiverID != userID {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if status != domain.CollabStatusAccepted {
+		return domain.CollaborationRequest{}, &domain.ValidationError{Message: "Hanya pengajuan yang telah disetujui yang dapat dimulai kemitraannya."}
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE collaboration_requests
+		SET status = 'in_progress', updated_at = now()
+		WHERE id = $1`, requestID)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("update status: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO collaboration_request_events (request_id, actor_user_id, from_status, to_status, reason)
+		VALUES ($1, $2, 'accepted', 'in_progress', 'Pelaksanaan kemitraan resmi dimulai')`,
+		requestID, userID)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("insert event: %w", err)
+	}
+
+	// Notify other party
+	otherID := senderID
+	if userID == senderID {
+		otherID = receiverID
+	}
+	if s.notifSvc != nil {
+		var actorName string
+		_ = tx.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&actorName)
+		_ = s.notifSvc.Create(ctx, tx, otherID, &userID,
+			domain.NotifTypeCollabStarted,
+			"Kemitraan Resmi Dimulai",
+			fmt.Sprintf("Pelaksanaan kemitraan \"%s\" resmi dimulai bersama %s.", title, actorName),
+			domain.NotifTargetHistory, requestID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("commit tx: %w", err)
+	}
+
+	return s.GetRequestByID(ctx, userID, requestID)
+}
+
+func (s *CollaborationService) CompletePartnership(ctx context.Context, userID, requestID, notes string) (domain.CollaborationRequest, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var senderID, receiverID, status, title string
+	err = tx.QueryRow(ctx, `
+		SELECT sender_user_id, receiver_user_id, status, title
+		FROM collaboration_requests
+		WHERE id = $1
+		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status, &title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("lock request: %w", err)
+	}
+
+	if senderID != userID && receiverID != userID {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if status != domain.CollabStatusInProgress && status != domain.CollabStatusAccepted {
+		return domain.CollaborationRequest{}, &domain.ValidationError{Message: "Hanya kemitraan yang sedang berlangsung atau disetujui yang dapat diselesaikan."}
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE collaboration_requests
+		SET status = 'completed', updated_at = now()
+		WHERE id = $1`, requestID)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("update status: %w", err)
+	}
+
+	reason := "Kemitraan telah selesai dijalankan dengan sukses"
+	if strings.TrimSpace(notes) != "" {
+		reason = strings.TrimSpace(notes)
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO collaboration_request_events (request_id, actor_user_id, from_status, to_status, reason)
+		VALUES ($1, $2, $3, 'completed', $4)`,
+		requestID, userID, status, reason)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("insert event: %w", err)
+	}
+
+	otherID := senderID
+	if userID == senderID {
+		otherID = receiverID
+	}
+	if s.notifSvc != nil {
+		var actorName string
+		_ = tx.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&actorName)
+		_ = s.notifSvc.Create(ctx, tx, otherID, &userID,
+			domain.NotifTypeCollabCompleted,
+			"Kemitraan Telah Selesai",
+			fmt.Sprintf("Kemitraan \"%s\" telah dinyatakan selesai oleh %s.", title, actorName),
+			domain.NotifTargetHistory, requestID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("commit tx: %w", err)
+	}
+
+	return s.GetRequestByID(ctx, userID, requestID)
+}
+
+func (s *CollaborationService) CancelPartnership(ctx context.Context, userID, requestID, reason string) (domain.CollaborationRequest, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var senderID, receiverID, status, title string
+	err = tx.QueryRow(ctx, `
+		SELECT sender_user_id, receiver_user_id, status, title
+		FROM collaboration_requests
+		WHERE id = $1
+		FOR UPDATE`, requestID).Scan(&senderID, &receiverID, &status, &title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("lock request: %w", err)
+	}
+
+	if senderID != userID && receiverID != userID {
+		return domain.CollaborationRequest{}, domain.ErrNotFound
+	}
+	if status != domain.CollabStatusAccepted && status != domain.CollabStatusInProgress {
+		return domain.CollaborationRequest{}, &domain.ValidationError{Message: "Hanya kemitraan yang telah disetujui atau sedang berlangsung yang dapat dibatalkan."}
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE collaboration_requests
+		SET status = 'cancelled', updated_at = now()
+		WHERE id = $1`, requestID)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("update status: %w", err)
+	}
+
+	cancelReason := "Kemitraan dibatalkan"
+	if strings.TrimSpace(reason) != "" {
+		cancelReason = strings.TrimSpace(reason)
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO collaboration_request_events (request_id, actor_user_id, from_status, to_status, reason)
+		VALUES ($1, $2, $3, 'cancelled', $4)`,
+		requestID, userID, status, cancelReason)
+	if err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("insert event: %w", err)
+	}
+
+	otherID := senderID
+	if userID == senderID {
+		otherID = receiverID
+	}
+	if s.notifSvc != nil {
+		var actorName string
+		_ = tx.QueryRow(ctx, "SELECT name FROM users WHERE id = $1", userID).Scan(&actorName)
+		_ = s.notifSvc.Create(ctx, tx, otherID, &userID,
+			domain.NotifTypeCollabCancelled,
+			"Kemitraan Dibatalkan",
+			fmt.Sprintf("Kemitraan \"%s\" telah dibatalkan oleh %s.", title, actorName),
+			domain.NotifTargetHistory, requestID)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return domain.CollaborationRequest{}, fmt.Errorf("commit tx: %w", err)
+	}
+
+	return s.GetRequestByID(ctx, userID, requestID)
+}
+
+// -----------------------------------------------------------------------------
+// 6. PARTNERSHIP HISTORY & TIMELINE QUERIES
+// -----------------------------------------------------------------------------
+
+func (s *CollaborationService) ListHistory(ctx context.Context, userID, status, search, startDate, endDate string, page, limit int) (domain.CollaborationRequestList, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+
+	baseWhere := "(r.sender_user_id = $1 OR r.receiver_user_id = $1)"
+
+	query := `
+		SELECT r.id, r.sender_user_id, us.name AS sender_name, r.sender_role,
+		       r.receiver_user_id, ur.name AS receiver_name, r.receiver_role,
+		       COALESCE(r.business_id::text, ''), COALESCE(b.name, ''), COALESCE(b.slug, ''),
+		       COALESCE(b.category, ''), COALESCE(b.location, ''), COALESCE(b.cover_image, ''),
+		       COALESCE(r.partner_profile_id::text, ''), COALESCE(p.company_name, ''),
+		       COALESCE(p.partner_type, ''), COALESCE(p.logo, ''), COALESCE(p.location, ''),
+		       r.direction, r.collaboration_type, r.title, r.message, r.proposal_detail,
+		       r.status, COALESCE(c.id::text, ''), r.responded_at, r.expires_at,
+		       r.created_at, r.updated_at
+		FROM collaboration_requests r
+		JOIN users us ON us.id = r.sender_user_id
+		JOIN users ur ON ur.id = r.receiver_user_id
+		LEFT JOIN businesses b ON b.id = r.business_id
+		LEFT JOIN partner_profiles p ON p.id = r.partner_profile_id
+		LEFT JOIN conversations c ON c.collaboration_request_id = r.id
+		WHERE ` + baseWhere
+
+	countQuery := `
+		SELECT count(*)
+		FROM collaboration_requests r
+		JOIN users us ON us.id = r.sender_user_id
+		JOIN users ur ON ur.id = r.receiver_user_id
+		LEFT JOIN businesses b ON b.id = r.business_id
+		LEFT JOIN partner_profiles p ON p.id = r.partner_profile_id
+		WHERE ` + baseWhere
+
+	args := []any{userID}
+	argIdx := 2
+
+	if status != "" && domain.ValidCollabStatus(status) {
+		query += fmt.Sprintf(" AND r.status = $%d", argIdx)
+		countQuery += fmt.Sprintf(" AND r.status = $%d", argIdx)
+		args = append(args, status)
+		argIdx++
+	}
+
+	search = strings.TrimSpace(search)
+	if search != "" {
+		pattern := "%" + search + "%"
+		clause := fmt.Sprintf(` AND (r.title ILIKE $%d OR us.name ILIKE $%d OR ur.name ILIKE $%d OR b.name ILIKE $%d OR p.company_name ILIKE $%d)`,
+			argIdx, argIdx, argIdx, argIdx, argIdx)
+		query += clause
+		countQuery += clause
+		args = append(args, pattern)
+		argIdx++
+	}
+
+	if startDate != "" {
+		if t, err := time.Parse("2006-01-02", startDate); err == nil {
+			query += fmt.Sprintf(" AND r.created_at >= $%d", argIdx)
+			countQuery += fmt.Sprintf(" AND r.created_at >= $%d", argIdx)
+			args = append(args, t)
+			argIdx++
+		}
+	}
+
+	if endDate != "" {
+		if t, err := time.Parse("2006-01-02", endDate); err == nil {
+			// end of day
+			t = t.Add(24 * time.Hour)
+			query += fmt.Sprintf(" AND r.created_at < $%d", argIdx)
+			countQuery += fmt.Sprintf(" AND r.created_at < $%d", argIdx)
+			args = append(args, t)
+			argIdx++
+		}
+	}
+
+	var total int64
+	if err := s.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return domain.CollaborationRequestList{}, fmt.Errorf("count history: %w", err)
+	}
+
+	query += fmt.Sprintf(" ORDER BY r.updated_at DESC, r.created_at DESC LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	offset := (page - 1) * limit
+	args = append(args, limit, offset)
+
+	rows, err := s.db.Query(ctx, query, args...)
+	if err != nil {
+		return domain.CollaborationRequestList{}, fmt.Errorf("query history: %w", err)
+	}
+	defer rows.Close()
+
+	items := make([]domain.CollaborationRequest, 0)
+	for rows.Next() {
+		var req domain.CollaborationRequest
+		err := rows.Scan(
+			&req.ID, &req.SenderUserID, &req.SenderName, &req.SenderRole,
+			&req.ReceiverUserID, &req.ReceiverName, &req.ReceiverRole,
+			&req.BusinessID, &req.BusinessName, &req.BusinessSlug,
+			&req.BusinessCategory, &req.BusinessLocation, &req.BusinessCoverImage,
+			&req.PartnerProfileID, &req.PartnerCompanyName,
+			&req.PartnerType, &req.PartnerLogo, &req.PartnerLocation,
+			&req.Direction, &req.CollaborationType, &req.Title, &req.Message, &req.ProposalDetail,
+			&req.Status, &req.ConversationID, &req.RespondedAt, &req.ExpiresAt,
+			&req.CreatedAt, &req.UpdatedAt,
+		)
+		if err != nil {
+			return domain.CollaborationRequestList{}, fmt.Errorf("scan history item: %w", err)
+		}
+		if meta, ok := domain.MasterTaxonomyRegistry[req.CollaborationType]; ok {
+			req.CollaborationTypeLabel = meta.PartnerSeekLabel
+		} else {
+			req.CollaborationTypeLabel = req.CollaborationType
+		}
+		items = append(items, req)
+	}
+
+	return domain.CollaborationRequestList{
+		Items: items,
+		Total: total,
+		Page:  page,
+		Limit: limit,
+	}, nil
+}
+
+func (s *CollaborationService) GetHistoryStats(ctx context.Context, userID string) (domain.CollaborationHistoryStats, error) {
+	var stats domain.CollaborationHistoryStats
+	err := s.db.QueryRow(ctx, `
+		SELECT 
+			count(*),
+			count(*) FILTER (WHERE status = 'pending'),
+			count(*) FILTER (WHERE status = 'accepted'),
+			count(*) FILTER (WHERE status = 'in_progress'),
+			count(*) FILTER (WHERE status = 'completed'),
+			count(*) FILTER (WHERE status = 'rejected'),
+			count(*) FILTER (WHERE status = 'cancelled' OR status = 'withdrawn')
+		FROM collaboration_requests
+		WHERE receiver_user_id = $1 OR sender_user_id = $1`, userID).Scan(
+		&stats.Total,
+		&stats.Pending,
+		&stats.Accepted,
+		&stats.InProgress,
+		&stats.Completed,
+		&stats.Rejected,
+		&stats.Cancelled,
+	)
+	if err != nil {
+		return domain.CollaborationHistoryStats{}, fmt.Errorf("query history stats: %w", err)
+	}
+	return stats, nil
+}
+
+func (s *CollaborationService) GetHistoryDetail(ctx context.Context, userID, requestID string) (domain.CollaborationHistoryDetail, error) {
+	req, err := s.GetRequestByID(ctx, userID, requestID)
+	if err != nil {
+		return domain.CollaborationHistoryDetail{}, err
+	}
+
+	query := `
+		SELECT e.id, e.request_id, e.actor_user_id, COALESCE(u.name, ''), COALESCE(u.role, ''),
+		       e.from_status, e.to_status, e.reason, e.created_at
+		FROM collaboration_request_events e
+		LEFT JOIN users u ON u.id = e.actor_user_id
+		WHERE e.request_id = $1
+		ORDER BY e.created_at ASC`
+
+	rows, err := s.db.Query(ctx, query, requestID)
+	if err != nil {
+		return domain.CollaborationHistoryDetail{}, fmt.Errorf("query events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]domain.CollaborationEvent, 0)
+	for rows.Next() {
+		var ev domain.CollaborationEvent
+		err := rows.Scan(
+			&ev.ID, &ev.RequestID, &ev.ActorUserID, &ev.ActorName, &ev.ActorRole,
+			&ev.FromStatus, &ev.ToStatus, &ev.Reason, &ev.CreatedAt,
+		)
+		if err != nil {
+			return domain.CollaborationHistoryDetail{}, fmt.Errorf("scan event: %w", err)
+		}
+		events = append(events, ev)
+	}
+
+	return domain.CollaborationHistoryDetail{
+		Request: req,
+		Events:  events,
+	}, nil
+}
+
+// -----------------------------------------------------------------------------
+// 7. INBOX & MESSAGING
 // -----------------------------------------------------------------------------
 
 func (s *CollaborationService) ListConversations(ctx context.Context, userID string) ([]domain.Conversation, error) {
@@ -632,7 +1047,7 @@ func (s *CollaborationService) ListConversations(ctx context.Context, userID str
 			LIMIT 1
 		) m_last ON true
 		LEFT JOIN users u_sender ON u_sender.id = m_last.sender_id
-		WHERE r.status = 'accepted'
+		WHERE r.status IN ('accepted', 'in_progress', 'completed')
 		ORDER BY c.updated_at DESC
 	`
 
@@ -755,14 +1170,14 @@ func (s *CollaborationService) SendMessage(ctx context.Context, sender domain.Us
 		return domain.Message{}, err
 	}
 
-	// Verify conversation exists and request is accepted
-	var collabStatus string
+	// Verify conversation exists and request is accepted/in_progress/completed
+	var collabStatus, reqID string
 	err := s.db.QueryRow(ctx, `
-		SELECT r.status
+		SELECT r.status, r.id
 		FROM conversations c
 		JOIN collaboration_requests r ON r.id = c.collaboration_request_id
 		JOIN conversation_participants cp ON cp.conversation_id = c.id AND cp.user_id = $1
-		WHERE c.id = $2`, sender.ID, conversationID).Scan(&collabStatus)
+		WHERE c.id = $2`, sender.ID, conversationID).Scan(&collabStatus, &reqID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Message{}, domain.ErrNotFound
 	}
@@ -770,7 +1185,7 @@ func (s *CollaborationService) SendMessage(ctx context.Context, sender domain.Us
 		return domain.Message{}, fmt.Errorf("verify conversation: %w", err)
 	}
 
-	if collabStatus != domain.CollabStatusAccepted {
+	if collabStatus != domain.CollabStatusAccepted && collabStatus != domain.CollabStatusInProgress && collabStatus != domain.CollabStatusCompleted {
 		return domain.Message{}, &domain.ValidationError{Message: "Percakapan belum aktif karena pengajuan kolaborasi belum disetujui."}
 	}
 
@@ -786,6 +1201,23 @@ func (s *CollaborationService) SendMessage(ctx context.Context, sender domain.Us
 
 	// Update conversation updated_at
 	_, _ = s.db.Exec(ctx, "UPDATE conversations SET updated_at = now() WHERE id = $1", conversationID)
+
+	// Trigger Notification to other participant
+	if s.notifSvc != nil {
+		var recipientID string
+		_ = s.db.QueryRow(ctx, "SELECT user_id FROM conversation_participants WHERE conversation_id = $1 AND user_id != $2 LIMIT 1", conversationID, sender.ID).Scan(&recipientID)
+		if recipientID != "" {
+			snippet := in.Content
+			if len(snippet) > 80 {
+				snippet = snippet[:80] + "..."
+			}
+			_ = s.notifSvc.Create(ctx, nil, recipientID, &sender.ID,
+				domain.NotifTypeNewMessage,
+				fmt.Sprintf("Pesan Baru dari %s", sender.Name),
+				snippet,
+				domain.NotifTargetConversation, conversationID)
+		}
+	}
 
 	return domain.Message{
 		ID:             msgID,

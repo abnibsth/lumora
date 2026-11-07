@@ -138,6 +138,19 @@ type Message struct {
 	CreatedAt      pgtype.Timestamptz
 }
 
+type Notification struct {
+	ID              pgtype.UUID
+	RecipientUserID pgtype.UUID
+	ActorUserID     pgtype.UUID
+	Type            string
+	Title           string
+	Body            string
+	TargetType      string
+	TargetID        string
+	ReadAt          pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+}
+
 type PartnerPreference struct {
 	ID                    pgtype.UUID
 	UserID                pgtype.UUID

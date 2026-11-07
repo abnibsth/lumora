@@ -16,11 +16,14 @@ import type {
   CollaborationRequest,
   CollaborationRequestList,
   CollaborationStats,
+  CollaborationHistoryDetail,
+  CollaborationHistoryStats,
   CreateCollaborationInput,
   Conversation,
   Message,
   MessageList,
 } from "@/types/collaboration";
+import type { Notification, NotificationList } from "@/types/notification";
 import { resolveBusinessCover } from "@/lib/business";
 import { CURATED_BUSINESSES, getCuratedBusinessBySlug } from "@/data/curated-businesses";
 
@@ -1001,5 +1004,215 @@ export async function sendMessageApi(
     return { ok: true, message: (data as { message: Message }).message };
   } catch {
     return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// PARTNERSHIP HISTORY & LIFECYCLE API
+// -----------------------------------------------------------------------------
+
+export async function fetchCollaborationHistory(
+  params?: {
+    status?: string;
+    q?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  },
+): Promise<ApiActionResult & { data?: CollaborationRequestList }> {
+  try {
+    const query = new URLSearchParams();
+    if (params?.status && params.status !== "Semua") query.set("status", params.status);
+    if (params?.q) query.set("q", params.q);
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/history${qs ? `?${qs}` : ""}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as CollaborationRequestList;
+      return { ok: true, data };
+    }
+    const errData = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+    return { ok: false, ...getApiError(errData, "Gagal memuat riwayat kemitraan.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchCollaborationHistoryStats(): Promise<
+  ApiActionResult & { stats?: CollaborationHistoryStats }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/history/stats`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { stats: CollaborationHistoryStats };
+      return { ok: true, stats: data.stats };
+    }
+    const errData = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+    return { ok: false, ...getApiError(errData, "Gagal memuat statistik riwayat kemitraan.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchCollaborationHistoryDetail(
+  id: string,
+): Promise<ApiActionResult & { detail?: CollaborationHistoryDetail }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/history/${encodeURIComponent(id)}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const detail = (await res.json()) as CollaborationHistoryDetail;
+      return { ok: true, detail };
+    }
+    const errData = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+    return { ok: false, ...getApiError(errData, "Gagal memuat detail riwayat kemitraan.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function startPartnershipApi(
+  id: string,
+): Promise<ApiActionResult & { request?: CollaborationRequest }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/${encodeURIComponent(id)}/start`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const data = (await res.json().catch(() => ({}))) as { request: CollaborationRequest } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Gagal memulai kemitraan.") };
+    }
+    return { ok: true, request: (data as { request: CollaborationRequest }).request };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function completePartnershipApi(
+  id: string,
+  notes?: string,
+): Promise<ApiActionResult & { request?: CollaborationRequest }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/${encodeURIComponent(id)}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ notes: notes || "" }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { request: CollaborationRequest } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Gagal menyelesaikan kemitraan.") };
+    }
+    return { ok: true, request: (data as { request: CollaborationRequest }).request };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function cancelPartnershipApi(
+  id: string,
+  reason?: string,
+): Promise<ApiActionResult & { request?: CollaborationRequest }> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/collaborations/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ reason: reason || "" }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { request: CollaborationRequest } | ApiErrorResponse;
+    if (!res.ok) {
+      return { ok: false, ...getApiError(data, "Gagal membatalkan kemitraan.") };
+    }
+    return { ok: true, request: (data as { request: CollaborationRequest }).request };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// NOTIFICATIONS API
+// -----------------------------------------------------------------------------
+
+export async function fetchNotifications(
+  params?: { type?: string; status?: string; unread?: boolean; page?: number; limit?: number },
+): Promise<ApiActionResult & { data?: NotificationList }> {
+  try {
+    const query = new URLSearchParams();
+    if (params?.type && params.type !== "Semua") query.set("type", params.type);
+    if (params?.status) query.set("status", params.status);
+    if (params?.unread) query.set("unread", "true");
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/notifications${qs ? `?${qs}` : ""}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as NotificationList;
+      return { ok: true, data };
+    }
+    const errData = (await res.json().catch(() => ({}))) as ApiErrorResponse;
+    return { ok: false, ...getApiError(errData, "Gagal memuat notifikasi.") };
+  } catch {
+    return { ok: false, error: "Gagal terhubung ke server backend." };
+  }
+}
+
+export async function fetchUnreadNotificationCount(): Promise<
+  ApiActionResult & { unreadCount?: number }
+> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/notifications/unread-count`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { unreadCount: number };
+      return { ok: true, unreadCount: data.unreadCount };
+    }
+    return { ok: false, unreadCount: 0 };
+  } catch {
+    return { ok: false, unreadCount: 0 };
+  }
+}
+
+export async function markNotificationReadApi(id: string): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH",
+      credentials: "include",
+    });
+    return { ok: res.ok };
+  } catch {
+    return { ok: false, error: "Gagal memperbarui notifikasi." };
+  }
+}
+
+export async function markAllNotificationsReadApi(): Promise<ApiActionResult> {
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/notifications/read-all`, {
+      method: "PATCH",
+      credentials: "include",
+    });
+    return { ok: res.ok };
+  } catch {
+    return { ok: false, error: "Gagal memperbarui semua notifikasi." };
   }
 }

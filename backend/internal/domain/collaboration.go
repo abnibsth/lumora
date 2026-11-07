@@ -7,11 +7,14 @@ import (
 )
 
 const (
-	CollabStatusPending   = "pending"
-	CollabStatusAccepted  = "accepted"
-	CollabStatusRejected  = "rejected"
-	CollabStatusWithdrawn = "withdrawn"
-	CollabStatusExpired   = "expired"
+	CollabStatusPending    = "pending"
+	CollabStatusAccepted   = "accepted"
+	CollabStatusInProgress = "in_progress"
+	CollabStatusCompleted  = "completed"
+	CollabStatusRejected   = "rejected"
+	CollabStatusWithdrawn  = "withdrawn"
+	CollabStatusCancelled  = "cancelled"
+	CollabStatusExpired    = "expired"
 
 	CollabDirectionPartnerToUMKM = "partner_to_umkm"
 	CollabDirectionUMKMToPartner = "umkm_to_partner"
@@ -19,7 +22,8 @@ const (
 
 func ValidCollabStatus(status string) bool {
 	switch status {
-	case CollabStatusPending, CollabStatusAccepted, CollabStatusRejected, CollabStatusWithdrawn, CollabStatusExpired:
+	case CollabStatusPending, CollabStatusAccepted, CollabStatusInProgress, CollabStatusCompleted,
+		CollabStatusRejected, CollabStatusWithdrawn, CollabStatusCancelled, CollabStatusExpired:
 		return true
 	default:
 		return false
@@ -69,6 +73,33 @@ type CollaborationStats struct {
 	Pending  int64 `json:"pending"`
 	Accepted int64 `json:"accepted"`
 	Rejected int64 `json:"rejected"`
+}
+
+type CollaborationEvent struct {
+	ID          string    `json:"id"`
+	RequestID   string    `json:"requestId"`
+	ActorUserID string    `json:"actorUserId"`
+	ActorName   string    `json:"actorName"`
+	ActorRole   string    `json:"actorRole"`
+	FromStatus  string    `json:"fromStatus"`
+	ToStatus    string    `json:"toStatus"`
+	Reason      string    `json:"reason"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type CollaborationHistoryDetail struct {
+	Request CollaborationRequest `json:"request"`
+	Events  []CollaborationEvent `json:"events"`
+}
+
+type CollaborationHistoryStats struct {
+	Total      int64 `json:"total"`
+	Pending    int64 `json:"pending"`
+	Accepted   int64 `json:"accepted"`
+	InProgress int64 `json:"inProgress"`
+	Completed  int64 `json:"completed"`
+	Rejected   int64 `json:"rejected"`
+	Cancelled  int64 `json:"cancelled"`
 }
 
 type CollaborationRequestList struct {

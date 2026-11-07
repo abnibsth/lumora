@@ -3,8 +3,11 @@ import type { MasterTaxonomyID } from "./partner";
 export type CollaborationStatus =
   | "pending"
   | "accepted"
+  | "in_progress"
+  | "completed"
   | "rejected"
   | "withdrawn"
+  | "cancelled"
   | "expired";
 
 export type CollaborationDirection = "partner_to_umkm" | "umkm_to_partner";
@@ -47,6 +50,33 @@ export interface CollaborationStats {
   pending: number;
   accepted: number;
   rejected: number;
+}
+
+export interface CollaborationEvent {
+  id: string;
+  requestId: string;
+  actorUserId: string;
+  actorName: string;
+  actorRole: "umkm" | "mitra";
+  fromStatus: string;
+  toStatus: string;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface CollaborationHistoryDetail {
+  request: CollaborationRequest;
+  events: CollaborationEvent[];
+}
+
+export interface CollaborationHistoryStats {
+  total: number;
+  pending: number;
+  accepted: number;
+  inProgress: number;
+  completed: number;
+  rejected: number;
+  cancelled: number;
 }
 
 export interface CollaborationRequestList {

@@ -23,6 +23,14 @@ type CollabService interface {
 	RejectRequest(ctx context.Context, userID, requestID, reason string) (domain.CollaborationRequest, error)
 	WithdrawRequest(ctx context.Context, userID, requestID string) (domain.CollaborationRequest, error)
 
+	StartPartnership(ctx context.Context, userID, requestID string) (domain.CollaborationRequest, error)
+	CompletePartnership(ctx context.Context, userID, requestID, notes string) (domain.CollaborationRequest, error)
+	CancelPartnership(ctx context.Context, userID, requestID, reason string) (domain.CollaborationRequest, error)
+
+	ListHistory(ctx context.Context, userID, status, search, startDate, endDate string, page, limit int) (domain.CollaborationRequestList, error)
+	GetHistoryStats(ctx context.Context, userID string) (domain.CollaborationHistoryStats, error)
+	GetHistoryDetail(ctx context.Context, userID, requestID string) (domain.CollaborationHistoryDetail, error)
+
 	ListConversations(ctx context.Context, userID string) ([]domain.Conversation, error)
 	GetMessages(ctx context.Context, userID, conversationID string, page, limit int) (domain.MessageList, error)
 	SendMessage(ctx context.Context, sender domain.User, conversationID string, in domain.SendMessageInput) (domain.Message, error)
@@ -222,6 +230,154 @@ func (h *CollaborationHandler) Withdraw(c *gin.Context) {
 }
 
 // -----------------------------------------------------------------------------
+// PARTNERSHIP LIFECYCLE (Start, Complete, Cancel)
+// -----------------------------------------------------------------------------
+
+func (h *CollaborationHandler) Start(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	reqID := c.Param("id")
+	req, err := h.svc.StartPartnership(c.Request.Context(), user.ID, reqID)
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(c, http.StatusNotFound, "not_found", "Kemitraan tidak ditemukan.")
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case err != nil:
+		slog.Error("start partnership failed", "req_id", reqID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"request": req})
+	}
+}
+
+func (h *CollaborationHandler) Complete(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	reqID := c.Param("id")
+	var body struct {
+		Notes string `json:"notes"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	req, err := h.svc.CompletePartnership(c.Request.Context(), user.ID, reqID, body.Notes)
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(c, http.StatusNotFound, "not_found", "Kemitraan tidak ditemukan.")
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case err != nil:
+		slog.Error("complete partnership failed", "req_id", reqID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"request": req})
+	}
+}
+
+func (h *CollaborationHandler) Cancel(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	reqID := c.Param("id")
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	_ = c.ShouldBindJSON(&body)
+
+	req, err := h.svc.CancelPartnership(c.Request.Context(), user.ID, reqID, body.Reason)
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(c, http.StatusNotFound, "not_found", "Kemitraan tidak ditemukan.")
+	case isValidationError(err):
+		writeError(c, http.StatusBadRequest, "validation_failed", validationMessage(err))
+	case err != nil:
+		slog.Error("cancel partnership failed", "req_id", reqID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, gin.H{"request": req})
+	}
+}
+
+// -----------------------------------------------------------------------------
+// PARTNERSHIP HISTORY & TIMELINE HANDLERS
+// -----------------------------------------------------------------------------
+
+func (h *CollaborationHandler) ListHistory(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	page, limit, ok := paginationParams(c)
+	if !ok {
+		return
+	}
+
+	status := c.Query("status")
+	search := c.Query("q")
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	list, err := h.svc.ListHistory(c.Request.Context(), user.ID, status, search, startDate, endDate, page, limit)
+	if err != nil {
+		slog.Error("list partnership history failed", "user_id", user.ID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+		return
+	}
+
+	c.JSON(http.StatusOK, list)
+}
+
+func (h *CollaborationHandler) GetHistoryStats(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	stats, err := h.svc.GetHistoryStats(c.Request.Context(), user.ID)
+	if err != nil {
+		slog.Error("get history stats failed", "user_id", user.ID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"stats": stats})
+}
+
+func (h *CollaborationHandler) GetHistoryDetail(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "unauthenticated", "Silakan masuk terlebih dahulu.")
+		return
+	}
+
+	reqID := c.Param("id")
+	detail, err := h.svc.GetHistoryDetail(c.Request.Context(), user.ID, reqID)
+	switch {
+	case errors.Is(err, domain.ErrNotFound):
+		writeError(c, http.StatusNotFound, "not_found", "Riwayat kemitraan tidak ditemukan.")
+	case err != nil:
+		slog.Error("get history detail failed", "req_id", reqID, "err", err)
+		writeError(c, http.StatusInternalServerError, "internal_error", "Terjadi kesalahan pada server.")
+	default:
+		c.JSON(http.StatusOK, detail)
+	}
+}
+
+// -----------------------------------------------------------------------------
 // INBOX & MESSAGING HANDLERS
 // -----------------------------------------------------------------------------
 
@@ -302,4 +458,3 @@ func (h *CollaborationHandler) SendMessage(c *gin.Context) {
 		c.JSON(http.StatusCreated, gin.H{"message": msg})
 	}
 }
-

@@ -23,6 +23,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CollaborationModal } from "@/components/collaboration/collaboration-modal";
 import { businessAge, resolveBusinessCover } from "@/lib/business";
+import { fetchCollaborationStats } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
 import type { Business } from "@/types/business";
 import type {
@@ -60,6 +61,17 @@ export function PartnerOverview({
   const hasPreferences = preferences.hasPreferences;
   const [collabModalOpen, setCollabModalOpen] = useState(false);
   const [selectedBiz, setSelectedBiz] = useState<Business | null>(null);
+  const [collabStats, setCollabStats] = useState({ total: 0, pending: 0, accepted: 0 });
+
+  useEffect(() => {
+    let active = true;
+    fetchCollaborationStats().then((res) => {
+      if (active && res.ok && res.stats) setCollabStats(res.stats);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 sm:space-y-6 pb-8">
@@ -212,7 +224,10 @@ export function PartnerOverview({
                   Kemitraan Terbuka
                 </p>
                 <p className="mt-2 text-3xl font-bold tracking-tight text-forest">
-                  0
+                  {collabStats.accepted}
+                </p>
+                <p className="text-[11px] text-muted mt-1">
+                  {collabStats.pending} pengajuan menunggu respons
                 </p>
               </div>
               <div className="flex size-10 items-center justify-center rounded-xl bg-soft-green text-forest">
@@ -220,9 +235,14 @@ export function PartnerOverview({
               </div>
             </div>
             <div className="mt-4 pt-3 border-t border-line/60">
-              <p className="text-xs text-muted">
-                Fitur pesan & inisiasi resmi sedang disiapkan
-              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate("requests")}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:text-forest-deep transition-colors"
+              >
+                <span>Lihat pengajuan kolaborasi</span>
+                <ArrowRight className="size-3.5" />
+              </button>
             </div>
           </div>
         </div>

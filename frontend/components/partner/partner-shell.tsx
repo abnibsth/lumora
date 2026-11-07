@@ -59,6 +59,8 @@ const titles: Record<PartnerDashboardView, string> = {
   preferences: "Preferensi Kemitraan",
   requests: "Permintaan Kolaborasi",
   inbox: "Inbox & Pesan",
+  history: "Riwayat Kemitraan",
+  notifications: "Notifikasi",
   settings: "Pengaturan Akun",
 };
 
@@ -79,10 +81,12 @@ function PartnerSidebar({
   view,
   onNavigate,
   savedCount = 0,
+  unreadNotifCount = 0,
 }: {
   view: PartnerDashboardView;
   onNavigate: (view: PartnerDashboardView) => void;
   savedCount?: number;
+  unreadNotifCount?: number;
 }) {
   const { isMobile, state, setOpenMobile } = useSidebar();
   const collapsed = !isMobile && state === "collapsed";
@@ -108,22 +112,12 @@ function PartnerSidebar({
         { label: "Preferensi Kemitraan", view: "preferences", icon: SlidersHorizontal },
         { label: "Permintaan Kolaborasi", view: "requests", icon: Handshake },
         { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare },
-      ],
-    },
-    {
-      label: "Pengembangan (Mendatang)",
-      items: [
-        {
-          label: "Riwayat Kemitraan",
-          view: null,
-          icon: History,
-          badge: "Segera Hadir",
-        },
+        { label: "Riwayat Kemitraan", view: "history", icon: History },
         {
           label: "Notifikasi",
-          view: null,
+          view: "notifications",
           icon: Bell,
-          badge: "Segera Hadir",
+          count: unreadNotifCount && unreadNotifCount > 0 ? unreadNotifCount : undefined,
         },
       ],
     },
@@ -136,19 +130,20 @@ function PartnerSidebar({
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <div className={`${styles.navigation} flex h-full min-h-0 flex-col`}>
-        <SidebarHeader className={collapsed ? "items-center px-3 py-4" : "p-4"}>
+        <SidebarHeader className={collapsed ? "items-center px-3 py-4" : "p-3 sm:p-4"}>
           <div
             className={
               collapsed
                 ? "flex w-full justify-center"
-                : "flex items-center justify-between rounded-lg bg-ivory p-3"
+                : "flex items-center justify-between rounded-xl bg-ivory px-3.5 py-2"
             }
           >
             {collapsed ? (
-              <Link
-                href="/"
-                aria-label="LUMORA — beranda"
-                className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-ivory"
+              <button
+                type="button"
+                onClick={() => onNavigate("dashboard")}
+                aria-label="LUMORA — Dashboard"
+                className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-ivory focus-visible:outline-2 focus-visible:outline-forest"
               >
                 <Image
                   src="/img/logo-symbol.png"
@@ -159,29 +154,26 @@ function PartnerSidebar({
                   sizes="26px"
                   className="h-9 w-auto object-contain"
                 />
-              </Link>
+              </button>
             ) : (
-              <Logo />
+              <Logo
+                onClick={() => {
+                  onNavigate("dashboard");
+                  if (isMobile) setOpenMobile(false);
+                }}
+              />
             )}
             {isMobile ? (
               <button
                 type="button"
                 aria-label="Tutup navigasi"
-                className="flex size-11 items-center justify-center text-forest"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-forest hover:bg-forest/10 transition-colors ml-2"
                 onClick={() => setOpenMobile(false)}
               >
-                <X className="size-5" />
+                <X className="size-4" />
               </button>
             ) : null}
           </div>
-          {!collapsed ? (
-            <div className="px-2 pt-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-lime/20 px-2.5 py-0.5 text-[11px] font-semibold text-lime">
-                <span className="size-1.5 rounded-full bg-lime" />
-                Mitra Workspace
-              </span>
-            </div>
-          ) : null}
         </SidebarHeader>
 
         <SidebarContent className={`gap-3 ${collapsed ? "px-3" : "px-2"}`}>
@@ -252,7 +244,7 @@ function PartnerSidebar({
           </nav>
         </SidebarContent>
 
-        <SidebarFooter className="border-t border-white/15 p-3">
+        <SidebarFooter className="border-t border-white/15 p-3 pb-8 sm:pb-3">
           <SidebarMenuButton
             asChild
             size="lg"
@@ -402,6 +394,7 @@ export function PartnerShell({
   onLogout,
   logoutPending,
   savedCount = 0,
+  unreadNotifCount = 0,
   defaultSidebarOpen = true,
   children,
 }: {
@@ -411,6 +404,7 @@ export function PartnerShell({
   onLogout: () => void;
   logoutPending?: boolean;
   savedCount?: number;
+  unreadNotifCount?: number;
   defaultSidebarOpen?: boolean;
   children: ReactNode;
 }) {
@@ -439,6 +433,7 @@ export function PartnerShell({
             view={view}
             onNavigate={onViewChange}
             savedCount={savedCount}
+            unreadNotifCount={unreadNotifCount}
           />
           <SidebarInset className="min-w-0 bg-ivory">
             <PartnerHeader

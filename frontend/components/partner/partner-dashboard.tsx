@@ -11,9 +11,12 @@ import { PartnerProfileView } from "./partner-profile-view";
 import { PartnerPreferencesView } from "./partner-preferences-view";
 import { PartnerRequestsView } from "./partner-requests-view";
 import { PartnerInboxView } from "./partner-inbox-view";
+import { PartnerHistoryView } from "./partner-history-view";
+import { PartnerNotificationsView } from "./partner-notifications-view";
 import {
   addBookmarkApi,
   fetchBookmarks,
+  fetchUnreadNotificationCount,
   logoutApi,
   removeBookmarkApi,
 } from "@/lib/api";
@@ -35,6 +38,8 @@ function resolvePartnerView(raw: string | null): PartnerDashboardView {
     case "preferences":
     case "requests":
     case "inbox":
+    case "history":
+    case "notifications":
     case "settings":
       return raw;
     case "dashboard":
@@ -84,7 +89,20 @@ export function PartnerDashboard({
   const [bookmarks, setBookmarks] = useState<Business[]>(initialBookmarks);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [logoutPending, setLogoutPending] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    let active = true;
+    fetchUnreadNotificationCount().then((res) => {
+      if (active && res.ok && typeof res.unreadCount === "number") {
+        setUnreadNotifCount(res.unreadCount);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [view]);
 
   // Sync state if query param changes externally (e.g. back/forward navigation)
   useEffect(() => {
@@ -141,6 +159,7 @@ export function PartnerDashboard({
       onLogout={handleLogout}
       logoutPending={logoutPending}
       savedCount={bookmarks.length}
+      unreadNotifCount={unreadNotifCount}
       defaultSidebarOpen={defaultSidebarOpen}
     >
       <div className="space-y-4 sm:space-y-5">
@@ -205,6 +224,23 @@ export function PartnerDashboard({
           <PartnerInboxView
             user={user}
             initialConversationId={selectedConversationId}
+          />
+        ) : null}
+
+        {view === "history" ? (
+          <PartnerHistoryView
+            user={user}
+            onNavigateToInbox={handleOpenConversation}
+            onNavigateToRequests={() => handleViewChange("requests")}
+          />
+        ) : null}
+
+        {view === "notifications" ? (
+          <PartnerNotificationsView
+            user={user}
+            onNavigate={(v) => handleViewChange(v)}
+            onNavigateToInbox={handleOpenConversation}
+            onUnreadCountChange={(c) => setUnreadNotifCount(c)}
           />
         ) : null}
 

@@ -10,8 +10,50 @@
   from { height: var(--radix-accordion-content-height); opacity: 1; }
   to { height: 0; opacity: 0; }
 }
+
+/* Smooth mobile sidebar drawer animation */
+@keyframes lumora-drawer-slide-in-left {
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes lumora-drawer-slide-out-left {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-100%, 0, 0); }
+}
+@keyframes lumora-drawer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes lumora-drawer-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.lumora-drawer-content[data-state="open"] {
+  animation: lumora-drawer-slide-in-left 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform;
+}
+.lumora-drawer-content[data-state="closed"] {
+  animation: lumora-drawer-slide-out-left 0.24s cubic-bezier(0.4, 0, 1, 1) forwards;
+  will-change: transform;
+}
+.lumora-drawer-overlay[data-state="open"] {
+  animation: lumora-drawer-fade-in 0.28s ease-out forwards;
+  will-change: opacity;
+}
+.lumora-drawer-overlay[data-state="closed"] {
+  animation: lumora-drawer-fade-out 0.2s ease-in forwards;
+  will-change: opacity;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lumora-accordion-content { animation: none !important; }
+  .lumora-accordion-content,
+  .lumora-drawer-content[data-state="open"],
+  .lumora-drawer-content[data-state="closed"],
+  .lumora-drawer-overlay[data-state="open"],
+  .lumora-drawer-overlay[data-state="closed"] {
+    animation: none !important;
+  }
 }
 
 /* Semantic LUMORA tokens exposed through Tailwind CSS 4.

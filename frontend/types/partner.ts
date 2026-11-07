@@ -246,4 +246,6 @@ export type PartnerDashboardView =
   | "preferences"
   | "requests"
   | "inbox"
+  | "history"
+  | "notifications"
   | "settings";
