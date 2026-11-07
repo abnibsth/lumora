@@ -77,7 +77,7 @@ export function PartnerDashboard({
   const [user, setUser] = useState<User>(initialUser);
   const [profile, setProfile] = useState<PartnerProfile>(initialProfile);
   const [preferences, setPreferences] = useState<PartnerPreferences>(initialPreferences);
-  const [matches, setMatches] = useState<BusinessMatchList | undefined>(initialMatches);
+  const [matches] = useState<BusinessMatchList | undefined>(initialMatches);
   const [selectedConversationId, setSelectedConversationId] = useState<string | undefined>(undefined);
 
   function handleOpenConversation(convId?: string) {

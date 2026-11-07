@@ -1,5 +1,6 @@
 import type {
   Business,
+  BusinessCategory,
   BusinessWriteInput,
   AIDraftProfile,
   OwnedBusiness,
@@ -11,6 +12,7 @@ import type {
   PartnerPreferences,
   UpsertPartnerPreferencesInput,
   BusinessMatchList,
+  MasterTaxonomyID,
 } from "@/types/partner";
 import type {
   CollaborationRequest,
@@ -23,7 +25,7 @@ import type {
   Message,
   MessageList,
 } from "@/types/collaboration";
-import type { Notification, NotificationList } from "@/types/notification";
+import type { NotificationList } from "@/types/notification";
 import { resolveBusinessCover } from "@/lib/business";
 import { CURATED_BUSINESSES, getCuratedBusinessBySlug } from "@/data/curated-businesses";
 
@@ -606,19 +608,20 @@ export async function fetchPartnerPreferences(cookie?: string): Promise<
     if (res.status === 404) {
       const profileRes = await fetchPartnerProfile(cookie);
       if (profileRes.ok && profileRes.profile) {
-        const p = profileRes.profile as any;
-        const targetCategories = p.targetCategories || p.interestedCategories || [];
-        const searchRegion = p.searchRegion || "";
-        const seekingCollaborations =
-          p.seekingCollaborations || p.collaborationTypes || p.partnershipTypes || [];
-        const specificNeeds = p.specificNeeds || p.partnershipNeeds || "";
-        const qualificationCriteria = p.qualificationCriteria || p.businessCriteria || "";
+        const p = profileRes.profile as unknown as Record<string, unknown>;
+        const targetCategories = ((p.targetCategories || p.interestedCategories || []) as BusinessCategory[]);
+        const searchRegion = ((p.searchRegion || "") as string);
+        const seekingCollaborations = (
+          (p.seekingCollaborations || p.collaborationTypes || p.partnershipTypes || []) as MasterTaxonomyID[]
+        );
+        const specificNeeds = ((p.specificNeeds || p.partnershipNeeds || "") as string);
+        const qualificationCriteria = ((p.qualificationCriteria || p.businessCriteria || "") as string);
         return {
           ok: true,
           preferences: {
-            id: p.id || "legacy-pref",
-            userId: p.userId || "",
-            partnerProfileId: p.id || "",
+            id: (p.id as string) || "legacy-pref",
+            userId: (p.userId as string) || "",
+            partnerProfileId: (p.id as string) || "",
             targetCategories,
             searchRegion,
             strictRegionMatch: false,
@@ -627,8 +630,8 @@ export async function fetchPartnerPreferences(cookie?: string): Promise<
             qualificationCriteria,
             hasPreferences:
               targetCategories.length > 0 || searchRegion !== "" || seekingCollaborations.length > 0,
-            createdAt: p.createdAt || new Date().toISOString(),
-            updatedAt: p.updatedAt || new Date().toISOString(),
+            createdAt: (p.createdAt as string) || new Date().toISOString(),
+            updatedAt: (p.updatedAt as string) || new Date().toISOString(),
           },
         };
       }

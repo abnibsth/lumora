@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   History,
@@ -14,14 +14,9 @@ import {
   Ban,
   Building2,
   Store,
-  ArrowRight,
   Loader2,
   MessageSquare,
-  FileText,
-  UserCheck,
   ChevronRight,
-  Filter,
-  RefreshCw,
 } from "lucide-react";
 import {
   Dialog,
@@ -40,7 +35,6 @@ import {
   completePartnershipApi,
   cancelPartnershipApi,
 } from "@/lib/api";
-import { ROUTES } from "@/lib/constants";
 import type {
   CollaborationRequest,
   CollaborationHistoryStats,
@@ -80,7 +74,7 @@ export function PartnerHistoryView({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [, startTransition] = useTransition();
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setFeedback(null);
     try {
@@ -105,7 +99,7 @@ export function PartnerHistoryView({
     } finally {
       setLoading(false);
     }
-  }
+  }, [statusFilter, searchQuery, startDate, endDate]);
 
   useEffect(() => {
     let active = true;
@@ -119,7 +113,7 @@ export function PartnerHistoryView({
       active = false;
       clearTimeout(timer);
     };
-  }, [statusFilter, searchQuery, startDate, endDate]);
+  }, [loadData]);
 
   async function openDetail(id: string) {
     setLoadingDetail(true);
@@ -273,6 +267,25 @@ export function PartnerHistoryView({
           <p className="mt-1 text-2xl font-bold text-emerald-800">{stats.completed}</p>
         </div>
       </div>
+
+      {/* Feedback Alert */}
+      {feedback && (
+        <div
+          role="status"
+          className={`flex items-center gap-2 rounded-lg p-3 text-xs sm:text-sm font-medium border ${
+            feedback.type === "success"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+              : "border-red-300 bg-red-50 text-red-900"
+          }`}
+        >
+          {feedback.type === "success" ? (
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+          ) : (
+            <XCircle className="size-4 shrink-0 text-red-600" />
+          )}
+          <span>{feedback.message}</span>
+        </div>
+      )}
 
       {/* Filter Tabs & Search Bar */}
       <div className="space-y-3 rounded-xl border border-line bg-surface p-3.5 sm:p-4 shadow-2xs">
@@ -556,8 +569,7 @@ export function PartnerHistoryView({
                   <p className="text-xs text-muted">Belum ada catatan aktivitas perubahan status.</p>
                 ) : (
                   <ol className="relative border-l border-forest/20 ml-3 space-y-4 pt-1">
-                    {selectedDetail.events.map((ev, index) => {
-                      const isLast = index === selectedDetail.events.length - 1;
+                    {selectedDetail.events.map((ev) => {
                       return (
                         <li key={ev.id} className="ml-4">
                           <span className="absolute -left-1.5 mt-1.5 size-3 rounded-full border border-white bg-forest" />

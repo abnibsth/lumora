@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS collaboration_requests (
     title                   text NOT NULL,
     message                 text NOT NULL,
     proposal_detail         text NOT NULL DEFAULT '',
-    status                  text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'withdrawn', 'expired')),
+    status                  text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'in_progress', 'completed', 'rejected', 'withdrawn', 'cancelled', 'expired')),
     responded_at            timestamptz,
     expires_at              timestamptz NOT NULL DEFAULT (now() + interval '30 days'),
     created_at              timestamptz NOT NULL DEFAULT now(),
@@ -25,8 +25,12 @@ CREATE TABLE IF NOT EXISTS collaboration_requests (
 
 -- Unique index to prevent duplicate pending requests for the same partnership objective
 CREATE UNIQUE INDEX IF NOT EXISTS unique_active_collab_request 
-    ON collaboration_requests (sender_user_id, receiver_user_id, COALESCE(business_id, '00000000-0000-0000-0000-000000000000'::uuid), collaboration_type) 
-    WHERE status = 'pending';
+    ON collaboration_requests (sender_user_id, receiver_user_id, business_id, collaboration_type) 
+    WHERE status = 'pending' AND business_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_active_collab_partner_request 
+    ON collaboration_requests (sender_user_id, receiver_user_id, partner_profile_id, collaboration_type) 
+    WHERE status = 'pending' AND partner_profile_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS collab_requests_receiver_idx ON collaboration_requests (receiver_user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS collab_requests_sender_idx ON collaboration_requests (sender_user_id, status, created_at DESC);
@@ -78,4 +82,3 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS messages_conv_idx ON messages (conversation_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS messages_sender_idx ON messages (sender_id);
-

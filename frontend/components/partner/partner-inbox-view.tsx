@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageSquare,
   Send,
@@ -11,7 +10,6 @@ import {
   CheckCheck,
   Search,
   Lock,
-  ArrowRight,
   RefreshCw,
 } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
@@ -43,7 +41,7 @@ export function PartnerInboxView({
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  async function loadConversations() {
+  const loadConversations = useCallback(async () => {
     setLoadingConvs(true);
     const res = await fetchInboxConversations();
     setLoadingConvs(false);
@@ -53,7 +51,7 @@ export function PartnerInboxView({
         setSelectedConvId(res.conversations[0].id);
       }
     }
-  }
+  }, [selectedConvId]);
 
   async function loadMessages(convId: string) {
     setLoadingMsgs(true);
@@ -66,7 +64,7 @@ export function PartnerInboxView({
 
   useEffect(() => {
     loadConversations();
-  }, []);
+  }, [loadConversations]);
 
   useEffect(() => {
     if (selectedConvId) {

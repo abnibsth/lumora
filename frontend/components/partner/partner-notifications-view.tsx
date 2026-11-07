@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   Bell,
   CheckCheck,
@@ -8,17 +8,11 @@ import {
   XCircle,
   Handshake,
   MessageSquare,
-  History,
-  ShieldCheck,
-  Clock,
-  ArrowRight,
   Loader2,
   Store,
   Building2,
-  Filter,
 } from "lucide-react";
 import { buttonStyles } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   fetchNotifications,
   markNotificationReadApi,
@@ -28,12 +22,12 @@ import type { Notification } from "@/types/notification";
 import type { User } from "@/types/user";
 
 export function PartnerNotificationsView({
-  user,
+  user: _user,
   onNavigate,
   onNavigateToInbox,
   onUnreadCountChange,
 }: {
-  user: User;
+  user?: User;
   onNavigate: (view: "requests" | "history") => void;
   onNavigateToInbox: (conversationId?: string) => void;
   onUnreadCountChange?: (count: number) => void;
@@ -45,7 +39,7 @@ export function PartnerNotificationsView({
   const [markingAll, setMarkingAll] = useState(false);
   const [, startTransition] = useTransition();
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const isUnread = filterType === "unread";
@@ -68,7 +62,7 @@ export function PartnerNotificationsView({
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterType, onUnreadCountChange]);
 
   useEffect(() => {
     let active = true;
@@ -82,7 +76,7 @@ export function PartnerNotificationsView({
       active = false;
       clearTimeout(timer);
     };
-  }, [filterType]);
+  }, [loadData]);
 
   async function handleNotificationClick(n: Notification) {
     if (!n.readAt) {

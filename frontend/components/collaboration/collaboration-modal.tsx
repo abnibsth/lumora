@@ -22,7 +22,6 @@ import { createCollaborationApi } from "@/lib/api";
 import {
   MASTER_TAXONOMY_LIST,
   MASTER_TAXONOMY_REGISTRY,
-  type MasterTaxonomyID,
 } from "@/types/partner";
 import type { CollaborationRequest } from "@/types/collaboration";
 import type { User } from "@/types/user";

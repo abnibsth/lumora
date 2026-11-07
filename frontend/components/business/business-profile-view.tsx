@@ -9,11 +9,9 @@ import {
   Building2,
   Lock,
   Compass,
-  CheckCircle2,
   TrendingUp,
   Handshake,
   Target,
-  ArrowRight,
   ShieldCheck,
 } from "lucide-react";
 import type { Business, OwnedBusiness } from "@/types/business";

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import Image from "next/image";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   Handshake,
@@ -33,7 +32,6 @@ import {
   rejectCollaborationApi,
   withdrawCollaborationApi,
 } from "@/lib/api";
-import { resolveBusinessCover } from "@/lib/business";
 import { ROUTES } from "@/lib/constants";
 import type {
   CollaborationRequest,
@@ -43,10 +41,10 @@ import type {
 import type { User } from "@/types/user";
 
 export function PartnerRequestsView({
-  user,
+  user: _user,
   onNavigateToInbox,
 }: {
-  user: User;
+  user?: User;
   onNavigateToInbox: (conversationId?: string) => void;
 }) {
   const [tab, setTab] = useState<"incoming" | "outgoing">("incoming");
@@ -65,7 +63,7 @@ export function PartnerRequestsView({
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [, startTransition] = useTransition();
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setFeedback(null);
     try {
@@ -93,7 +91,7 @@ export function PartnerRequestsView({
     } finally {
       setLoading(false);
     }
-  }
+  }, [tab, statusFilter, searchQuery]);
 
   useEffect(() => {
     let active = true;
@@ -107,7 +105,7 @@ export function PartnerRequestsView({
       active = false;
       clearTimeout(timer);
     };
-  }, [tab, statusFilter, searchQuery]);
+  }, [loadData]);
 
   async function handleAccept(id: string) {
     setActionPendingId(id);
@@ -360,11 +358,6 @@ export function PartnerRequestsView({
             const isIncoming = tab === "incoming";
             const otherPartyName = isIncoming ? req.senderName : req.receiverName;
             const otherPartyRole = isIncoming ? req.senderRole : req.receiverRole;
-            const businessCover = resolveBusinessCover(
-              req.businessSlug,
-              req.businessCoverImage,
-              req.businessName,
-            );
 
             return (
               <div

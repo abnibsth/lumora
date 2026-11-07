@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import NextImage from "next/image";
 import {
   Building2,
   CheckCircle2,
@@ -26,11 +27,11 @@ import {
 import type { User } from "@/types/user";
 
 export function PartnerProfileView({
-  user,
+  user: _user,
   initialProfile,
   onProfileUpdated,
 }: {
-  user: User;
+  user?: User;
   initialProfile: PartnerProfile;
   onProfileUpdated: (updated: PartnerProfile) => void;
 }) {
@@ -267,11 +268,13 @@ export function PartnerProfileView({
                   className="block h-10 flex-1 rounded-lg border border-line bg-white px-3 py-2 text-xs sm:text-sm text-forest placeholder:text-muted/60 focus:border-forest focus:outline-none focus:ring-1 focus:ring-forest"
                 />
                 {logo ? (
-                  <div className="size-10 shrink-0 overflow-hidden rounded-lg border border-line bg-white p-1">
-                    <img
+                  <div className="relative size-10 shrink-0 overflow-hidden rounded-lg border border-line bg-white p-1">
+                    <NextImage
                       src={logo}
                       alt="Logo preview"
-                      className="size-full object-contain"
+                      fill
+                      unoptimized
+                      className="object-contain p-1"
                     />
                   </div>
                 ) : (
