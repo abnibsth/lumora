@@ -55,17 +55,6 @@ export function BusinessDiscoveryExplorer({
     };
   }, [filter, full, query]);
 
-  useEffect(() => {
-    if (visibleBusinesses.length > 0) {
-      const source = query.trim() ? "search" : "explore";
-      visibleBusinesses.slice(0, 12).forEach((biz) => {
-        if (biz.id) {
-          recordBusinessEventApi(biz.id, { eventType: "catalog_impression", source });
-        }
-      });
-    }
-  }, [visibleBusinesses, query]);
-
   const visibleBusinesses = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("id");
     return data.filter((business) => {
@@ -79,6 +68,17 @@ export function BusinessDiscoveryExplorer({
       return matchesQuery;
     }).slice(0, full ? undefined : 6);
   }, [data, full, query]);
+
+  useEffect(() => {
+    if (visibleBusinesses.length > 0) {
+      const source = query.trim() ? "search" : "explore";
+      visibleBusinesses.slice(0, 12).forEach((biz) => {
+        if (biz.id) {
+          recordBusinessEventApi(biz.id, { eventType: "catalog_impression", source });
+        }
+      });
+    }
+  }, [visibleBusinesses, query]);
 
   return (
     <div>

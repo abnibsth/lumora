@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/alfian/lumora/backend/internal/domain"
 )
@@ -101,6 +102,7 @@ func (r *fakeAnalyticsRows) Scan(...any) error                            { retu
 func (r *fakeAnalyticsRows) Values() ([]any, error)                       { return nil, nil }
 func (r *fakeAnalyticsRows) RawValues() [][]byte                          { return nil }
 func (r *fakeAnalyticsRows) Conn() *pgx.Conn                              { return nil }
+func (r *fakeAnalyticsRows) TypeMap() *pgtype.Map                         { return nil }
 
 func TestPseudonymizeVisitor_DeterministicAndMasked(t *testing.T) {
 	hash1 := PseudonymizeVisitor("192.168.1.1", "Mozilla/5.0", "2026-11-08")

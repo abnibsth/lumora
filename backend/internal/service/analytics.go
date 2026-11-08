@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"

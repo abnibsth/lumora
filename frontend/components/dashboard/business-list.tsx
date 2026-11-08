@@ -12,10 +12,10 @@ import { publishReadiness } from "@/lib/profile-management";
 import { ProfileImage } from "./profile-media-step";
 import type { OwnedBusiness } from "@/types/business";
 
-export function BusinessList({ businesses, total, page, busy, error, onPageChange, onRetry, onCreate, onEdit, onPublish, onArchive, onPreview, emailVerified = false, preview = false }: {
+export function BusinessList({ businesses, total, page, busy, error, onPageChange, onRetry, onCreate, onEdit, onPublish, onArchive, onPreview, _emailVerified = false, preview = false }: {
   businesses: OwnedBusiness[]; total: number; page: number; busy: boolean; error?: string;
   onPageChange: (page: number) => void; onRetry: () => void; onCreate: () => void;
-  onEdit: (business: OwnedBusiness) => void; onPublish: (business: OwnedBusiness) => void; onArchive: (business: OwnedBusiness) => void; onPreview: (business: OwnedBusiness) => void; emailVerified?: boolean; preview?: boolean;
+  onEdit: (business: OwnedBusiness) => void; onPublish: (business: OwnedBusiness) => void; onArchive: (business: OwnedBusiness) => void; onPreview: (business: OwnedBusiness) => void; _emailVerified?: boolean; emailVerified?: boolean; preview?: boolean;
 }) {
   const headingId = useId();
   const reduced = useReducedMotion();
