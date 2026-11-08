@@ -205,13 +205,12 @@ func (s *AnalyticsService) GetAnalytics(ctx context.Context, callerUserID, busin
 		BookmarksCount:     curBookmarks,
 		CollabRequests:     curCollab,
 		ContactClicks:      curContactClicks,
-
-		ViewsChange:       calcDelta(curViews, prevViews),
-		VisitorsChange:    calcDelta(curUnique, prevUnique),
-		ImpressionsChange: calcDelta(curImpressions, prevImpressions),
-		BookmarksChange:   calcDelta(curBookmarks, prevBookmarks),
-		CollabChange:      calcDelta(curCollab, prevCollab),
-		ContactChange:     calcDelta(curContactClicks, prevContactClicks),
+		ViewsChange:        calcDelta(curViews, prevViews),
+		VisitorsChange:     calcDelta(curUnique, prevUnique),
+		ImpressionsChange:  calcDelta(curImpressions, prevImpressions),
+		BookmarksChange:    calcDelta(curBookmarks, prevBookmarks),
+		CollabChange:       calcDelta(curCollab, prevCollab),
+		ContactChange:      calcDelta(curContactClicks, prevContactClicks),
 	}
 
 	// --- 3. Daily Time Series ---
@@ -342,4 +341,3 @@ func (s *AnalyticsService) GetAnalytics(ctx context.Context, callerUserID, busin
 		TrafficSource: trafficSources,
 	}, nil
 }
-

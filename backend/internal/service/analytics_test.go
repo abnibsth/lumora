@@ -38,7 +38,7 @@ func (f *fakeAnalyticsDB) Query(_ context.Context, _ string, _ ...any) (pgx.Rows
 
 func (f *fakeAnalyticsDB) Exec(_ context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
 	f.recorded = true
-	return pgconn.NewCommandTag("INSERT 0 1"), f.err
+	return pgconn.CommandTag{}, f.err
 }
 
 type fakeAnalyticsRow struct {

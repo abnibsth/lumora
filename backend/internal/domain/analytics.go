@@ -45,33 +45,31 @@ type AnalyticsSummary struct {
 	BookmarksCount     int64   `json:"bookmarksCount"`
 	CollabRequests     int64   `json:"collabRequests"`
 	ContactClicks      int64   `json:"contactClicks"`
-
-	// Percentage change compared to previous period of same duration
-	ViewsChange       float64 `json:"viewsChange"`
-	VisitorsChange    float64 `json:"visitorsChange"`
-	ImpressionsChange float64 `json:"impressionsChange"`
-	BookmarksChange   float64 `json:"bookmarksChange"`
-	CollabChange      float64 `json:"collabChange"`
-	ContactChange     float64 `json:"contactChange"`
+	ViewsChange        float64 `json:"viewsChange"`
+	VisitorsChange     float64 `json:"visitorsChange"`
+	ImpressionsChange  float64 `json:"impressionsChange"`
+	BookmarksChange    float64 `json:"bookmarksChange"`
+	CollabChange       float64 `json:"collabChange"`
+	ContactChange      float64 `json:"contactChange"`
 }
 
 type AnalyticsTimeSeriesPoint struct {
-	Date           string `json:"date"` // YYYY-MM-DD
+	Date           string `json:"date"`
 	Views          int64  `json:"views"`
 	UniqueVisitors int64  `json:"uniqueVisitors"`
 }
 
 type AnalyticsFunnelStep struct {
-	Stage      string  `json:"stage"` // "Tayangan Katalog", "Kunjungan Profil", "Bisnis Disimpan", "Permintaan Kolaborasi"
+	Stage      string  `json:"stage"`
 	Count      int64   `json:"count"`
-	Conversion float64 `json:"conversion"` // % conversion from previous step
+	Conversion float64 `json:"conversion"`
 }
 
 type AnalyticsTrafficSource struct {
-	Source     string  `json:"source"`     // "explore", "search", "matching", "direct"
-	Label      string  `json:"label"`      // "Jelajahi UMKM", "Pencarian", "Smart Matching", "Tautan Langsung"
+	Source     string  `json:"source"`
+	Label      string  `json:"label"`
 	Count      int64   `json:"count"`
-	Percentage float64 `json:"percentage"` // % of total views
+	Percentage float64 `json:"percentage"`
 }
 
 type BusinessAnalytics struct {
@@ -79,7 +77,7 @@ type BusinessAnalytics struct {
 	BusinessName  string                     `json:"businessName"`
 	BusinessSlug  string                     `json:"businessSlug"`
 	Status        string                     `json:"status"`
-	Range         string                     `json:"range"` // "7d", "30d", "90d"
+	Range         string                     `json:"range"`
 	StartDate     time.Time                  `json:"startDate"`
 	EndDate       time.Time                  `json:"endDate"`
 	Summary       AnalyticsSummary           `json:"summary"`
@@ -105,4 +103,3 @@ func (in *RecordAnalyticsEventInput) Validate() error {
 	}
 	return nil
 }
-

@@ -21,7 +21,7 @@ import { previewFromForm, SECTION_FOR_STEP, type ProfileError } from "@/lib/prof
 import { BUSINESS_VIEWS, scopedPatch, validateWorkspace, viewForField, resolveOwnedSelection, type BusinessWorkspace } from "@/lib/workspace-management";
 import { WorkspaceDomainEditor } from "./workspace-domain-editor";
 import { WorkspacePageHeader } from "./workspace-header";
-import { archiveBusinessApi, createBusinessApi, fetchBookmarks, fetchMyBusinesses, getMeApi, logoutApi, publishBusinessApi, updateBusinessApi, type OwnedBusinessListResponse } from "@/lib/api";
+import { archiveBusinessApi, createBusinessApi, fetchBookmarks, fetchMyBusinesses, logoutApi, publishBusinessApi, updateBusinessApi, type OwnedBusinessListResponse } from "@/lib/api";
 import { dashboardHref, inputFromForm, resolveView, type EditorSection, type WorkspaceView } from "@/lib/dashboard";
 import type { Business, OwnedBusiness } from "@/types/business";
 import type { User } from "@/types/user";

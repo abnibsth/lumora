@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,9 +14,8 @@ import (
 )
 
 type fakeAnalyticsService struct {
-	analytics domain.BusinessAnalytics
-	err       error
-
+	analytics      domain.BusinessAnalytics
+	err            error
 	gotBizID       string
 	gotUserID      string
 	gotRange       string

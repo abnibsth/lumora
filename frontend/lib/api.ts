@@ -28,7 +28,7 @@ import type {
 } from "@/types/collaboration";
 import type { NotificationList } from "@/types/notification";
 import { resolveBusinessCover } from "@/lib/business";
-import { CURATED_BUSINESSES, getCuratedBusinessBySlug } from "@/data/curated-businesses";
+import { CURATED_BUSINESSES } from "@/data/curated-businesses";
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
