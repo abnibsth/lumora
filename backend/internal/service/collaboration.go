@@ -316,7 +316,7 @@ func (s *CollaborationService) listRequests(ctx context.Context, userID string, 
 			return domain.CollaborationRequestList{}, fmt.Errorf("scan request: %w", err)
 		}
 		if meta, ok := domain.MasterTaxonomyRegistry[req.CollaborationType]; ok {
-			req.CollaborationTypeLabel = meta.PartnerSeekLabel
+			req.CollaborationTypeLabel = meta.PartnerSeek
 		} else {
 			req.CollaborationTypeLabel = req.CollaborationType
 		}
@@ -398,7 +398,7 @@ func (s *CollaborationService) GetRequestByID(ctx context.Context, userID, reque
 	}
 
 	if meta, ok := domain.MasterTaxonomyRegistry[req.CollaborationType]; ok {
-		req.CollaborationTypeLabel = meta.PartnerSeekLabel
+		req.CollaborationTypeLabel = meta.PartnerSeek
 	} else {
 		req.CollaborationTypeLabel = req.CollaborationType
 	}
@@ -939,7 +939,7 @@ func (s *CollaborationService) ListHistory(ctx context.Context, userID, status, 
 			return domain.CollaborationRequestList{}, fmt.Errorf("scan history item: %w", err)
 		}
 		if meta, ok := domain.MasterTaxonomyRegistry[req.CollaborationType]; ok {
-			req.CollaborationTypeLabel = meta.PartnerSeekLabel
+			req.CollaborationTypeLabel = meta.PartnerSeek
 		} else {
 			req.CollaborationTypeLabel = req.CollaborationType
 		}
@@ -1074,7 +1074,7 @@ func (s *CollaborationService) ListConversations(ctx context.Context, userID str
 		}
 
 		if meta, ok := domain.MasterTaxonomyRegistry[conv.CollaborationType]; ok {
-			conv.CollaborationTypeLabel = meta.PartnerSeekLabel
+			conv.CollaborationTypeLabel = meta.PartnerSeek
 		} else {
 			conv.CollaborationTypeLabel = conv.CollaborationType
 		}
