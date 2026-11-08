@@ -126,4 +126,3 @@ func TestNotificationMarkAllRead_Success(t *testing.T) {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
 }
-

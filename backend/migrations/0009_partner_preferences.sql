@@ -11,6 +11,7 @@ ALTER TABLE partner_profiles
     ADD COLUMN IF NOT EXISTS logo text NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS offered_collaborations text[] NOT NULL DEFAULT '{}';
 
+-- +goose StatementBegin
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -19,6 +20,7 @@ BEGIN
         ALTER TABLE partner_profiles ADD CONSTRAINT partner_profiles_id_user_id_uk UNIQUE (id, user_id);
     END IF;
 END $$;
+-- +goose StatementEnd
 
 -- 2. Create partner_preferences table with strictly guaranteed 1:1 relationship
 CREATE TABLE IF NOT EXISTS partner_preferences (
@@ -44,6 +46,7 @@ CREATE INDEX IF NOT EXISTS partner_preferences_user_idx ON partner_preferences (
 CREATE INDEX IF NOT EXISTS partner_preferences_profile_idx ON partner_preferences (partner_profile_id);
 
 -- 3. Helper function to map legacy Indonesian strings to Master Taxonomy identifiers
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION map_legacy_taxonomy_item(val text)
 RETURNS text AS $$
 BEGIN
@@ -77,7 +80,9 @@ BEGIN
     END;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+-- +goose StatementEnd
 
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION map_legacy_taxonomy_array(arr text[])
 RETURNS text[] AS $$
 DECLARE
@@ -97,6 +102,7 @@ BEGIN
     RETURN result;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+-- +goose StatementEnd
 
 -- 4. Backfill existing partner profiles into partner_preferences
 INSERT INTO partner_preferences (
@@ -138,6 +144,7 @@ SET seeking = map_legacy_taxonomy_array(seeking)
 WHERE array_length(seeking, 1) > 0;
 
 -- 6. Transition Trigger to guarantee zero-drift if legacy backend updates partner_profiles
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION sync_legacy_partner_profile_to_preferences()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -196,10 +203,10 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 DROP TRIGGER IF EXISTS trg_sync_legacy_partner_profile ON partner_profiles;
 CREATE TRIGGER trg_sync_legacy_partner_profile
 AFTER INSERT OR UPDATE ON partner_profiles
 FOR EACH ROW
 EXECUTE FUNCTION sync_legacy_partner_profile_to_preferences();
-

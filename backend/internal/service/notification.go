@@ -90,20 +90,20 @@ func (s *NotificationService) List(ctx context.Context, userID, filterType strin
 	argIdx := 2
 
 	if unreadOnly {
-		query += fmt.Sprintf(" AND n.read_at IS NULL")
-		countQuery += fmt.Sprintf(" AND n.read_at IS NULL")
+		query += " AND n.read_at IS NULL"
+		countQuery += " AND n.read_at IS NULL"
 	}
 
 	filterType = strings.TrimSpace(filterType)
 	if filterType == "collaboration" {
-		query += fmt.Sprintf(" AND n.type LIKE 'collab_%%'")
-		countQuery += fmt.Sprintf(" AND n.type LIKE 'collab_%%'")
+		query += " AND n.type LIKE 'collab_%'"
+		countQuery += " AND n.type LIKE 'collab_%'"
 	} else if filterType == "message" {
-		query += fmt.Sprintf(" AND n.type = 'new_message'")
-		countQuery += fmt.Sprintf(" AND n.type = 'new_message'")
+		query += " AND n.type = 'new_message'"
+		countQuery += " AND n.type = 'new_message'"
 	} else if filterType == "system" {
-		query += fmt.Sprintf(" AND n.type = 'system'")
-		countQuery += fmt.Sprintf(" AND n.type = 'system'")
+		query += " AND n.type = 'system'"
+		countQuery += " AND n.type = 'system'"
 	}
 
 	var total int64
@@ -173,4 +173,3 @@ func (s *NotificationService) MarkAllRead(ctx context.Context, userID string) er
 	}
 	return nil
 }
-

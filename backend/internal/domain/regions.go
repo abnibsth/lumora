@@ -194,4 +194,3 @@ func EvaluateGeographicMatch(partnerRegion, businessCity string) (bool, float64)
 
 	return false, 0.0
 }
-

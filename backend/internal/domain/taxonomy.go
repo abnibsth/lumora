@@ -199,4 +199,3 @@ func NormalizeTaxonomySlice(items []string) []string {
 	}
 	return result
 }
-
