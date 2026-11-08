@@ -7,10 +7,6 @@ import {
   PanelsTopLeft,
   Handshake,
   Sparkles,
-  Send,
-  MessageSquare,
-  History,
-  Bell,
   Settings,
   X,
   ArrowUpRight,
@@ -36,7 +32,7 @@ import styles from "./workspace.module.css";
 
 interface WorkspaceNavItem {
   label: string;
-  view: WorkspaceView;
+  view: WorkspaceView | null;
   icon: LucideIcon;
 }
 
@@ -56,13 +52,10 @@ const groups: WorkspaceNavGroup[] = [
     ],
   },
   {
-    label: "Kemitraan & Kolaborasi",
+    label: "Pengembangan bisnis",
     items: [
-      { label: "Peluang & Mitra", view: "saved", icon: Handshake },
-      { label: "Permintaan Kolaborasi", view: "requests", icon: Send },
-      { label: "Inbox / Pesan", view: "inbox", icon: MessageSquare },
-      { label: "Riwayat Kemitraan", view: "history", icon: History },
-      { label: "Notifikasi", view: "notifications", icon: Bell },
+      { label: "Peluang Kemitraan", view: "saved", icon: Handshake },
+      { label: "Analitik Profil", view: null, icon: Sparkles },
       { label: "Lumora AI", view: "ai", icon: Sparkles },
     ],
   },
@@ -151,14 +144,22 @@ export function WorkspaceSidebar({
                         }`}
                         isActive={view === item.view}
                         aria-current={view === item.view ? "page" : undefined}
-                        aria-label={item.label}
-                        onClick={() => {
+                        aria-label={item.view ? item.label : `${item.label} — Segera Hadir`}
+                        aria-disabled={!item.view || undefined}
+                        onClick={(event) => {
+                          if (!item.view) {
+                            event.preventDefault();
+                            return;
+                          }
                           onNavigate(item.view);
                           setOpenMobile(false);
                         }}
                       >
                         <item.icon aria-hidden="true" />
                         {!collapsed ? <span>{item.label}</span> : null}
+                        {!item.view && !collapsed ? (
+                          <span className="ml-auto text-[9px]">Segera Hadir</span>
+                        ) : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}

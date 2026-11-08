@@ -112,82 +112,36 @@ export async function fetchBusinesses(
   const qs = query.toString();
   const url = `${getApiBaseUrl()}/api/v1/businesses${qs ? `?${qs}` : ""}`;
 
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (res.ok) {
-      const data = (await res.json()) as BusinessListResponse;
-      if (Array.isArray(data.items) && data.items.length > 0) {
-        data.items = data.items.map((item) => ({
-          ...item,
-          coverImage: resolveBusinessCover(item.slug, item.coverImage, item.name),
-        }));
-        return data;
-      }
-    }
-  } catch {
-    // Backend API unreachable, fallback to curated dataset
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`fetchBusinesses failed: ${res.status}`);
   }
-
-  // Fallback kurasi offline jika server belum di-seed atau database kosong
-  let filtered = [...CURATED_BUSINESSES];
-  if (params?.category && params.category !== "Semua") {
-    filtered = filtered.filter((b) => b.category === params.category);
+  const data = (await res.json()) as BusinessListResponse;
+  if (!data || !Array.isArray(data.items)) {
+    throw new Error("Invalid business list response shape");
   }
-  if (params?.q) {
-    const qLower = params.q.toLowerCase();
-    filtered = filtered.filter(
-      (b) =>
-        b.name.toLowerCase().includes(qLower) ||
-        b.description.toLowerCase().includes(qLower) ||
-        b.location.toLowerCase().includes(qLower),
-    );
-  }
-  if (params?.location) {
-    const locLower = params.location.toLowerCase();
-    filtered = filtered.filter((b) => b.location.toLowerCase().includes(locLower));
-  }
-
-  const limit = params?.limit || 12;
-  const page = params?.page || 1;
-  const start = (page - 1) * limit;
-  const items = filtered.slice(start, start + limit).map((item) => ({
+  data.items = data.items.map((item) => ({
     ...item,
     coverImage: resolveBusinessCover(item.slug, item.coverImage, item.name),
   }));
-
-  return {
-    items,
-    total: filtered.length,
-    page,
-    limit,
-  };
+  return data;
 }
 
 export async function fetchBusinessBySlug(slug: string): Promise<Business | null> {
-  try {
-    const url = `${getApiBaseUrl()}/api/v1/businesses/${encodeURIComponent(slug)}`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (res.ok) {
-      const item = (await res.json()) as Business;
-      if (item && item.slug) {
-        item.coverImage = resolveBusinessCover(item.slug, item.coverImage, item.name);
-        return item;
-      }
-    }
-  } catch {
-    // Backend unreachable, fallback to curated catalog below
+  const url = `${getApiBaseUrl()}/api/v1/businesses/${encodeURIComponent(slug)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (res.status === 404) {
+    return null;
   }
-
-  // Fallback kurasi UMKM terdaftar resmi jika backend mengembalikan 404
-  const curated = getCuratedBusinessBySlug(slug);
-  if (curated) {
-    return {
-      ...curated,
-      coverImage: resolveBusinessCover(curated.slug, curated.coverImage, curated.name),
-    };
+  if (!res.ok) {
+    throw new Error(`fetchBusinessBySlug failed: ${res.status}`);
   }
-
-  return null;
+  const item = (await res.json()) as Business;
+  if (!item || !item.slug) {
+    throw new Error("Invalid business detail response shape");
+  }
+  item.coverImage = resolveBusinessCover(item.slug, item.coverImage, item.name);
+  return item;
 }
 
 export async function loginApi(params: {

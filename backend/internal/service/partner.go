@@ -413,12 +413,13 @@ func (s *PartnerService) GetMatches(ctx context.Context, userID string, page, li
 		var b domain.Business
 		var id string
 		var coverImg, coverPos, logo, revLabel, growthLabel, seekingObj *string
+		var status string
 
 		err := rows.Scan(
 			&id, &b.Slug, &b.Name, &b.Category, &b.Location, &b.Description, &b.Story,
 			&coverImg, &coverPos, &logo, &b.FoundedYear, &revLabel,
 			&growthLabel, &b.RevenueSeries, &b.Seeking, &seekingObj,
-			&b.Owner.Name, &b.Owner.Role, &b.Owner.Bio, &b.Status, &b.Verified,
+			&b.Owner.Name, &b.Owner.Role, &b.Owner.Bio, &status, &b.Verified,
 			&c.bmCCount, &c.milestoneCount,
 		)
 		if err != nil {
@@ -426,24 +427,12 @@ func (s *PartnerService) GetMatches(ctx context.Context, userID string, page, li
 		}
 
 		b.ID = id
-		if coverImg != nil {
-			b.CoverImage = *coverImg
-		}
-		if coverPos != nil {
-			b.CoverPosition = *coverPos
-		}
-		if logo != nil {
-			b.Logo = *logo
-		}
-		if revLabel != nil {
-			b.RevenueLabel = *revLabel
-		}
-		if growthLabel != nil {
-			b.GrowthLabel = *growthLabel
-		}
-		if seekingObj != nil {
-			b.SeekingObjective = *seekingObj
-		}
+		b.CoverImage = coverImg
+		b.CoverPosition = coverPos
+		b.Logo = logo
+		b.RevenueLabel = revLabel
+		b.GrowthLabel = growthLabel
+		b.SeekingObjective = seekingObj
 		b.Seeking = domain.NormalizeTaxonomySlice(b.Seeking)
 
 		c.business = b
@@ -536,7 +525,7 @@ func (s *PartnerService) GetMatches(ctx context.Context, userID string, page, li
 		if cand.milestoneCount >= 2 {
 			dataScore += 5
 		}
-		if b.RevenueLabel != "" || b.GrowthLabel != "" {
+		if b.RevenueLabel != nil || b.GrowthLabel != nil {
 			dataScore += 5
 		}
 		if dataScore >= 15 {
