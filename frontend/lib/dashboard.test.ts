@@ -10,9 +10,10 @@ const business: OwnedBusiness = {
 
 describe("workspace navigation", () => {
   it("uses overview for unavailable or invalid views", () => {
-    expect(resolveView("analytics")).toBe("overview");
+    expect(resolveView("nonexistent")).toBe("overview");
     expect(resolveView(undefined)).toBe("overview");
     expect(resolveView("canvas")).toBe("canvas");
+    expect(resolveView("analytics")).toBe("analytics");
   });
   it("builds local URLs with encoded owned profile IDs", () => {
     expect(dashboardHref("overview")).toBe("/dashboard");

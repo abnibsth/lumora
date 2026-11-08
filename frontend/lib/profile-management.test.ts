@@ -39,9 +39,10 @@ describe("profile data preservation", () => {
     expect(profilePatch(next, original).bmc).toEqual(next.bmc);
     expect(original.bmc).toHaveLength(2);
   });
-  it("allows publish below 100 percent when core data and verified email are present", () => {
+  it("allows publish below 100 percent when core data is present without requiring email verification", () => {
     expect(publishReadiness(business, true)).toEqual([]);
-    expect(publishReadiness(business, false)).toContain("Verifikasi email akun terlebih dahulu.");
+    expect(publishReadiness(business, false)).toEqual([]);
+    expect(publishReadiness({ ...business, name: "" })).toContain("Nama usaha wajib diisi.");
   });
   it("builds unsaved preview without dropping existing server-only values", () => {
     const preview = previewFromForm({ ...formFromBusiness(business), name: "Preview" }, business);
