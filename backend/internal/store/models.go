@@ -49,6 +49,15 @@ type Business struct {
 	UpdatedAt        pgtype.Timestamptz
 }
 
+type BusinessAnalyticsEvent struct {
+	ID          pgtype.UUID
+	BusinessID  pgtype.UUID
+	EventType   string
+	Source      string
+	VisitorHash string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type BusinessMilestone struct {
 	ID          pgtype.UUID
 	BusinessID  pgtype.UUID

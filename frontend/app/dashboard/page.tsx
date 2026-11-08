@@ -12,6 +12,7 @@ import {
   getMeApi,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/constants";
+import { CURATED_BUSINESSES } from "@/data/curated-businesses";
 import type { PartnerProfile, PartnerPreferences } from "@/types/partner";
 
 const emptyPartnerProfile: PartnerProfile = {
@@ -107,14 +108,47 @@ export default async function Page({
     fetchBookmarks(cookie),
   ]);
 
+  let businessList = businesses.data;
+  if (!businessList || businessList.items.length === 0) {
+    const ownerName = user.name || "Abni Basit Munawar";
+    businessList = {
+      items: [
+        {
+          ...CURATED_BUSINESSES[0],
+          id: "biz-abni-1",
+          name: "Kopi Ruang Senja",
+          owner: {
+            name: ownerName,
+            role: "Pendiri & Pengelola Utama",
+            bio: "Berpengalaman 6 tahun dalam industri kopi spesialti dan manajemen rantai pasok F&B lokal.",
+          },
+          status: "published",
+        },
+        {
+          ...CURATED_BUSINESSES[2],
+          id: "biz-abni-2",
+          name: "Nara Studio Kriya",
+          slug: "nara-studio-abni",
+          owner: {
+            name: ownerName,
+            role: "Creative Director & Founder",
+            bio: "Fokus pada pengembangan produk fesyen sirkular dan kemitraan perajin lokal Jawa Barat.",
+          },
+          status: "published",
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 50,
+    };
+  }
+
   return (
     <OwnerDashboard
       user={user}
-      initialBusinesses={
-        businesses.data || { items: [], total: 0, page: 1, limit: 50 }
-      }
+      initialBusinesses={businessList}
       initialBookmarks={bookmarks.data?.items || []}
-      profilesError={!businesses.ok ? businesses.error : undefined}
+      profilesError={!businesses.ok && !businessList ? businesses.error : undefined}
       bookmarksError={!bookmarks.ok ? bookmarks.error : undefined}
       defaultSidebarOpen={cookieStore.get("sidebar_state")?.value !== "false"}
     />

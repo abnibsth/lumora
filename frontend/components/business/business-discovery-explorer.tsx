@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { Select } from "radix-ui";
 import { motion, useReducedMotion } from "motion/react";
 import { BusinessCard } from "@/components/business/business-card";
-import { fetchBusinesses } from "@/lib/api";
+import { fetchBusinesses, recordBusinessEventApi } from "@/lib/api";
 import { BUSINESS_CATEGORIES, type BusinessCategory, type Business } from "@/types/business";
 import { useBookmarks } from "@/hooks/use-bookmarks";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,17 @@ export function BusinessDiscoveryExplorer({
       window.clearTimeout(timer);
     };
   }, [filter, full, query]);
+
+  useEffect(() => {
+    if (visibleBusinesses.length > 0) {
+      const source = query.trim() ? "search" : "explore";
+      visibleBusinesses.slice(0, 12).forEach((biz) => {
+        if (biz.id) {
+          recordBusinessEventApi(biz.id, { eventType: "catalog_impression", source });
+        }
+      });
+    }
+  }, [visibleBusinesses, query]);
 
   const visibleBusinesses = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("id");

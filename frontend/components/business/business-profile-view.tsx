@@ -7,7 +7,6 @@ import {
   MapPin,
   Calendar,
   Building2,
-  Lock,
   Compass,
   TrendingUp,
   Handshake,
@@ -23,7 +22,7 @@ import { BusinessBmcCanvas } from "@/components/business/business-bmc-canvas";
 import { CollaborationModal } from "@/components/collaboration/collaboration-modal";
 import { buttonStyles } from "@/components/ui/button";
 import { formatSeekingLabel } from "@/lib/business";
-import { getMeApi } from "@/lib/api";
+import { getMeApi, recordBusinessEventApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface BusinessProfileViewProps {
@@ -58,10 +57,22 @@ export function BusinessProfileView({
     getMeApi().then((u) => {
       if (active && u) setCurrentUser(u);
     });
+
+    if (!isModal && !isUnsaved && business.id) {
+      let source: "explore" | "search" | "matching" | "direct" = "direct";
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("from") === "matching") source = "matching";
+        else if (params.get("from") === "search" || params.get("q")) source = "search";
+        else if (document.referrer.includes("/explore")) source = "explore";
+      }
+      recordBusinessEventApi(business.id, { eventType: "view", source });
+    }
+
     return () => {
       active = false;
     };
-  }, []);
+  }, [business.id, isModal, isUnsaved]);
 
   // Dynamic sections check for anchor navigation
   const navSections = useMemo(
@@ -303,7 +314,7 @@ export function BusinessProfileView({
               </div>
 
               {/* Actions Area */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center md:flex-col md:items-end shrink-0 pt-2 md:pt-0 border-t border-line/50 md:border-t-0">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center md:flex-col md:items-end shrink-0 pt-2 md:pt-0 border-t border-line/50 md:border-t-0">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
                   {actionSlot && (
                     <div className="w-full sm:w-auto">
@@ -311,29 +322,47 @@ export function BusinessProfileView({
                     </div>
                   )}
 
-                  {/* Contact Owner CTA: Clean, disabled with honest explanation */}
-                  <div className="relative group/contact w-full sm:w-auto">
+                  {/* Contact Owner CTA: Active, unlocked, directly opens collaboration & communication */}
+                  {currentUser ? (
                     <button
                       type="button"
-                      disabled
-                      aria-disabled="true"
+                      onClick={() => {
+                        if (business.id) {
+                          recordBusinessEventApi(business.id, { eventType: "contact_click" });
+                        }
+                        setCollabModalOpen(true);
+                      }}
                       className={buttonStyles({
                         variant: "primary",
                         className:
-                          "w-full sm:w-auto cursor-not-allowed opacity-65 bg-forest text-white flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl font-semibold",
+                          "w-full sm:w-auto bg-forest text-white hover:bg-deep-forest flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl font-semibold shadow-2xs transition-colors cursor-pointer",
                       })}
                     >
-                      <Lock className="size-3.5 text-lime" />
+                      <Handshake className="size-4 text-lime" />
                       <span>Hubungi Pemilik</span>
                     </button>
-                    <div className="absolute right-0 top-full mt-2 hidden group-hover/contact:block group-focus-within/contact:block z-30 w-72 rounded-xl border border-line bg-surface p-3 text-xs text-muted shadow-lg">
-                      Fitur perpesanan langsung ke pemilik sedang diverifikasi secara bertahap oleh LUMORA demi keamanan UMKM.
-                    </div>
-                  </div>
+                  ) : (
+                    <Link
+                      href={`/login?next=/business/${business.slug}`}
+                      onClick={() => {
+                        if (business.id) {
+                          recordBusinessEventApi(business.id, { eventType: "contact_click" });
+                        }
+                      }}
+                      className={buttonStyles({
+                        variant: "primary",
+                        className:
+                          "w-full sm:w-auto bg-forest text-white hover:bg-deep-forest flex items-center justify-center gap-2 min-h-11 px-5 rounded-xl font-semibold shadow-2xs transition-colors",
+                      })}
+                    >
+                      <Handshake className="size-4 text-lime" />
+                      <span>Hubungi Pemilik</span>
+                    </Link>
+                  )}
                 </div>
 
                 <p className="text-[11px] text-muted text-left md:text-right max-w-xs leading-normal">
-                  Hubungi mitra melalui jalur terverifikasi saat fitur perpesanan dirilis.
+                  Kirim pesan resmi dan inisiasi kemitraan langsung dengan pemilik usaha.
                 </p>
               </div>
             </div>
@@ -403,55 +432,64 @@ export function BusinessProfileView({
             id="tentang"
             className="scroll-mt-36 sm:scroll-mt-40 focus:outline-none"
           >
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
               {/* Left Column: Story (Primary Editorial Content) */}
-              <div className="lg:col-span-7 xl:col-span-8 rounded-2xl border border-line bg-surface p-6 sm:p-8 md:p-10 shadow-xs">
-                <span className="inline-block text-xs font-semibold tracking-wider uppercase text-accent">
-                  Cerita Usaha
-                </span>
-                <h2 className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-ink leading-tight">
-                  Cerita di balik {profile.name}
-                </h2>
+              <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between rounded-2xl border border-line bg-surface p-6 sm:p-8 md:p-10 shadow-xs">
+                <div>
+                  <span className="inline-block text-xs font-semibold tracking-wider uppercase text-accent">
+                    Cerita Usaha
+                  </span>
+                  <h2 className="mt-2 font-display text-2xl sm:text-3xl font-semibold text-ink leading-tight">
+                    Cerita di balik {profile.name}
+                  </h2>
 
-                {profile.story ? (
-                  <div className="mt-5 space-y-4 text-sm sm:text-base leading-relaxed text-ink/85 whitespace-pre-wrap break-words font-normal">
-                    {profile.story}
-                  </div>
-                ) : (
-                  <p className="mt-5 text-sm italic text-muted">
-                    Cerita lengkap usaha ini belum dicantumkan oleh pemilik.
-                  </p>
-                )}
+                  {profile.story ? (
+                    <div className="mt-5 space-y-4 text-sm sm:text-base leading-relaxed text-ink/85 whitespace-pre-wrap break-words font-normal">
+                      {profile.story}
+                    </div>
+                  ) : (
+                    <p className="mt-5 text-sm italic text-muted">
+                      Cerita lengkap usaha ini belum dicantumkan oleh pemilik.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-8 pt-4 border-t border-line/50 flex items-center justify-between text-xs text-muted">
+                  <span>Filosofi &amp; narasi perjalanan usaha</span>
+                  <span className="text-[11px] font-semibold text-forest/70">Profil Resmi LUMORA</span>
+                </div>
               </div>
 
               {/* Right Column: Founder Profile (Supporting Info) */}
-              <aside className="lg:col-span-5 xl:col-span-4 rounded-2xl border border-line bg-surface p-6 sm:p-7 shadow-xs">
-                <div className="flex items-center gap-4">
-                  <BusinessMonogram
-                    name={profile.ownerName || profile.name}
-                    className="size-14 text-xl rounded-xl shadow-xs"
-                  />
-                  <div className="min-w-0">
-                    <h3 className="font-display text-lg sm:text-xl font-semibold text-ink leading-snug break-words">
-                      {profile.ownerName || "Pemilik Usaha"}
-                    </h3>
-                    <p className="text-xs font-semibold text-accent mt-0.5">
-                      {profile.ownerRole}
-                    </p>
+              <aside className="lg:col-span-5 xl:col-span-4 flex flex-col justify-between rounded-2xl border border-line bg-surface p-6 sm:p-7 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-4">
+                    <BusinessMonogram
+                      name={profile.ownerName || profile.name}
+                      className="size-14 text-xl rounded-xl shadow-xs"
+                    />
+                    <div className="min-w-0">
+                      <h3 className="font-display text-lg sm:text-xl font-semibold text-ink leading-snug break-words">
+                        {profile.ownerName || "Pemilik Usaha"}
+                      </h3>
+                      <p className="text-xs font-semibold text-accent mt-0.5">
+                        {profile.ownerRole}
+                      </p>
+                    </div>
                   </div>
+
+                  {profile.ownerBio ? (
+                    <div className="mt-4 border-t border-line/60 pt-4 text-xs sm:text-sm leading-relaxed text-muted whitespace-pre-wrap break-words">
+                      {profile.ownerBio}
+                    </div>
+                  ) : (
+                    <p className="mt-4 border-t border-line/60 pt-4 text-xs italic text-muted">
+                      Biodata pendiri belum diisi.
+                    </p>
+                  )}
                 </div>
 
-                {profile.ownerBio ? (
-                  <div className="mt-4 border-t border-line/60 pt-4 text-xs sm:text-sm leading-relaxed text-muted whitespace-pre-wrap break-words">
-                    {profile.ownerBio}
-                  </div>
-                ) : (
-                  <p className="mt-4 border-t border-line/60 pt-4 text-xs italic text-muted">
-                    Biodata pendiri belum diisi.
-                  </p>
-                )}
-
-                <div className="mt-5 rounded-xl bg-soft-green/50 p-3.5 text-xs text-forest flex items-start gap-2.5 border border-forest/10">
+                <div className="mt-6 rounded-xl bg-soft-green/50 p-3.5 text-xs text-forest flex items-start gap-2.5 border border-forest/10">
                   <ShieldCheck className="size-4 text-accent shrink-0 mt-0.5" />
                   <span className="leading-relaxed">
                     Akun terverifikasi mengelola profil usaha ini secara mandiri di platform LUMORA.

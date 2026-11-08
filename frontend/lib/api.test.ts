@@ -1,5 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchBusinessBySlug, fetchBusinesses, fetchMyBusinesses, createBusinessApi, updateBusinessApi, publishBusinessApi, archiveBusinessApi, draftProfileApi, uploadMediaApi, removeBookmarkApi } from "./api";
+import {
+  fetchBusinessBySlug,
+  fetchBusinesses,
+  fetchMyBusinesses,
+  createBusinessApi,
+  updateBusinessApi,
+  publishBusinessApi,
+  archiveBusinessApi,
+  draftProfileApi,
+  uploadMediaApi,
+  removeBookmarkApi,
+  fetchBusinessAnalytics,
+  recordBusinessEventApi,
+} from "./api";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -92,5 +105,34 @@ describe("fetchBusinessBySlug", () => {
   it("throws on a 500 so a backend outage is not reported as not-found", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
     await expect(fetchBusinessBySlug("kopi-ruang-senja")).rejects.toThrow();
+  });
+});
+
+describe("analytics API contracts", () => {
+  it("fetches business analytics for the given business and range", async () => {
+    const mockData = {
+      businessId: "biz-1",
+      businessName: "Kopi Ruang Senja",
+      range: "30d",
+      summary: { profileViews: 10, uniqueVisitors: 8, catalogImpressions: 50, bookmarksCount: 3, collabRequests: 1, contactClicks: 2 },
+      timeSeries: [{ date: "2026-11-01", views: 5, uniqueVisitors: 4 }],
+      funnel: [{ stage: "Tayangan Katalog", count: 50, conversion: 100 }],
+      trafficSource: [{ source: "explore", label: "Jelajahi UMKM", count: 8, percentage: 80 }],
+    };
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse(mockData));
+    vi.stubGlobal("fetch", fetcher);
+    const result = await fetchBusinessAnalytics("biz-1", "30d");
+    expect(result.ok).toBe(true);
+    expect(result.data?.businessName).toBe("Kopi Ruang Senja");
+    expect(fetcher.mock.calls[0][0]).toContain("/businesses/biz-1/analytics?range=30d");
+  });
+
+  it("records an analytics event via POST", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse({ status: "recorded" }));
+    vi.stubGlobal("fetch", fetcher);
+    const result = await recordBusinessEventApi("biz-1", { eventType: "view", source: "explore" });
+    expect(result.ok).toBe(true);
+    expect(fetcher.mock.calls[0][0]).toContain("/businesses/biz-1/events");
+    expect(fetcher.mock.calls[0][1]).toEqual(expect.objectContaining({ method: "POST", body: JSON.stringify({ eventType: "view", source: "explore" }) }));
   });
 });

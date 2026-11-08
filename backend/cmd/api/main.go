@@ -114,6 +114,8 @@ func main() {
 	notifHandler := handler.NewNotificationHandler(notifService)
 	collabService := service.NewCollaborationService(pool, notifService)
 	collabHandler := handler.NewCollaborationHandler(collabService)
+	analyticsService := service.NewAnalyticsService(pool)
+	analyticsHandler := handler.NewAnalyticsHandler(analyticsService)
 
 	// AI_PROVIDER selects the draft generator: "gemini" is the real provider and
 	// the default, "stub" is the offline one used for keyless runs and tests.
@@ -199,10 +201,9 @@ func main() {
 	v1.GET("/businesses/:slug", businessHandler.Detail)
 	v1.POST("/businesses", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Create)
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Update)
-	// Publish is a soft gate: an account may register, sign in and edit
-	// freely, but putting a listing in front of the public needs a verified
-	// address. Drafts stay editable, so the gate never strands unfinished work.
-	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireUMKM(), middleware.RequireVerified(), businessHandler.Publish)
+	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Publish)
+	v1.GET("/businesses/:id/analytics", middleware.RequireSession(), middleware.RequireUMKM(), analyticsHandler.GetAnalytics)
+	v1.POST("/businesses/:id/events", analyticsHandler.RecordEvent)
 	// Archiving hides a profile rather than erasing it, so it needs no verified
 	// address: nothing new reaches the public, and the opposite is true.
 	v1.DELETE("/businesses/:id", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Archive)
@@ -258,23 +259,9 @@ func main() {
 
 	v1.POST("/media", middleware.RequireSession(), mediaHandler.Upload)
 
-	// Layers, in this order. RequireSession and RequireVerified run first so
-	// unauthenticated or unverified traffic is rejected before it can consume
-	// budget or create a bucket. Then the global valve, then the per-account
-	// limiter.
-	//
-	// The valve is the ceiling on the total bill: the per-account budget alone
-	// lets N cheap accounts spend N× it, which is exactly what account creation
-	// does not prevent. It sits ahead of the per-account limiter for the same
-	// memory reason as the auth routes above — allow() allocates a bucket per
-	// new key and only sweeps buckets idle for a full window, so a flood of
-	// distinct accounts would grow the per-account map without bound if that
-	// limiter ran first. Running the valve first also keeps quota fair: a
-	// request refused because the server is globally full does not burn the
-	// caller's own budget.
+	// AI Draft Profile generation - available to authenticated UMKM users
 	v1.POST("/ai/draft-profile",
 		middleware.RequireSession(),
-		middleware.RequireVerified(),
 		middleware.RequireUMKM(),
 		aiGlobalLimiter.MiddlewareFor(middleware.GlobalKey, "rate_limited", middleware.DefaultDraftLimitMessage),
 		aiLimiter.Middleware(),

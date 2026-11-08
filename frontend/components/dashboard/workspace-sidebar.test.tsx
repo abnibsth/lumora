@@ -38,11 +38,10 @@ describe("workspace sidebar", () => {
     }
     expect(html).not.toContain('role="tooltip"');
   });
-  it("keeps coming-soon icons labelled and unavailable without enabling navigation", () => {
+  it("enables navigation for Analitik Profil", () => {
     const html = render(false);
-    const analytics = html.match(/<button[^>]*aria-label="Analitik Profil — Segera Hadir"[^>]*>/)?.[0];
+    const analytics = html.match(/<button[^>]*aria-label="Analitik Profil"[^>]*>/)?.[0];
     expect(analytics).toBeDefined();
-    expect(analytics).toContain('aria-disabled="true"');
-    expect(analytics).not.toMatch(/\sdisabled(?:=|\s|>)/);
+    expect(analytics).not.toContain('aria-disabled="true"');
   });
 });

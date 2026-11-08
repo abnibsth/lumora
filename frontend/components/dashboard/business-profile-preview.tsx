@@ -25,7 +25,7 @@ export function BusinessProfilePreview({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-deep-forest/60 backdrop-blur-xs" />
         <Dialog.Content
-          className={`${styles.portal} fixed inset-0 z-50 flex flex-col bg-surface sm:inset-6 sm:mx-auto sm:max-w-[960px] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl overflow-hidden`}
+          className={`${styles.portal} fixed inset-0 z-50 flex flex-col bg-surface sm:inset-4 md:inset-6 sm:mx-auto sm:max-w-5xl lg:max-w-6xl sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl overflow-hidden`}
         >
           {/* Sticky/Fixed Modal Header */}
           <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface p-4 sm:px-6">

@@ -1,6 +1,20 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import {
+  ShieldCheck,
+  Lock,
+  Eye,
+  Sparkles,
+  Scale,
+  Users,
+  CheckCircle2,
+  FileText,
+  UserCheck,
+  ArrowRight,
+  Database,
+  Mail,
+} from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
 import { BusinessMonogram } from "@/components/business/business-monogram";
@@ -24,7 +38,10 @@ const pageMetadata: Record<string, Metadata> = {
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<{ view?: string }> }): Promise<Metadata> {
   const { view } = await searchParams;
-  return pageMetadata[view ?? ""] ?? { title: "Kebijakan Privasi" };
+  return pageMetadata[view ?? ""] ?? {
+    title: "Kebijakan Privasi",
+    description: "Pelajari bagaimana LUMORA mengumpulkan, mengelola, dan melindungi data pribadi pelaku UMKM dan Mitra Bisnis secara aman dan transparan.",
+  };
 }
 
 function Hero({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description: string; actions?: React.ReactNode }) {
@@ -84,11 +101,331 @@ function AboutPage() {
   return <><section className="pt-16 md:pt-24"><Container><h1 className="max-w-5xl whitespace-pre-line text-balance font-display text-[clamp(2.625rem,11vw,4.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-ink sm:text-6xl lg:text-7xl">{"Bisnis kecil layak mendapatkan\npanggung yang lebih besar."}</h1><p className="mt-7 max-w-2xl text-lg leading-8 text-muted">LUMORA membantu pemilik UMKM menyusun cerita bisnis yang dapat dipahami, lalu membuatnya lebih mudah ditemukan.</p></Container><div className="relative mt-14 h-[420px] w-full overflow-hidden md:h-[620px]"><Image src="/img/benner.png" alt="Pemilik usaha kecil Indonesia bekerja di tempat usahanya" fill priority sizes="100vw" className="object-cover" style={{ objectPosition: "70% center" }} /></div></section><section className="py-20 md:py-32"><Container><div className="grid gap-12 lg:grid-cols-[0.65fr_1.35fr]"><p className="text-sm font-semibold text-accent">KENAPA LUMORA ADA?</p><div><blockquote className="font-display text-[clamp(2.25rem,10vw,3rem)] font-semibold leading-tight text-ink md:text-6xl">“Banyak usaha dimulai jauh dari ruang presentasi.”</blockquote><div className="mt-12 grid gap-6 text-xl leading-9 text-muted sm:grid-cols-2"><p>Dapur rumah.<br />Bengkel kecil.<br />Kios di sudut jalan.<br />Kedai kopi dengan beberapa meja.</p><p>Informasi tentang bisnis sering tersimpan dalam percakapan, catatan, dan ingatan pemiliknya. LUMORA memberi tempat untuk menyusunnya menjadi profil yang utuh.</p></div></div></div></Container></section><section className="border-y border-line bg-surface py-20 md:py-28"><Container><p className="text-sm font-semibold text-accent">YANG KAMI PERCAYA</p><div className="mt-10 grid border-l border-t border-line md:grid-cols-2">{principles.map(([number, text]) => <div key={number} className="border-b border-r border-line p-7 md:p-10"><p className="text-sm font-semibold text-accent">{number}</p><h2 className="mt-8 whitespace-pre-line font-display text-3xl font-semibold leading-tight text-ink md:text-5xl">{text}</h2></div>)}</div></Container></section><section className="py-20 md:py-32"><Container><div className="grid gap-12 lg:grid-cols-[0.55fr_1.45fr]"><p className="text-sm font-semibold text-accent">LUMORA ADALAH</p><div><h2 className="max-w-3xl font-display text-[clamp(2.625rem,11vw,4.5rem)] font-semibold leading-tight text-forest md:text-7xl">Digital Pitching +<br />Business Discovery Platform.</h2><div className="mt-12 border-t border-line pt-8 text-lg leading-8 text-muted"><p>Bukan crowdfunding.</p><p>Bukan payment gateway.</p><p>Bukan platform transaksi investasi.</p><p>Bukan layanan rekomendasi investasi.</p></div></div></div></Container></section><section className="pb-24 md:pb-32"><Container><div className="border-t border-forest pt-12"><p className="max-w-3xl font-display text-[clamp(2.25rem,10vw,3rem)] font-semibold leading-tight text-ink md:text-6xl">Di balik setiap bisnis,<br />ada perjalanan yang layak ditemukan.</p><Link href={ROUTES.explore} className={buttonStyles({ variant: "primary", size: "lg", className: "mt-9" })}>Jelajahi Bisnis</Link></div></Container></section></>;
 }
 
+function PrivacyPolicyPage() {
+  const sections = [
+    {
+      id: "komitmen",
+      title: "1. Komitmen Privasi & Landasan Hukum",
+      icon: ShieldCheck,
+      content: (
+        <>
+          <p className="leading-relaxed text-muted">
+            LUMORA (“kami”) menyadari bahwa data profil usaha, rekam perjalanan bisnis, dan informasi kemitraan
+            merupakan aset berharga bagi setiap pelaku usaha kecil dan mitra strategis. Kami berkomitmen menjunjung
+            tinggi transparansi, akuntabilitas, dan keamanan dalam pemrosesan data pribadi Anda.
+          </p>
+          <p className="mt-4 leading-relaxed text-muted">
+            Kebijakan Privasi ini disusun berdasarkan prinsip perlindungan data pribadi yang berlaku di Indonesia,
+            khususnya <strong>Undang-Undang No. 27 Tahun 2022 tentang Perlindungan Data Pribadi (UU PDP)</strong> serta
+            peraturan pelaksana terkait penyelenggaraan sistem elektronik.
+          </p>
+          <div className="mt-5 rounded-xl border border-forest/20 bg-soft-green/50 p-4 text-xs sm:text-sm text-forest">
+            <strong>Penegasan Karakteristik Platform:</strong> LUMORA adalah <em>Digital Pitching &amp; Business Discovery Platform</em>.
+            Kami bukan lembaga pengelola urun dana (crowdfunding), bukan payment gateway, dan tidak memproses transaksi
+            finansial antar-pengguna di dalam platform.
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "data-dikumpulkan",
+      title: "2. Kategori Data yang Kami Kumpulkan",
+      icon: Database,
+      content: (
+        <div className="space-y-4 text-muted text-sm leading-relaxed">
+          <p>Kami mengumpulkan data yang Anda berikan secara langsung saat berinteraksi dengan layanan LUMORA:</p>
+          <ul className="space-y-3 pl-4 border-l-2 border-forest/20">
+            <li>
+              <strong className="text-forest">Data Akun &amp; Identitas Pengguna:</strong> Nama lengkap, alamat surat elektronik (email),
+              hash kata sandi satu arah yang dienkripsi menggunakan Argon2id, serta peran akun (Pelaku UMKM atau Mitra Bisnis).
+            </li>
+            <li>
+              <strong className="text-forest">Data Profil Usaha UMKM:</strong> Nama bisnis, slug URL publik, sektor industri (F&amp;B, Retail, Jasa, Kreatif, Fashion),
+              wilayah lokasi usaha, tahun berdiri, deskripsi usaha, narasi cerita perjalanan, catatan perkembangan penting (milestones),
+              9 blok Business Model Canvas (BMC), indikator performa usaha mandiri, serta logo dan foto sampul usaha.
+            </li>
+            <li>
+              <strong className="text-forest">Data Profil Organisasi Mitra:</strong> Nama perusahaan/institusi, jenis mitra strategis,
+              lokasi, jangkauan operasional, bentuk kolaborasi yang ditawarkan (Master Taxonomy), deskripsi institusi, dan kontak resmi yang disetujui untuk dibagikan.
+            </li>
+            <li>
+              <strong className="text-forest">Preferensi Kemitraan (Privat):</strong> Sektor usaha yang ditargetkan, wilayah pencarian geografis, preferensi pencocokan ketat,
+              kebutuhan kemitraan spesifik, dan kriteria kualifikasi usaha yang Anda tetapkan.
+            </li>
+            <li>
+              <strong className="text-forest">Data Kolaborasi &amp; Komunikasi:</strong> Judul proposal kemitraan, pesan inisiasi, detail usulan kerjasama,
+              audit catatan perubahan status kolaborasi, dan pesan percakapan dalam ruang pesan (Inbox).
+            </li>
+            <li>
+              <strong className="text-forest">Interaksi Lumora AI:</strong> Narasi atau poin usaha mentah yang Anda masukkan ke dalam asisten Lumora AI untuk membantu penyusunan draf deskripsi bisnis.
+            </li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      id: "pemisahan-data",
+      title: "3. Pemisahan Tegas: Data Publik vs. Data Privat",
+      icon: Eye,
+      content: (
+        <>
+          <p className="leading-relaxed text-muted">
+            Arsitektur LUMORA dirancang dengan prinsip <em>Privacy-by-Design</em> untuk memisahkan secara ketat antara
+            informasi yang diperuntukkan bagi konsumsi publik dan data yang bersifat rahasia:
+          </p>
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-line bg-surface p-4">
+              <div className="flex items-center gap-2 font-semibold text-forest text-sm">
+                <CheckCircle2 className="size-4 text-accent" />
+                <span>Informasi Publik (Katalog)</span>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs text-muted leading-relaxed">
+                <li>• Profil bisnis UMKM yang telah diterbitkan (Status <em>Published</em>).</li>
+                <li>• Cerita usaha, milestone, dan Business Model Canvas publik.</li>
+                <li>• Profil dasar organisasi Mitra Bisnis.</li>
+                <li>• Kontak resmi Mitra yang secara sadar diizinkan (<em>Share Contact: ON</em>).</li>
+              </ul>
+            </div>
+            <div className="rounded-xl border border-forest/25 bg-soft-green/30 p-4">
+              <div className="flex items-center gap-2 font-semibold text-forest text-sm">
+                <Lock className="size-4 text-forest" />
+                <span>Informasi Privat (Rahasia)</span>
+              </div>
+              <ul className="mt-3 space-y-2 text-xs text-muted leading-relaxed">
+                <li>• Draf profil bisnis yang belum diterbitkan (Status <em>Draft</em>).</li>
+                <li>• Seluruh kriteria dalam menu Preferensi Kemitraan Mitra.</li>
+                <li>• Daftar bookmark / bisnis yang disimpan pengguna.</li>
+                <li>• Riwayat pengajuan kolaborasi sebelum diterima kedua belah pihak.</li>
+                <li>• Seluruh isi percakapan di dalam Inbox.</li>
+              </ul>
+            </div>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "tujuan-pemrosesan",
+      title: "4. Tujuan Penggunaan & Pemrosesan Data",
+      icon: Users,
+      content: (
+        <div className="space-y-3 text-sm text-muted leading-relaxed">
+          <p>Data pribadi dan profil usaha Anda diproses hanya untuk tujuan-tujuan yang sah berikut:</p>
+          <ol className="list-decimal pl-5 space-y-2">
+            <li>Menyediakan panggung digital bagi UMKM agar dapat ditemukan oleh mitra dan calon investor potensial.</li>
+            <li>Mengoperasikan mesin <strong>Smart Partner Matching</strong> yang menghitung kecocokan secara matematis berdasarkan sektor, Master Taxonomy, dan wilayah target.</li>
+            <li>Memfasilitasi siklus inisiasi kemitraan dua arah yang transparan dan aman antara UMKM dan Mitra.</li>
+            <li>Mengaktifkan saluran percakapan transaksional (Inbox) secara otomatis saat kedua pihak telah menyetujui pengajuan kemitraan.</li>
+            <li>Mengirimkan notifikasi penting terkait aktivitas kolaborasi, pesan baru, serta verifikasi keamanan akun.</li>
+            <li>Mencegah penyalahgunaan sistem, spam, bot liar, atau pembuatan akun palsu melalui rate limiting dan proteksi sesi.</li>
+          </ol>
+        </div>
+      ),
+    },
+    {
+      id: "kebijakan-ai",
+      title: "5. Kebijakan Penggunaan Kecerdasan Buatan (Lumora AI)",
+      icon: Sparkles,
+      content: (
+        <div className="space-y-3 text-sm text-muted leading-relaxed">
+          <p>
+            Fitur <strong>Lumora AI</strong> dirancang sebagai asisten editorial untuk membantu pemilik usaha kecil merapikan
+            kata-kata dan menyusun draf narasi profil tanpa harus mahir menulis presentasi formal:
+          </p>
+          <ul className="space-y-2 pl-4 border-l-2 border-forest/20 text-xs sm:text-sm">
+            <li><strong>Tidak Mengirimkan Kredensial:</strong> Sistem tidak pernah mengirimkan kata sandi, email login, token sesi, atau data sensitif pengguna ke penyedia model AI.</li>
+            <li><strong>Pemilik Tetap Penentu Utama:</strong> Teks yang dihasilkan oleh AI bersifat sebagai rekomendasi draf awal. Pengguna memiliki kendali penuh untuk meninjau, menyunting, atau menolak draf tersebut sebelum disimpan.</li>
+            <li><strong>Penyedia Terpercaya:</strong> Pemrosesan AI dilakukan melalui API enterprise yang aman (seperti Google Gemini API) yang terikat pada ketentuan perlindungan data tanpa hak melatih model publik menggunakan data privat Anda.</li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      id: "keamanan-penyimpanan",
+      title: "6. Keamanan, Enkripsi & Retensi Data",
+      icon: Lock,
+      content: (
+        <div className="space-y-3 text-sm text-muted leading-relaxed">
+          <p>
+            Kami menerapkan standar teknis dan operasional yang ketat untuk menjaga integritas data Anda dari akses tanpa hak,
+            perubahan, atau kebocoran:
+          </p>
+          <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm">
+            <li><strong>Enkripsi Kata Sandi:</strong> Kata sandi Anda diamankan menggunakan algoritma hashing memori-intensif <em>Argon2id</em> dan tidak dapat dibaca kembali oleh pihak LUMORA sekalipun.</li>
+            <li><strong>Sesi Berbasis Server:</strong> Kredensial login dikelola melalui token acak dengan atribut <em>httpOnly</em>, <em>SameSite</em>, dan <em>Secure</em> untuk mencegah serangan XSS dan CSRF.</li>
+            <li><strong>Koneksi Terenkripsi:</strong> Seluruh lalu lintas data antara browser Anda dan server kami dilindungi dengan enkripsi TLS/HTTPS modern.</li>
+            <li><strong>Pembersihan Permanen (Cascade Delete):</strong> Saat Anda memutuskan untuk menghapus akun, seluruh data terkait—termasuk profil, milestone, kanvas BMC, sesi login, token verifikasi, dan riwayat bookmark—akan dihapus secara permanen dari basis data utama.</li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      id: "hak-pengguna",
+      title: "7. Hak-Hak Anda sebagai Pemilik Data",
+      icon: UserCheck,
+      content: (
+        <div className="space-y-3 text-sm text-muted leading-relaxed">
+          <p>Sesuai dengan ketentuan perundang-undangan perlindungan data pribadi, Anda memiliki hak penuh untuk:</p>
+          <ul className="space-y-2 text-xs sm:text-sm">
+            <li className="flex items-start gap-2">
+              <span className="font-bold text-forest">✓</span>
+              <span><strong>Hak Akses &amp; Koreksi:</strong> Meninjau dan memperbarui informasi identitas akun, data bisnis, atau preferensi kemitraan kapan saja melalui Workspace Anda.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-bold text-forest">✓</span>
+              <span><strong>Hak Mengarsipkan:</strong> Mengubah status profil bisnis menjadi arsip (archived) untuk menariknya dari katalog publik secara instan tanpa kehilangan data internal.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-bold text-forest">✓</span>
+              <span><strong>Hak Menarik Persetujuan Kontak:</strong> Menonaktifkan opsi pembagian email/nomor telepon agar tidak lagi tampak bagi pengguna lain.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-bold text-forest">✓</span>
+              <span><strong>Hak Penghapusan Akun:</strong> Menghapus akun Anda secara mandiri melalui menu Pengaturan Akun dengan verifikasi kata sandi resmi.</span>
+            </li>
+          </ul>
+        </div>
+      ),
+    },
+    {
+      id: "pihak-ketiga",
+      title: "8. Keterlibatan Pihak Ketiga & Regulasi",
+      icon: Scale,
+      content: (
+        <p className="text-sm leading-relaxed text-muted">
+          LUMORA tidak pernah dan tidak akan pernah menjual, menyewakan, atau memperdagangkan data pribadi pengguna kepada pihak ketiga
+          untuk keperluan periklanan, broker data, atau telemarketing. Data hanya dibagikan kepada penyedia infrastruktur teknis tepercaya
+          (seperti penyedia cloud hosting dan transmisi email transaksional) semata-mata untuk mengoperasikan layanan sistem platform LUMORA,
+          atau apabila diwajibkan secara tegas oleh perintah pengadilan atau instansi penegak hukum Republik Indonesia yang berwenang.
+        </p>
+      ),
+    },
+    {
+      id: "kontak",
+      title: "9. Pembaruan Kebijakan & Kontak Resmi",
+      icon: Mail,
+      content: (
+        <>
+          <p className="text-sm leading-relaxed text-muted">
+            Kebijakan Privasi ini dapat kami perbarui dari waktu ke waktu guna mencerminkan evolusi fitur platform LUMORA atau penyesuaian regulasi hukum.
+            Setiap perubahan material akan kami informasikan melalui notifikasi di dalam platform atau melalui surat elektronik terdaftar Anda.
+          </p>
+          <div className="mt-5 rounded-xl border border-line bg-surface p-4 text-xs sm:text-sm text-forest space-y-1">
+            <p className="font-semibold text-forest">Pusat Layanan Kemitraan &amp; Privasi LUMORA</p>
+            <p className="text-muted">Platform Digital Pitching + Penemuan Bisnis UMKM Indonesia</p>
+            <p className="text-muted">Situs Resmi: <Link href="/" className="font-medium text-forest underline">lumora.id</Link></p>
+          </div>
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <Hero
+        eyebrow="Dokumen Resmi Kebijakan Privasi"
+        title={"Privasi Anda adalah landasan\nkemitraan yang terpercaya."}
+        description="Pelajari bagaimana LUMORA mengumpulkan, mengelola, memisahkan data publik dan privat, serta melindungi hak-hak digital pelaku UMKM dan Mitra Bisnis di Indonesia."
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-semibold text-lime">
+              Berlaku sejak: November 2026
+            </span>
+            <span className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs text-mint">
+              Kepatuhan UU PDP No. 27/2022
+            </span>
+          </div>
+        }
+      />
+
+      <section className="py-14 sm:py-20 md:py-28 bg-ivory">
+        <Container>
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-[280px_1fr]">
+            {/* Table of Contents / Sidebar Navigator */}
+            <aside className="hidden lg:block sticky top-28 self-start space-y-4">
+              <div className="rounded-2xl border border-line bg-surface p-5 shadow-xs">
+                <p className="text-xs font-bold uppercase tracking-wider text-accent mb-3">
+                  Daftar Isi Kebijakan
+                </p>
+                <nav className="space-y-1.5 text-xs text-muted">
+                  {sections.map((sec) => (
+                    <a
+                      key={sec.id}
+                      href={`#${sec.id}`}
+                      className="block py-1 hover:text-forest transition-colors leading-snug"
+                    >
+                      {sec.title}
+                    </a>
+                  ))}
+                </nav>
+                <div className="mt-6 pt-4 border-t border-line/60">
+                  <Link
+                    href={ROUTES.terms}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-forest hover:underline"
+                  >
+                    <FileText className="size-3.5 text-accent" />
+                    <span>Baca Syarat &amp; Ketentuan</span>
+                  </Link>
+                </div>
+              </div>
+            </aside>
+
+            {/* Main Policy Content */}
+            <div className="space-y-10 sm:space-y-12">
+              {sections.map((sec) => (
+                <article
+                  key={sec.id}
+                  id={sec.id}
+                  className="rounded-2xl border border-line bg-surface p-6 sm:p-8 shadow-xs scroll-mt-28"
+                >
+                  <div className="flex items-center gap-3 border-b border-line/60 pb-4">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-soft-green text-forest">
+                      <sec.icon className="size-5" />
+                    </div>
+                    <h2 className="font-display text-xl sm:text-2xl font-semibold text-forest">
+                      {sec.title}
+                    </h2>
+                  </div>
+                  <div className="mt-5">{sec.content}</div>
+                </article>
+              ))}
+
+              {/* Bottom Navigation CTA */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-forest/20 bg-forest p-6 sm:p-8 text-white">
+                <div>
+                  <h3 className="font-display text-xl font-semibold text-white">
+                    Punya pertanyaan seputar penggunaan platform?
+                  </h3>
+                  <p className="mt-1 text-sm text-mint">
+                    Pelajari juga Syarat dan Ketentuan layanan LUMORA atau jelajahi katalog bisnis kami.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <Link
+                    href={ROUTES.terms}
+                    className={buttonStyles({
+                      variant: "onDark",
+                      size: "sm",
+                      className: "gap-1.5 shadow-xs font-semibold",
+                    })}
+                  >
+                    <span>Syarat &amp; Ketentuan</span>
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Container>
+      </section>
+    </>
+  );
+}
+
 export default async function EditorialPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view } = await searchParams;
   if (view === "how-it-works") return <HowItWorksPage />;
   if (view === "for-business") return <ForBusinessPage />;
   if (view === "for-partners") return <ForPartnersPage />;
   if (view === "about") return <AboutPage />;
-  return <Hero eyebrow="Kebijakan Privasi" title="Kebijakan privasi sedang disusun." description="Dokumen final akan tersedia sebelum penyimpanan akun dan data bisnis diaktifkan." />;
+  return <PrivacyPolicyPage />;
 }

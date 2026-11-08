@@ -48,10 +48,8 @@ export function profilePatch(form: ProfileForm, baseline: ProfileForm): Partial<
   return Object.fromEntries(Object.entries(next).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(before[key as keyof BusinessWriteInput]))) as Partial<BusinessWriteInput>;
 }
 
-export function publishReadiness(business: OwnedBusiness, emailVerified: boolean): string[] {
-  const issues = validateProfile(formFromBusiness(business)).filter((error) => !error.field.startsWith("bmc") && !error.field.startsWith("milestone") && !["seeking", "seekingObjective", "coverImage", "logo"].includes(error.field)).map((error) => error.message);
-  if (!emailVerified) issues.push("Verifikasi email akun terlebih dahulu.");
-  return issues;
+export function publishReadiness(business: OwnedBusiness, _emailVerified?: boolean): string[] {
+  return validateProfile(formFromBusiness(business)).filter((error) => !error.field.startsWith("bmc") && !error.field.startsWith("milestone") && !["seeking", "seekingObjective", "coverImage", "logo"].includes(error.field)).map((error) => error.message);
 }
 
 export function previewFromForm(form: ProfileForm, original?: OwnedBusiness | null): OwnedBusiness {

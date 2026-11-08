@@ -31,7 +31,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "partners",
     title: "Mitra Utama",
     englishTitle: "Key Partners",
-    subtitle: "Pemasok dan rekanan operasional kunci",
+    subtitle: "Jaringan mitra & logistik",
     icon: Handshake,
     order: 1,
   },
@@ -39,7 +39,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "activities",
     title: "Aktivitas Utama",
     englishTitle: "Key Activities",
-    subtitle: "Operasional inti yang menggerakkan usaha",
+    subtitle: "Operasional & produksi",
     icon: CheckSquare,
     order: 2,
   },
@@ -47,7 +47,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "resources",
     title: "Sumber Daya Utama",
     englishTitle: "Key Resources",
-    subtitle: "Aset fisik, tim, modal, dan keahlian",
+    subtitle: "Aset & kapabilitas tim",
     icon: Boxes,
     order: 3,
   },
@@ -55,7 +55,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "value",
     title: "Proposisi Nilai",
     englishTitle: "Value Propositions",
-    subtitle: "Solusi dan nilai unggul yang ditawarkan",
+    subtitle: "Fondasi nilai & solusi",
     icon: Sparkles,
     order: 4,
   },
@@ -63,7 +63,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "relationships",
     title: "Hubungan Pelanggan",
     englishTitle: "Customer Relationships",
-    subtitle: "Cara berinteraksi dan menjaga loyalitas",
+    subtitle: "Layanan & relasi pelanggan",
     icon: HeartHandshake,
     order: 5,
   },
@@ -71,7 +71,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "channels",
     title: "Saluran",
     englishTitle: "Channels",
-    subtitle: "Media distribusi dan pemasaran produk",
+    subtitle: "Pemasaran & distribusi",
     icon: Truck,
     order: 6,
   },
@@ -79,7 +79,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "customers",
     title: "Segmen Pelanggan",
     englishTitle: "Customer Segments",
-    subtitle: "Profil target pembeli dan konsumen utama",
+    subtitle: "Target audiens & pembeli",
     icon: Users,
     order: 7,
   },
@@ -87,7 +87,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "costs",
     title: "Struktur Biaya",
     englishTitle: "Cost Structure",
-    subtitle: "Pengeluaran dan beban operasional terbesar",
+    subtitle: "Alokasi biaya operasional",
     icon: Receipt,
     order: 8,
   },
@@ -95,7 +95,7 @@ const BMC_CANONICAL_BLOCKS: Record<string, BmcBlockConfig> = {
     id: "revenue",
     title: "Sumber Pendapatan",
     englishTitle: "Revenue Streams",
-    subtitle: "Arus pemasukan dan model monetisasi",
+    subtitle: "Arus pendapatan & penjualan",
     icon: Wallet,
     order: 9,
   },
@@ -194,52 +194,52 @@ export function BusinessBmcCanvas({
         Bottom Row: Cost Structure & Revenue Streams (Spanning full width)
       */}
       <div className="hidden lg:block">
-        {/* Top 5-Column Grid */}
-        <div className="grid grid-cols-5 gap-3.5 xl:gap-4 auto-rows-fr">
+        {/* Top 5-Column Grid with balanced 2-row heights */}
+        <div className="grid grid-cols-5 grid-rows-2 gap-3.5 xl:gap-4">
           {/* Col 1: Key Partners */}
           <BmcBlockCard
             item={p}
-            className="col-start-1 row-span-2 flex flex-col justify-between"
+            className="col-start-1 row-span-2"
           />
 
           {/* Col 2: Key Activities & Key Resources */}
           <BmcBlockCard
             item={a}
-            className="col-start-2 row-start-1 flex flex-col justify-between"
+            className="col-start-2 row-start-1"
           />
           <BmcBlockCard
             item={r}
-            className="col-start-2 row-start-2 flex flex-col justify-between"
+            className="col-start-2 row-start-2"
           />
 
           {/* Col 3: Value Propositions (Visual Centerpiece!) */}
           <BmcBlockCard
             item={v}
             isHighlighted
-            className="col-start-3 row-span-2 flex flex-col justify-between"
+            className="col-start-3 row-span-2"
           />
 
           {/* Col 4: Customer Relationships & Channels */}
           <BmcBlockCard
             item={cr}
-            className="col-start-4 row-start-1 flex flex-col justify-between"
+            className="col-start-4 row-start-1"
           />
           <BmcBlockCard
             item={ch}
-            className="col-start-4 row-start-2 flex flex-col justify-between"
+            className="col-start-4 row-start-2"
           />
 
           {/* Col 5: Customer Segments */}
           <BmcBlockCard
             item={cs}
-            className="col-start-5 row-span-2 flex flex-col justify-between"
+            className="col-start-5 row-span-2"
           />
         </div>
 
         {/* Bottom Row: Cost Structure & Revenue Streams */}
         <div className="mt-3.5 xl:mt-4 grid grid-cols-2 gap-3.5 xl:gap-4">
-          <BmcBlockCard item={co} className="flex flex-col justify-between" />
-          <BmcBlockCard item={re} className="flex flex-col justify-between" />
+          <BmcBlockCard item={co} />
+          <BmcBlockCard item={re} />
         </div>
       </div>
 
@@ -311,47 +311,46 @@ function BmcBlockCard({
   return (
     <div
       className={cn(
-        "group relative rounded-xl border p-4 sm:p-5 transition-all duration-200",
+        "group relative rounded-xl border p-3.5 sm:p-4 transition-all duration-200 flex flex-col justify-between h-full",
         isHighlighted
           ? "border-forest/40 bg-soft-green/30 shadow-xs hover:border-forest/60 hover:shadow-sm"
           : "border-line/70 bg-ivory/40 hover:border-line-strong hover:bg-surface/80 hover:shadow-2xs",
         className
       )}
     >
-      {/* Block Header */}
+      {/* Top Section: Header & Content Body */}
       <div>
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors",
-                isHighlighted
-                  ? "bg-forest text-lime"
-                  : "bg-surface text-forest border border-line/60 group-hover:border-forest/30"
-              )}
-            >
-              <Icon className="size-3.5" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-xs sm:text-sm text-forest leading-tight">
+        {/* Block Header: Flexible layout to prevent overlapping/squishing */}
+        <div className="flex items-start gap-2">
+          <div
+            className={cn(
+              "flex size-6 sm:size-7 shrink-0 items-center justify-center rounded-lg transition-colors mt-0.5",
+              isHighlighted
+                ? "bg-forest text-lime"
+                : "bg-surface text-forest border border-line/60 group-hover:border-forest/30"
+            )}
+          >
+            <Icon className="size-3 sm:size-3.5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-semibold text-xs sm:text-sm text-forest leading-snug">
                 {config.title}
               </h3>
-              <p className="text-[10px] sm:text-[11px] font-medium text-muted tracking-tight">
-                {config.englishTitle}
-              </p>
+              {isHighlighted && (
+                <span className="shrink-0 rounded-md bg-forest px-1.5 py-0.5 text-[9px] font-bold text-lime uppercase tracking-wider">
+                  Nilai Inti
+                </span>
+              )}
             </div>
+            <p className="text-[10px] sm:text-[11px] font-medium text-muted tracking-tight mt-0.5 truncate">
+              {config.englishTitle}
+            </p>
           </div>
-
-          {/* Focal Badge for Value Proposition */}
-          {isHighlighted && (
-            <span className="shrink-0 rounded-full bg-forest px-2 py-0.5 text-[10px] font-semibold text-lime uppercase tracking-wider">
-              Nilai Inti
-            </span>
-          )}
         </div>
 
         {/* Content Body */}
-        <div className="mt-3.5">
+        <div className="mt-3">
           <p
             className={cn(
               "text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words",
@@ -367,13 +366,23 @@ function BmcBlockCard({
         </div>
       </div>
 
-      {/* Subtle Bottom Accent on Highlighted Card */}
-      {isHighlighted && (
-        <div className="mt-4 pt-3 border-t border-forest/15 flex items-center justify-between text-[11px] text-accent font-medium">
-          <span>Fondasi nilai bisnis</span>
-          <span className="size-1.5 rounded-full bg-lime" />
-        </div>
-      )}
+      {/* Consistent Bottom Baseline Footer on ALL cards for even alignment */}
+      <div
+        className={cn(
+          "mt-3.5 pt-2 border-t flex items-center justify-between text-[10px] sm:text-[11px]",
+          isHighlighted
+            ? "border-forest/20 text-accent font-semibold"
+            : "border-line/60 text-muted/70 font-medium"
+        )}
+      >
+        <span className="truncate">{config.subtitle}</span>
+        <span
+          className={cn(
+            "size-1.5 rounded-full shrink-0 ml-1.5",
+            isHighlighted ? "bg-lime" : "bg-line-strong/30"
+          )}
+        />
+      </div>
     </div>
   );
 }

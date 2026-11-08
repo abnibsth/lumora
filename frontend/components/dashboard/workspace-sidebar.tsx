@@ -6,6 +6,7 @@ import {
   BookOpen,
   PanelsTopLeft,
   Handshake,
+  TrendingUp,
   Sparkles,
   Settings,
   X,
@@ -55,7 +56,7 @@ const groups: WorkspaceNavGroup[] = [
     label: "Pengembangan bisnis",
     items: [
       { label: "Peluang Kemitraan", view: "saved", icon: Handshake },
-      { label: "Analitik Profil", view: null, icon: Sparkles },
+      { label: "Analitik Profil", view: "analytics", icon: TrendingUp },
       { label: "Lumora AI", view: "ai", icon: Sparkles },
     ],
   },

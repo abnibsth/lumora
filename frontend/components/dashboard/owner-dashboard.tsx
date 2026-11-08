@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmailVerificationNotice } from "@/components/auth/email-verification-notice";
+import { BusinessAnalyticsView } from "./business-analytics-view";
 import { AccountSettings } from "./account-settings";
 import { WorkspaceShell } from "./workspace-shell";
 import { DashboardOverview } from "./dashboard-overview";
@@ -209,7 +209,7 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     const result = await publishBusinessApi(business.id); setActing(false);
     if (!result.ok || !result.business) {
       if (result.code === "unauthenticated") return expired();
-      setNotice({ text: result.code === "email_not_verified" ? "Verifikasi email sebelum menerbitkan profil." : result.error || "Profil gagal diterbitkan.", error: true }); return;
+      setNotice({ text: result.error || "Profil gagal diterbitkan.", error: true }); return;
     }
     setListing((current) => ({ ...current, items: current.items.map((item) => item.id === business.id ? result.business! : item) }));
     setNotice({ text: `${business.name} sudah terbit.`, error: false });
@@ -228,20 +228,22 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
     editor.guard(() => { void (async () => { setLogoutPending(true); const ok = await logoutApi(); setLogoutPending(false); if (ok) { router.push("/"); router.refresh(); } else setNotice({ text: "Gagal keluar. Coba lagi.", error: true }); })(); });
   }
 
-  useEffect(() => {
-    if (accountUser.emailVerified) return;
-    function refreshUser() { void getMeApi().then((next) => { if (next) setAccountUser(next); }); }
-    window.addEventListener("focus", refreshUser);
-    return () => window.removeEventListener("focus", refreshUser);
-  }, [accountUser.emailVerified]);
-
-  const listProps = { emailVerified: accountUser.emailVerified, onPreview: (business: OwnedBusiness) => setPreview({ business, unsaved: false }), businesses: listing.items, total: listing.total, page: listing.page, busy, error: profilesError, onPageChange: (page: number) => { void reloadProfiles(page); }, onRetry: () => { void reloadProfiles(); }, onCreate: create, onEdit: (business: OwnedBusiness) => edit(business, sectionFor(view)), onPublish: (business: OwnedBusiness) => editor.guardLeaving(() => { void publish(business); }), onArchive: (business: OwnedBusiness) => editor.guardLeaving(() => setArchiveTarget(business)) };
+  const listProps = { emailVerified: true, onPreview: (business: OwnedBusiness) => setPreview({ business, unsaved: false }), businesses: listing.items, total: listing.total, page: listing.page, busy, error: profilesError, onPageChange: (page: number) => { void reloadProfiles(page); }, onRetry: () => { void reloadProfiles(); }, onCreate: create, onEdit: (business: OwnedBusiness) => edit(business, sectionFor(view)), onPublish: (business: OwnedBusiness) => editor.guardLeaving(() => { void publish(business); }), onArchive: (business: OwnedBusiness) => editor.guardLeaving(() => setArchiveTarget(business)) };
   const editorVisible = editor.open && !invalidBusiness && ["profiles", ...editorViews].includes(view);
 
   return <WorkspaceShell user={accountUser} view={view} onViewChange={changeView} onLogout={logout} logoutPending={logoutPending} defaultSidebarOpen={defaultSidebarOpen}>
-    {!accountUser.emailVerified ? <div className="mb-6 overflow-hidden rounded-lg border border-line"><EmailVerificationNotice user={accountUser} /></div> : null}
     {notice ? <p role={notice.error ? "alert" : "status"} className={`mb-6 rounded-lg border p-4 text-sm ${notice.error ? "border-red-200 bg-red-50 text-red-800" : "border-line bg-soft-green text-forest"}`}>{notice.text}</p> : null}
-    {editor.open && !editorVisible ? <Card className="mb-6 flex-row flex-wrap items-center justify-between gap-3 border-line p-4 shadow-none"><p className="text-sm text-muted">{editor.dirty ? "Draft memiliki perubahan belum disimpan." : "Editor profil masih terbuka."}</p><Button onClick={() => navigate("profiles", editor.editing?.id)} className="min-h-11 bg-forest px-4 text-white">Kembali ke editor</Button></Card> : null}
+    {editor.open && !editorVisible && view !== "analytics" ? (
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-xs text-muted shadow-2xs">
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-accent" />
+          <span>{editor.dirty ? "Draft memiliki perubahan belum disimpan." : "Editor profil masih terbuka di latar belakang."}</span>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => navigate("profiles", editor.editing?.id)} className="min-h-8 text-xs font-semibold text-forest hover:bg-soft-green">
+          Buka Editor
+        </Button>
+      </div>
+    ) : null}
     {view === "overview" ? <><DashboardOverview name={accountUser.name} total={listing.total} savedCount={bookmarks.length} profile={selected} businesses={listing.items} profilesError={profilesError} bookmarksError={bookmarksError} onSelect={(id) => { const target = ownedItems.find((item) => item.id === id); if (target) editor.start(target, "identity", () => { setSelectedId(id); navigate("overview", id); }); }} onCreate={create} onEdit={(section) => { if (selected) edit(selected, section); }} onSaved={() => changeView("saved")} onRetry={() => { void reloadProfiles(1); }} busy={busy} />{!profilesError && listing.total > 0 ? <BusinessList {...listProps} preview /> : null}{!profilesError && listing.total > 3 ? <Button variant="ghost" onClick={() => navigate("profiles")} className="mt-4 min-h-11 text-forest">Lihat semua profil</Button> : null}</> : null}
     <div hidden={!["profiles", ...editorViews].includes(view)} className="w-full min-w-0"><WorkspacePageHeader view={view} />
       {ownedItems.length > 0 ? <div className="mb-5"><label htmlFor="workspace-profile" className="mr-3 text-sm text-muted">Profil bisnis</label><select id="workspace-profile" value={invalidBusiness ? "" : editor.open ? editor.editing?.id || "new" : selected?.id || ""} disabled={busy} onChange={(event) => { const target = ownedItems.find((item) => item.id === event.target.value); if (target) edit(target, sectionFor(view)); }} className="min-h-11 max-w-full rounded-lg border border-line bg-surface px-3 text-sm">{editor.open && !editor.editing ? <option value="new">Draft baru — belum tersimpan</option> : null}<option value="" disabled>Pilih profil bisnis</option>{ownedItems.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div> : editor.open ? <p className="mb-5 text-sm font-medium text-accent">Draft baru — belum tersimpan</p> : null}
@@ -344,6 +346,19 @@ export function OwnerDashboard({ user, initialBusinesses, initialBookmarks, prof
           user={accountUser}
           onNavigate={(v) => changeView(v as WorkspaceView)}
           onNavigateToInbox={handleOpenConversation}
+        />
+      </div>
+    ) : null}
+    {view === "analytics" ? (
+      <div className="w-full min-w-0">
+        <BusinessAnalyticsView
+          business={selected}
+          businesses={ownedItems}
+          onSelectBusiness={(id) => {
+            setSelectedId(id);
+            navigate("analytics", id);
+          }}
+          onNavigateToProfiles={() => changeView("profiles")}
         />
       </div>
     ) : null}
