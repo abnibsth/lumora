@@ -1,0 +1,78 @@
+# Stack produksi LUMORA untuk VPS.
+#
+# Jalankan dari folder backend/:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#
+# Alur: postgres (healthy) -> migrate -> seed -> api (:8080).
+# Semua rahasia dibaca dari .env.production via ${...}. Jangan commit file itu.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - lumora-pgdata:/var/lib/postgresql/data
+    # Tidak diekspos ke host — hanya bisa diakses dari dalam jaringan compose.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # one-shot: terapkan migrasi skema (goose) — idempoten.
+  migrate:
+    build: .
+    command: ["/app/migrate"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # one-shot: isi 9 profil demo — idempoten (slug yang ada dilewati).
+  seed:
+    build: .
+    command: ["/app/seed"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    build: .
+    command: ["/app/api"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      APP_ENV: production
+      PORT: "8080"
+      UPLOAD_DIR: /app/uploads
+
+      # AI draf profil. gemini = provider asli (default). Butuh GEMINI_API_KEY.
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+
+      # Email verifikasi. Di production, provider stub DITOLAK saat start,
+      # jadi wajib resend + RESEND_API_KEY.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-resend}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM: ${RESEND_FROM:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL}
+    ports:
+      - "8080:8080"
+    volumes:
+      - lumora-uploads:/app/uploads
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  lumora-pgdata:
+  lumora-uploads:
