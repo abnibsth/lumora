@@ -53,9 +53,10 @@ services:
       PORT: "8080"
       UPLOAD_DIR: /app/uploads
 
-      # AI draf profil. gemini = provider asli (default). Butuh GEMINI_API_KEY.
-      AI_PROVIDER: ${AI_PROVIDER:-gemini}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # AI draf profil. stub = offline tanpa key (frontend pakai Atria sendiri
+      # untuk draf AI & chat). Ganti ke "gemini" + isi GEMINI_API_KEY bila perlu.
+      AI_PROVIDER: ${AI_PROVIDER:-stub}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-}
 
       # Email verifikasi. Di production, provider stub DITOLAK saat start,

@@ -29,10 +29,11 @@ Browser ──HTTPS──▶ Vercel (frontend)
 - VPS dengan **Ubuntu 20.04 / 22.04 / 24.04** (distro lain oke, panduan pakai apt).
 - Docker + Docker Compose v2 terpasang.
 - Key yang kamu siapkan:
-  - `GEMINI_API_KEY` (untuk draf AI) — kamu sudah punya.
-  - `RESEND_API_KEY` (untuk email verifikasi) — wajib di production. Cara dapatnya
-    di [bagian Resend](#cara-dapat-resend_api_key).
+  - `RESEND_API_KEY` (untuk email verifikasi) — **wajib** di production. Cara
+    dapatnya di [bagian Resend](#cara-dapat-resend_api_key).
   - URL frontend Vercel (mis. `https://lumora.vercel.app`).
+- **Tidak butuh** Gemini key: frontend sudah memakai provider Atria sendiri
+  (`CHAT_AI_*` di Vercel) untuk draf AI & chat, jadi backend cukup `AI_PROVIDER=stub`.
 
 ---
 
@@ -76,12 +77,11 @@ cp .env.production.example .env.production
 nano .env.production
 ```
 
-Isi minimal 5 hal di `.env.production`:
+Isi minimal 4 hal di `.env.production`:
 
 | Variabel | Isi |
 |---|---|
 | `POSTGRES_PASSWORD` | password acak kuat, mis. hasil `openssl rand -hex 16` |
-| `GEMINI_API_KEY` | key Gemini kamu |
 | `RESEND_API_KEY` | key Resend (lihat bagian bawah) |
 | `RESEND_FROM` | kosongkan dulu, atau isi `no-reply@<domain-terverifikasi>` |
 | `FRONTEND_BASE_URL` | `https://<nama-proyek>.vercel.app` |
@@ -144,8 +144,11 @@ Masukkan password saat diminta. Login admin lewat frontend di `/admin/login`.
 1. Buka dashboard Vercel → project frontend → **Settings → Environment Variables**.
 2. Tambah (Production + Preview):
    - `BACKEND_URL` = `http://<IP-VPS>:8080`
-3. Simpan, lalu **Redeploy** (env var ini dibaca saat build untuk rewrite).
-4. Setelah deploy selesai, buka URL Vercel dan pastikan daftar bisnis muncul.
+3. Pastikan key AI frontend (Atria) sudah ada di Vercel (ini bukan bagian dari
+   backend): `CHAT_AI_BASE_URL`, `CHAT_AI_MODEL`, `CHAT_AI_API_KEY`. Kalau temen
+   kamu sudah jalanin draf AI & chat sebelumnya, biasanya sudah terpasang.
+4. Simpan, lalu **Redeploy** (env var ini dibaca saat build untuk rewrite).
+5. Setelah deploy selesai, buka URL Vercel dan pastikan daftar bisnis muncul.
 
 ---
 
@@ -155,7 +158,7 @@ Masukkan password saat diminta. Login admin lewat frontend di `/admin/login`.
 2. Cek email verifikasi masuk (butuh `RESEND_FROM` yang benar — lihat catatan Resend).
 3. Klik link verifikasi → kembali ke frontend → akun jadi terverifikasi.
 4. Buat profil bisnis → **Publish** (harus terverifikasi).
-5. Coba **draf AI** (Gemini) — harus mengisi kategori/lokasi/tahun dari narasi.
+5. Coba **draf AI** (lewat frontend/Atria) — harus mengisi kategori/lokasi/tahun dari narasi.
 6. Upload logo/cover → gambar harus tampil (lewat `/uploads`).
 
 ---

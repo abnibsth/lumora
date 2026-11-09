@@ -19,7 +19,7 @@ if [ ! -f .env.production ]; then
   echo "File .env.production belum ada." >&2
   echo "Jalankan dulu:" >&2
   echo "  cp .env.production.example .env.production" >&2
-  echo "lalu isi POSTGRES_PASSWORD, GEMINI_API_KEY, RESEND_API_KEY, dan FRONTEND_BASE_URL." >&2
+  echo "lalu isi POSTGRES_PASSWORD, RESEND_API_KEY, dan FRONTEND_BASE_URL." >&2
   exit 1
 fi
 
