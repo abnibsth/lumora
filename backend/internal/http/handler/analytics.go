@@ -28,7 +28,8 @@ func NewAnalyticsHandler(svc AnalyticsSvc) *AnalyticsHandler {
 	return &AnalyticsHandler{svc: svc}
 }
 
-// GetAnalytics handles GET /api/v1/businesses/:id/analytics?range=30d
+// GetAnalytics handles GET /api/v1/businesses/:slug/analytics?range=30d. The
+// path segment may be an id or a slug; the service accepts either.
 func (h *AnalyticsHandler) GetAnalytics(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -36,7 +37,7 @@ func (h *AnalyticsHandler) GetAnalytics(c *gin.Context) {
 		return
 	}
 
-	businessID := strings.TrimSpace(c.Param("id"))
+	businessID := strings.TrimSpace(c.Param("slug"))
 	if businessID == "" {
 		writeError(c, http.StatusBadRequest, "invalid_parameter", "ID bisnis diperlukan.")
 		return

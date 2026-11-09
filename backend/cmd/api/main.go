@@ -202,7 +202,10 @@ func main() {
 	v1.POST("/businesses", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Create)
 	v1.PATCH("/businesses/:id", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Update)
 	v1.POST("/businesses/:id/publish", middleware.RequireSession(), middleware.RequireUMKM(), businessHandler.Publish)
-	v1.GET("/businesses/:id/analytics", middleware.RequireSession(), middleware.RequireUMKM(), analyticsHandler.GetAnalytics)
+	// Same wildcard name as Detail above: Gin keeps one param name per path
+	// position, so `:id` here would panic against `:slug` in /businesses/:slug.
+	// The value may be an id or a slug; the service accepts both.
+	v1.GET("/businesses/:slug/analytics", middleware.RequireSession(), middleware.RequireUMKM(), analyticsHandler.GetAnalytics)
 	v1.POST("/businesses/:id/events", analyticsHandler.RecordEvent)
 	// Archiving hides a profile rather than erasing it, so it needs no verified
 	// address: nothing new reaches the public, and the opposite is true.
