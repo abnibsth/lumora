@@ -407,8 +407,8 @@ select {
 .lumora-home .home-how [role="tab"] { border-radius: 999px; }
 .lumora-home .home-ai { padding-block: var(--home-space); background: var(--home-ivory); }
 .lumora-home .home-ai h2 { font-family: var(--home-serif); font-size: clamp(2.25rem, 4vw, 3.75rem); font-weight: 400; line-height: 1.08; letter-spacing: -.035em; }
-.lumora-home .home-final { padding: 0 0 1.5rem; }
-.lumora-home .home-final-panel { display: grid; grid-template-columns: 1.2fr .8fr; align-items: end; gap: 3rem; background: var(--home-forest); color: var(--home-ivory); padding: clamp(2rem, 5vw, 4.5rem); border-radius: 20px 70px 20px 20px; }
+.lumora-home .home-final { background: var(--home-forest); color: var(--home-ivory); padding-block: clamp(3.5rem, 6vw, 5.5rem); border-radius: 56px 56px 0 0; }
+.lumora-home .home-final-panel { display: grid; grid-template-columns: 1.2fr .8fr; align-items: end; gap: 3rem; }
 .lumora-home .home-final-panel .home-heading { font-size: clamp(2.5rem, 4.5vw, 4rem); }
 .lumora-home .home-final-panel .home-copy { color: #d0d9cb; }
 .lumora-home .home-final-actions { display: flex; flex-direction: column; align-items: start; gap: 1.25rem; margin-top: 1.75rem; }
@@ -441,7 +441,7 @@ select {
   .lumora-home .home-how { border-top-left-radius: 40px; }
   .lumora-home .home-feature-list { gap: 1.75rem 1.25rem; }
   .lumora-home .home-feature h3 { font-size: 1.375rem; }
-  .lumora-home .home-final-panel { border-top-right-radius: 48px; }
+  .lumora-home .home-final { border-radius: 32px 32px 0 0; }
 }
 @media (max-width: 479px) {
   .lumora-home .home-business-grid { grid-template-columns: 1fr; gap: 2rem; }

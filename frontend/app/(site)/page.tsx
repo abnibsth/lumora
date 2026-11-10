@@ -5,10 +5,12 @@ import { FeaturesSection } from "@/components/sections/features-section";
 import { JourneySection } from "@/components/sections/journey-section";
 import { HowItWorksSection } from "@/components/sections/how-it-works-section";
 import { AiSection } from "@/components/sections/ai-section";
+import { TeamSection } from "@/components/sections/team-section";
 import { FinalCtaSection } from "@/components/sections/final-cta-section";
 import { Container } from "@/components/ui/container";
 import { fetchBusinesses } from "@/lib/api";
 import { getHomepagePublicContent } from "@/lib/homepage-storage";
+import { getPublicTeamMembers } from "@/lib/team";
 import { SECTION_IDS } from "@/lib/constants";
 import type { Metadata } from "next";
 
@@ -19,6 +21,7 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const { content } = getHomepagePublicContent();
+  const teamMembers = getPublicTeamMembers();
 
   let businesses: Awaited<ReturnType<typeof fetchBusinesses>>["items"] = [];
   let businessesError = false;
@@ -68,7 +71,10 @@ export default async function Home() {
       {/* 7. Lumora AI */}
       {content.ai.visible && <AiSection content={content.ai} />}
 
-      {/* 8. Final CTA */}
+      {/* 8. The People Behind LUMORA */}
+      <TeamSection members={teamMembers} />
+
+      {/* 9. Final CTA */}
       {content.finalCta.visible && (
         <FinalCtaSection content={content.finalCta} />
       )}
